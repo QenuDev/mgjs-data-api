@@ -171,6 +171,17 @@ const JSON_ROUTES = [
   "/data/enums",
 ];
 
+const { META_KEY, GAME_VERSION_HEADER, clearTransformedDataCache } = await import(
+  "../src/api/routes/data.js"
+);
+const { CONTRACT_VERSION } = await import("../src/docs/contract.js");
+
+/** Le bloc de provenance, où qu'il soit (il recule si le jeu occupe `_meta`). */
+const provenanceOf = (body) => Object.entries(body).find(([key]) => key.startsWith("_"));
+
+/** Les clés du jeu d'un corps, sans le bloc de provenance. */
+const dataKeys = (body) => Object.keys(body).filter((key) => !key.startsWith("_"));
+
 /** Toutes les versions portées par un `?v=` du corps, où qu'il soit. */
 function versionsInBody(value, found = new Set()) {
   if (typeof value === "string") {
@@ -229,12 +240,18 @@ test("chaque réponse /data/* n'annonce qu'une version, celle dont le corps est 
     const res = await api.get(route);
     assert.equal(res.status, 200, `${route} : ${res.status}`);
 
-    const versions = versionsInBody(await res.json());
+    const body = await res.json();
+    const versions = versionsInBody(body);
 
     assert.ok(
       versions.size <= 1,
       `${route} annonce ${versions.size} versions dans la même réponse : ${[...versions]}`
     );
+
+    // Les deux endroits où une version sortent de la même valeur : l'en-tête et
+    // le corps ne peuvent pas se contredire, même dans la fenêtre mesurée.
+    assert.equal(res.headers.get(GAME_VERSION_HEADER), BUILT, `${route} : en-tête`);
+    assert.equal(body[META_KEY].gameVersion, res.headers.get(GAME_VERSION_HEADER), route);
 
     for (const version of versions) {
       sawSpriteUrl = true;
@@ -326,3 +343,133 @@ test("les URLs de sprite gardent la version du corps", async (t) => {
   assert.equal(versionOf(body.version.seed.sprite), BUILT);
   assert.equal(versionOf(body.gameVersion.seed.sprite), BUILT);
 });
+
+// =====================
+// La provenance, dans le corps et dans l'en-tête
+// =====================
+
+test("chaque réponse /data/* dit la version en en-tête et dans son corps", async (t) => {
+  const { startTestApp } = await import("./helpers/httpApp.js");
+  const api = await startTestApp();
+  t.after(() => api.close());
+
+  // Le bundle doit être en cache : sans lui il n'y a pas d'ETag, donc pas de
+  // revalidation à tester non plus.
+  const { getMainBundle } = await import("../src/core/game/cache.js");
+  await getMainBundle();
+
+  const reference = await (await api.get("/data/version")).json();
+
+  for (const route of JSON_ROUTES) {
+    const res = await api.get(route);
+    assert.equal(res.status, 200, `${route} : ${res.status}`);
+
+    const body = await res.json();
+    const [key, meta] = provenanceOf(body);
+
+    assert.equal(res.headers.get(GAME_VERSION_HEADER), BUILT, `${route} : en-tête`);
+    assert.equal(key, META_KEY, `${route} : bloc de provenance`);
+    assert.deepEqual(
+      Object.keys(meta).sort(),
+      ["contract", "gameVersion", "generatedAt"],
+      `${route} : champs du bloc`
+    );
+
+    // L'en-tête et le corps disent la même chose — c'est le point du commit.
+    assert.equal(meta.gameVersion, res.headers.get(GAME_VERSION_HEADER), route);
+    assert.equal(meta.gameVersion, BUILT, route);
+    assert.equal(meta.contract, CONTRACT_VERSION, route);
+    assert.equal(meta.generatedAt, reference.generatedAt, route);
+
+    // Et la même chose que les `?v=` du corps.
+    for (const version of versionsInBody(body)) assert.equal(version, BUILT, route);
+  }
+
+  // `/data/version` **est** le bloc de provenance : sa version est au premier
+  // niveau, et l'en-tête dit la même chose.
+  const versionRoute = await api.get("/data/version");
+  assert.equal(versionRoute.headers.get(GAME_VERSION_HEADER), reference.gameVersion);
+});
+
+test("le bloc de provenance n'écrase aucune entrée du jeu", async (t) => {
+  const { startTestApp } = await import("./helpers/httpApp.js");
+  const api = await startTestApp();
+  t.after(() => api.close());
+
+  const body = await (await api.get("/data/plants")).json();
+
+  // `contract`, `version` et `gameVersion` sont des noms d'entités plausibles :
+  // ils traversent la réponse intacts, et le bloc vit sous une clé réservée,
+  // hors de l'espace de noms du jeu.
+  assert.deepEqual(dataKeys(body), ["Carrot", "contract", "version", "gameVersion"]);
+  assert.equal(versionOf(body.contract.seed.sprite), BUILT);
+  assert.equal(versionOf(body.version.seed.sprite), BUILT);
+  assert.equal(versionOf(body.gameVersion.seed.sprite), BUILT);
+
+  assert.equal(body[META_KEY].contract, CONTRACT_VERSION);
+  assert.equal(body[META_KEY].gameVersion, BUILT);
+});
+
+test("une entrée du jeu nommée _meta fait reculer la provenance, jamais l'inverse", async (t) => {
+  const { startTestApp } = await import("./helpers/httpApp.js");
+  const api = await startTestApp();
+  t.after(() => api.close());
+
+  const original = gameDataService.getPlants;
+  gameDataService.getPlants = async () => ({
+    Carrot: { seed: { sprite: "sprite/seed/Carrot" } },
+    _meta: { seed: { sprite: "sprite/seed/meta" } },
+  });
+  t.after(() => {
+    gameDataService.getPlants = original;
+    clearTransformedDataCache();
+  });
+
+  clearTransformedDataCache();
+  const body = await (await api.get("/data/plants")).json();
+
+  // L'entrée du jeu survit, et la provenance recule d'un cran : une réponse ne
+  // peut pas perdre une donnée du jeu pour se décrire elle-même.
+  assert.equal(versionOf(body[META_KEY].seed.sprite), BUILT);
+  assert.equal(body.__meta.gameVersion, BUILT);
+});
+
+test("un 304 revalidé annonce quand même la version", async (t) => {
+  const { startTestApp } = await import("./helpers/httpApp.js");
+  const { getMainBundle } = await import("../src/core/game/cache.js");
+  const api = await startTestApp();
+  t.after(() => api.close());
+
+  // L'ETag dérive de l'URL du bundle : sans bundle en cache, il n'y a rien à
+  // revalider.
+  await getMainBundle();
+
+  const first = await api.get("/data/pets");
+  assert.equal(first.status, 200);
+  const etag = first.headers.get("etag");
+  assert.ok(etag, "pas d'ETag sur /data/pets");
+
+  const revalidated = await api.get("/data/pets", { headers: { "if-none-match": etag } });
+  assert.equal(revalidated.status, 304);
+  assert.equal(revalidated.headers.get(GAME_VERSION_HEADER), BUILT);
+  assert.equal(await revalidated.text(), "");
+});
+
+test("les formats délimités portent la version, mais aucune ligne de métadonnées", async (t) => {
+  const { startTestApp } = await import("./helpers/httpApp.js");
+  const api = await startTestApp();
+  t.after(() => api.close());
+
+  for (const route of ["/data.csv", "/data.tsv", "/data/plants.csv", "/data/plants.tsv"]) {
+    const res = await api.get(route);
+    assert.equal(res.status, 200, `${route} : ${res.status}`);
+    assert.equal(res.headers.get(GAME_VERSION_HEADER), BUILT, route);
+  }
+
+  // Le format est une table, pas un objet keyé : un bloc de métadonnées y ferait
+  // une colonne vide sur chaque entité et une ligne sans données.
+  const csv = await (await api.get("/data/plants.csv")).text();
+  assert.match(csv.split("\n")[1], /^Carrot,/);
+  assert.ok(!/_meta/.test(csv), `métadonnées dans le CSV :\n${csv}`);
+});
+

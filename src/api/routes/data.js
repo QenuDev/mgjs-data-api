@@ -30,25 +30,74 @@ export const dataRouter = express.Router();
 const DATA_CACHE_CONTROL = "public, max-age=300, stale-while-revalidate=60";
 
 /**
- * La version de jeu d'une réponse : celle du bundle dont le corps est extrait,
- * et à défaut celle de l'enregistrement de build (`data/version.json`).
+ * Les faits de provenance d'une réponse : la version du jeu dont le corps est
+ * construit, la version du contrat que ce corps respecte, et quand.
  *
- * Une seule valeur par réponse, lue une fois, et c'est la même qui part dans le
- * `?v=` des sprites et dans l'ETag. Avant, le `?v=` venait de l'enregistrement
- * de build (`getStoredVersionCached()`) pendant que le corps était extrait du
- * bundle en cache, qui se rafraîchit de son côté : mesuré en direct, `/health`
- * publiait le bundle en **1191** pendant que `/data/*` portait `?v=1190` dans
- * la même fenêtre, et rien dans la réponse ne disait laquelle des deux la
- * décrire.
+ * La version de jeu est celle du bundle dont le corps est extrait, et à défaut
+ * celle de l'enregistrement de build (`data/version.json`). Une seule valeur par
+ * réponse, lue une fois, et c'est la même qui part dans le `?v=` des sprites,
+ * dans l'ETag, dans le corps et dans l'en-tête `X-Game-Version` : une réponse ne
+ * peut donc annoncer ni deux versions, ni une version dans le corps et une autre
+ * en en-tête.
+ *
+ * Avant, le `?v=` venait de l'enregistrement de build
+ * (`getStoredVersionCached()`) pendant que le corps était extrait du bundle en
+ * cache, qui se rafraîchit de son côté : mesuré en direct, `/health` publiait le
+ * bundle en **1191** pendant que `/data/*` portait `?v=1190` dans la même
+ * fenêtre, et rien dans la réponse ne disait laquelle des deux la décrivait.
  *
  * `getBuildInfo()` est la même dérivation que `/data/version` et `/schema.json`,
  * et le cache du bundle ne dépasse plus la version enregistrée par la synchro
  * (voir `heldBundleVersion`), donc les deux sources coïncident : le corps, son
  * `?v=` et `/health` annoncent la même version.
  */
-async function getGameVersion() {
-  const { gameVersion } = await getBuildInfo();
-  return gameVersion;
+async function getProvenance() {
+  const { gameVersion, generatedAt } = await getBuildInfo();
+  return { gameVersion, contract: CONTRACT_VERSION, generatedAt };
+}
+
+/** Le nom du bloc de provenance ajouté aux corps de `/data/*`. */
+export const META_KEY = "_meta";
+
+/** L'en-tête qui porte la version du jeu sur chaque réponse de `/data`. */
+export const GAME_VERSION_HEADER = "X-Game-Version";
+
+/**
+ * Où poser le bloc de provenance dans un corps de `/data/*`.
+ *
+ * Les corps de `/data/*` sont les données du jeu **keyées par nom** : leurs clés
+ * sont des entités (`Carrot`, `Gold`, `StoneBirdbath`), et un nom peut être
+ * n'importe quoi — y compris `gameVersion`, `contract` ou `version`. Trois
+ * champs ajoutés à la racine seraient donc trois façons d'écraser une plante, et
+ * trois fausses entités pour un client qui itère le corps.
+ *
+ * Le bloc vit donc sous une seule clé réservée, préfixée d'un underscore : les
+ * clés du jeu sont les identifiants du bundle et n'en portent pas. Le jour où
+ * cela deviendrait faux, la clé recule (`__meta`) plutôt que d'écraser une
+ * entité — le jeu ne perd jamais une entrée, et le cas est signalé.
+ */
+function metaKeyFor(body) {
+  let key = META_KEY;
+  while (Object.hasOwn(body, key)) key = `_${key}`;
+  return key;
+}
+
+/**
+ * Le corps de `/data/*` tel qu'il part : les données du jeu inchangées, plus le
+ * bloc de provenance. Copie superficielle : le bloc est par réponse, jamais mis
+ * en cache avec les données.
+ */
+function withProvenance(body, provenance) {
+  const key = metaKeyFor(body);
+
+  if (key !== META_KEY) {
+    logger.error(
+      { key, reserved: META_KEY },
+      "Game data occupies the reserved metadata key, provenance moved to a deeper one"
+    );
+  }
+
+  return { ...body, [key]: provenance };
 }
 
 /**
@@ -192,8 +241,23 @@ function buildDataEtag(key, spriteVersion) {
   return buildWeakEtag("data", key, bundleUrl, spriteVersion || "", ETAG_EXTRA[key] || "");
 }
 
+/**
+ * L'en-tête qui dit la version du jeu, sur chaque réponse de `/data`.
+ *
+ * Il part avant tout le reste, y compris sur un `304` : un proxy qui revalide
+ * doit apprendre quelque chose, et un client ne doit jamais avoir à lire un
+ * `?v=` dans une URL pour savoir ce qu'il vient de recevoir.
+ *
+ * Sans version connue (démarrage à froid, ni bundle ni enregistrement), il n'y a
+ * rien d'honnête à annoncer : l'en-tête est alors absent plutôt que vide.
+ */
+function setGameVersionHeader(res, gameVersion) {
+  if (gameVersion) res.set(GAME_VERSION_HEADER, String(gameVersion));
+}
+
 function maybeNotModified(req, res, key, spriteVersion) {
   const etag = buildDataEtag(key, spriteVersion);
+  setGameVersionHeader(res, spriteVersion);
   if (!etag) return false;
   if (!transformedCache.values.has(key)) return false;
 
@@ -208,6 +272,7 @@ function maybeNotModified(req, res, key, spriteVersion) {
 
 function setDataCacheHeaders(res, key, spriteVersion) {
   const etag = buildDataEtag(key, spriteVersion);
+  setGameVersionHeader(res, spriteVersion);
   applyCacheHeaders(res, { etag, cacheControl: DATA_CACHE_CONTROL });
 }
 
@@ -215,12 +280,13 @@ function setDataCacheHeaders(res, key, spriteVersion) {
 dataRouter.get(
   "/",
   asyncHandler(async (req, res) => {
-    const spriteVersion = await getGameVersion();
+    const provenance = await getProvenance();
+    const spriteVersion = provenance.gameVersion;
 
     const data = await getAllData(spriteVersion);
 
     setDataCacheHeaders(res, "all", spriteVersion);
-    res.json(withEnrichedPlants(data));
+    res.json(withProvenance(withEnrichedPlants(data), provenance));
   })
 );
 
@@ -244,6 +310,9 @@ dataRouter.get(
     const { gameVersion, artVersion, generatedAt } = await getBuildInfo();
 
     res.set("Cache-Control", "public, max-age=60, stale-while-revalidate=30");
+    setGameVersionHeader(res, gameVersion);
+    // Ce corps **est** le bloc de provenance (`gameVersion`, `artVersion`,
+    // `contract`, `generatedAt`) : le répéter sous `_meta` serait se citer.
     res.json({
       gameVersion,
       artVersion,
@@ -256,34 +325,37 @@ dataRouter.get(
 dataRouter.get(
   "/plants",
   asyncHandler(async (req, res) => {
-    const spriteVersion = await getGameVersion();
+    const provenance = await getProvenance();
+    const spriteVersion = provenance.gameVersion;
 
     const data = await getOrBuildCached("plants", spriteVersion, () =>
       getTransformedPlants({ spriteVersion })
     );
     setDataCacheHeaders(res, "plants", spriteVersion);
-    res.json(enrichPlantsWithPurchasable(data));
+    res.json(withProvenance(enrichPlantsWithPurchasable(data), provenance));
   })
 );
 
 dataRouter.get(
   "/pets",
   asyncHandler(async (req, res) => {
-    const spriteVersion = await getGameVersion();
+    const provenance = await getProvenance();
+    const spriteVersion = provenance.gameVersion;
     if (maybeNotModified(req, res, "pets", spriteVersion)) return;
 
     const transformed = await getOrBuildCached("pets", spriteVersion, () =>
       getTransformedPets({ spriteVersion })
     );
     setDataCacheHeaders(res, "pets", spriteVersion);
-    res.json(transformed);
+    res.json(withProvenance(transformed, provenance));
   })
 );
 
 dataRouter.get(
   "/items",
   asyncHandler(async (req, res) => {
-    const spriteVersion = await getGameVersion();
+    const provenance = await getProvenance();
+    const spriteVersion = provenance.gameVersion;
     if (maybeNotModified(req, res, "items", spriteVersion)) return;
 
     const transformed = await getOrBuildCached("items", spriteVersion, () =>
@@ -292,28 +364,30 @@ dataRouter.get(
       )
     );
     setDataCacheHeaders(res, "items", spriteVersion);
-    res.json(transformed);
+    res.json(withProvenance(transformed, provenance));
   })
 );
 
 dataRouter.get(
   "/decors",
   asyncHandler(async (req, res) => {
-    const spriteVersion = await getGameVersion();
+    const provenance = await getProvenance();
+    const spriteVersion = provenance.gameVersion;
     if (maybeNotModified(req, res, "decor", spriteVersion)) return;
 
     const transformed = await getOrBuildCached("decor", spriteVersion, () =>
       getTransformedDecor({ spriteVersion })
     );
     setDataCacheHeaders(res, "decor", spriteVersion);
-    res.json(transformed);
+    res.json(withProvenance(transformed, provenance));
   })
 );
 
 dataRouter.get(
   "/eggs",
   asyncHandler(async (req, res) => {
-    const spriteVersion = await getGameVersion();
+    const provenance = await getProvenance();
+    const spriteVersion = provenance.gameVersion;
     if (maybeNotModified(req, res, "eggs", spriteVersion)) return;
 
     const transformed = await getOrBuildCached("eggs", spriteVersion, () =>
@@ -322,14 +396,15 @@ dataRouter.get(
       )
     );
     setDataCacheHeaders(res, "eggs", spriteVersion);
-    res.json(transformed);
+    res.json(withProvenance(transformed, provenance));
   })
 );
 
 dataRouter.get(
   "/abilities",
   asyncHandler(async (req, res) => {
-    const spriteVersion = await getGameVersion();
+    const provenance = await getProvenance();
+    const spriteVersion = provenance.gameVersion;
     if (maybeNotModified(req, res, "abilities", spriteVersion)) return;
 
     const data = await getOrBuildCached(
@@ -338,14 +413,15 @@ dataRouter.get(
       () => getAbilitiesWithSprites(spriteVersion)
     );
     setDataCacheHeaders(res, "abilities", spriteVersion);
-    res.json(data);
+    res.json(withProvenance(data, provenance));
   })
 );
 
 dataRouter.get(
   "/mutations",
   asyncHandler(async (req, res) => {
-    const spriteVersion = await getGameVersion();
+    const provenance = await getProvenance();
+    const spriteVersion = provenance.gameVersion;
     if (maybeNotModified(req, res, "mutations", spriteVersion)) return;
 
     const transformed = await getOrBuildCached("mutations", spriteVersion, () =>
@@ -354,14 +430,15 @@ dataRouter.get(
       )
     );
     setDataCacheHeaders(res, "mutations", spriteVersion);
-    res.json(transformed);
+    res.json(withProvenance(transformed, provenance));
   })
 );
 
 dataRouter.get(
   "/weathers",
   asyncHandler(async (req, res) => {
-    const spriteVersion = await getGameVersion();
+    const provenance = await getProvenance();
+    const spriteVersion = provenance.gameVersion;
     if (maybeNotModified(req, res, "weathers", spriteVersion)) return;
 
     const transformed = await getOrBuildCached("weathers", spriteVersion, () =>
@@ -370,35 +447,37 @@ dataRouter.get(
       )
     );
     setDataCacheHeaders(res, "weathers", spriteVersion);
-    res.json(transformed);
+    res.json(withProvenance(transformed, provenance));
   })
 );
 
 dataRouter.get(
   "/weather-groups",
   asyncHandler(async (req, res) => {
-    const spriteVersion = await getGameVersion();
+    const provenance = await getProvenance();
+    const spriteVersion = provenance.gameVersion;
     if (maybeNotModified(req, res, "weatherGroups", spriteVersion)) return;
 
     const data = await getOrBuildCached("weatherGroups", spriteVersion, () =>
       getWeatherGroups()
     );
     setDataCacheHeaders(res, "weatherGroups", spriteVersion);
-    res.json(data);
+    res.json(withProvenance(data, provenance));
   })
 );
 
 dataRouter.get(
   "/enums",
   asyncHandler(async (req, res) => {
-    const spriteVersion = await getGameVersion();
+    const provenance = await getProvenance();
+    const spriteVersion = provenance.gameVersion;
     if (maybeNotModified(req, res, "enums", spriteVersion)) return;
 
     const data = await getOrBuildCached("enums", spriteVersion, () =>
       gameDataService.getEnums()
     );
     setDataCacheHeaders(res, "enums", spriteVersion);
-    res.json(data);
+    res.json(withProvenance(data, provenance));
   })
 );
 
@@ -475,7 +554,8 @@ function withEnrichedPlants(data) {
 function makeRootHandler(fmt) {
   const { convertCombined, send } = FORMAT_CONFIG[fmt];
   return asyncHandler(async (_req, res) => {
-    const spriteVersion = await getGameVersion();
+    const provenance = await getProvenance();
+    const spriteVersion = provenance.gameVersion;
     const data = await getAllData(spriteVersion);
     setDataCacheHeaders(res, "all", spriteVersion);
     send(res, convertCombined(withEnrichedPlants(data)), `data.${fmt}`);
@@ -493,7 +573,8 @@ for (const fmt of ["csv", "tsv"]) {
     dataRouter.get(
       `/${routeName}.${fmt}`,
       asyncHandler(async (_req, res) => {
-        const spriteVersion = await getGameVersion();
+        const provenance = await getProvenance();
+        const spriteVersion = provenance.gameVersion;
         let data = await getOrBuildCached(cacheKey, spriteVersion, () => builder(spriteVersion));
         if (cacheKey === "plants") data = enrichPlantsWithPurchasable(data);
         setDataCacheHeaders(res, cacheKey, spriteVersion);
