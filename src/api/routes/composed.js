@@ -1,7 +1,7 @@
 // src/api/routes/composed.js
 import express from "express";
 import { asyncHandler, Errors } from "../middleware/index.js";
-import { composeSpriteWithBox } from "../../assets/sprites/spriteComposer.js";
+import { resolveComposedSprite } from "../../assets/sprites/spriteComposer.js";
 import { buildWeakEtag, isFresh, applyCacheHeaders } from "../../utils/httpCache.js";
 
 export const composedRouter = express.Router();
@@ -27,6 +27,11 @@ function boxHeader(box) {
  *
  * 404 only when the base key does not exist in the atlas.
  * Unknown mutation ids are silently ignored.
+ *
+ * When a bake is enabled (`BAKE=1`, docs/mgjs-community-api-plan.md §3.1) a set it produced
+ * is one file read; a set it did not is composed once, kept under the bake's own naming
+ * scheme and added to its manifest, so the answer is the same either way and the first
+ * request is the only one that costs a composition.
  */
 composedRouter.get(
   "/",
@@ -54,7 +59,7 @@ composedRouter.get(
       return res.status(304).end();
     }
 
-    const composed = await composeSpriteWithBox(key, rawMutations);
+    const composed = await resolveComposedSprite(key, rawMutations);
     if (!composed) throw Errors.notFound(`Sprite not found: ${key}`);
 
     applyCacheHeaders(res, { etag, cacheControl: COMPOSED_CACHE_CONTROL });

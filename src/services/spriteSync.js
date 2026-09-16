@@ -19,6 +19,7 @@ import {
   extractAllSources,
 } from "../assets/manifest.js";
 import { exportSpritesToDisk } from "../assets/sprites/exportSpritesToDisk.js";
+import { bakeCrops } from "../assets/sprites/cropBake.js";
 import {
   exportPetsFromRive,
   resolvePetsRiveUrl,
@@ -346,6 +347,16 @@ export async function checkAndSyncSprites({ force = false } = {}) {
     await updateStoredAtlases(comparison.atlasChanges);
     await saveVersion(currentVersion);
 
+    // 8 bis. Le bake des cultures rejoint la passe, quand l'opérateur l'a demandé
+    // (`BAKE=1`). Il vient après l'export et son `saveVersion` parce qu'il rend
+    // les images que cet export vient d'écrire, et avant le `return` pour que son
+    // manifeste soit publié par la même passe. Un échec du bake ne fait pas
+    // échouer la synchro : les sprites sont sur disque et le manifeste publié
+    // reste celui de la version précédente, qui continue de servir.
+    await bakeCrops({ gameVersion: currentVersion, force }).catch((err) =>
+      logger.error({ error: err?.message || String(err) }, "Crop bake failed"),
+    );
+
     logger.info(
       {
         exported: exportResult.exported,
@@ -452,7 +463,34 @@ export async function checkSpritesOnStartup() {
     );
   }
 
+  // Un bake tué en cours de route (le watchdog de synchro fait `process.exit(1)`
+  // au bout de 15 min) laisse ses images dans `<version>/` et rien de publié :
+  // la passe suivante ne repartirait jamais, puisque la version n'a pas bougé.
+  // Ce rattrapage reprend là où le fichier s'est arrêté — chaque image déjà
+  // écrite et décodable est réutilisée — et ne publie qu'à la fin.
+  await resumeCropBake();
+
   return result;
+}
+
+/**
+ * Reprend un bake interrompu, au démarrage seulement.
+ *
+ * `bakeCrops` ne fait rien quand le drapeau est éteint ou quand le manifeste
+ * publié couvre déjà la version stockée, donc l'appeler inconditionnellement ne
+ * coûte rien au cas normal.
+ */
+async function resumeCropBake() {
+  // Le drapeau d'abord : éteint, on ne lit même pas la version stockée, donc
+  // rien n'est créé sur le disque.
+  if (!config.bake.enabled) return;
+
+  const stored = await loadStoredVersion();
+  if (!stored) return;
+
+  await bakeCrops({ gameVersion: stored }).catch((err) =>
+    logger.error({ error: err?.message || String(err) }, "Crop bake resume failed"),
+  );
 }
 
 /**

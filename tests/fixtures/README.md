@@ -68,3 +68,24 @@ assertions figées pointent une version précise. Copier le dossier
 
 Un fichier qui disparaît du jeu n'est pas une raison de réécrire la fixture : le
 test de dérive (gated derrière `MG_LIVE_ASSETS=1`) est là pour le signaler.
+
+## Le bake des cultures (`bake/`)
+
+Même version 1192. Deux payloads, capturés non pas à la main mais en exécutant
+l'extracteur du dépôt — celui du serveur, donc :
+
+```bash
+node tests/fixtures/bake/capture.mjs
+```
+
+(il lui faut le réseau : le bundle du jeu et ses chunks).
+
+| Fichier | Taille | Ce qu'il porte |
+|---|---|---|
+| `bake/mutations.json` | 2,5 Ko | les 11 mutations, chacune avec son `group` : `Growth` (Gold, Rainbow), `Hydro` (Wet, Chilled, Frozen, Thunderstruck, Thundercharged), `Lunar` (Dawnlit, Ambershine, Dawncharged, Ambercharged) |
+| `bake/plants.json` | 55 Ko | les 69 espèces de plantes, avec pour chacune `plant.harvestType`, `plant.sprite` et `crop.sprite` — l'art sur lequel ses mutations sont dessinées |
+
+C'est ce que le bake énumère : le produit des catégories (2+1)×(5+1)×(4+1) = **90
+ensembles**, × 69 types de culture = **6 210 images**. Le script imprime ces
+nombres, et la table `species → art`, à chaque capture : une version du jeu qui
+change la forme de l'un ou de l'autre se voit dans le diff de la capture.
