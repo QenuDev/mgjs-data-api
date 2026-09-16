@@ -41,7 +41,13 @@ for (const [name, rec] of Object.entries(plants)) {
   species.push({ species: name, artKey });
 }
 
-const keys = [...new Set([...species.map((s) => s.artKey), ...MUTATION_KEYS])];
+// One art beside the 69 the bake enumerates. `PricklyPearPlant` is the frame plan item 26's cap
+// has to answer for: the game exports it without a `sourcePixelRatio` (a 1x frame) *and* its
+// tall flag is `true` under both keyings, so a picture of it isolates the cap from item 27's
+// flag. It is a frame the live atlas has and a caller can ask the composed endpoint for by key.
+const EXTRA_PLANT_ARTS = ["sprite/plant/PricklyPearPlant"];
+
+const keys = [...new Set([...species.map((s) => s.artKey), ...MUTATION_KEYS, ...EXTRA_PLANT_ARTS])];
 const frames = {};
 const blocks = [];
 
@@ -91,6 +97,10 @@ for (const b of blocks) {
     spriteSourceSize: b.meta.spriteSourceSize ?? null,
     sourceSize: b.meta.sourceSize ?? null,
     anchor: b.meta.anchor ?? null,
+    // The divisor the game states the cap against (`Go`'s `e.sourcePixelRatio`), published the
+    // way the game's own atlas states it: present on the frames exported at 2x, absent on the
+    // 1x ones (`sprites.js` carries it, and the composer applies the game's own 1 default).
+    sourcePixelRatio: b.meta.sourcePixelRatio ?? null,
   };
 }
 

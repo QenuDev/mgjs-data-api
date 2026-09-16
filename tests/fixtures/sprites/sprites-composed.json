@@ -22,7 +22,8 @@
    "anchor": {
     "x": 0.519573,
     "y": 0.964063
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/Cactus": {
    "frame": {
@@ -46,7 +47,8 @@
    "anchor": {
     "x": 0.517937,
     "y": 0.952344
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/PineTree": {
    "frame": {
@@ -70,7 +72,8 @@
    "anchor": {
     "x": 0.490741,
     "y": 0.927803
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/mutation-overlay/ThunderstruckTallPlant": {
    "frame": {
@@ -94,7 +97,8 @@
    "anchor": {
     "x": 0.5,
     "y": 0
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/VariegatedCattail": {
    "frame": {
@@ -118,7 +122,8 @@
    "anchor": {
     "x": 0.552632,
     "y": 0.93787
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/mutation-overlay/ThunderchargedTallPlant": {
    "frame": {
@@ -142,7 +147,8 @@
    "anchor": {
     "x": 0.5,
     "y": 0
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/mutation-overlay/ChilledTallPlant": {
    "frame": {
@@ -166,7 +172,8 @@
    "anchor": {
     "x": 0.5,
     "y": 0.5
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/Cattail": {
    "frame": {
@@ -190,7 +197,8 @@
    "anchor": {
     "x": 0.459596,
     "y": 0.935185
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/mutation-overlay/WetTallPlant": {
    "frame": {
@@ -214,7 +222,8 @@
    "anchor": {
     "x": 0.5,
     "y": 0.5
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/mutation-overlay/FrozenTallPlant": {
    "frame": {
@@ -238,7 +247,8 @@
    "anchor": {
     "x": 0.5,
     "y": 0.5
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/Embercrown": {
    "frame": {
@@ -262,7 +272,8 @@
    "anchor": {
     "x": 0.47603,
     "y": 0.916929
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/Emberbloom": {
    "frame": {
@@ -286,7 +297,8 @@
    "anchor": {
     "x": 0.524891,
     "y": 0.921201
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/mutation/Thunderstruck": {
    "frame": {
@@ -310,7 +322,8 @@
    "anchor": {
     "x": 0.5,
     "y": 0.512472
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/BabyUbe": {
    "frame": {
@@ -334,7 +347,8 @@
    "anchor": {
     "x": 0.5,
     "y": 0.823214
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/mutation/Thundercharged": {
    "frame": {
@@ -358,7 +372,8 @@
    "anchor": {
     "x": 0.5,
     "y": 0.489796
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/mutation/Ambercharged": {
    "frame": {
@@ -382,7 +397,8 @@
    "anchor": {
     "x": 0.501285,
     "y": 0.795082
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/Gentian": {
    "frame": {
@@ -406,11 +422,37 @@
    "anchor": {
     "x": 0.517606,
     "y": 0.903153
-   }
+   },
+   "sourcePixelRatio": 2
+  },
+  "sprite/plant/PricklyPearPlant": {
+   "frame": {
+    "x": 1161,
+    "y": 3893,
+    "w": 261,
+    "h": 434
+   },
+   "rotated": false,
+   "trimmed": true,
+   "spriteSourceSize": {
+    "x": 4,
+    "y": 2,
+    "w": 261,
+    "h": 434
+   },
+   "sourceSize": {
+    "w": 270,
+    "h": 437
+   },
+   "anchor": {
+    "x": 0.485185,
+    "y": 0.924485
+   },
+   "sourcePixelRatio": null
   },
   "sprite/plant/Cardoon": {
    "frame": {
-    "x": 1161,
+    "x": 1422,
     "y": 3893,
     "w": 345,
     "h": 427
@@ -430,12 +472,13 @@
    "anchor": {
     "x": 0.50565,
     "y": 0.905093
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/BabyLeek": {
    "frame": {
-    "x": 1506,
-    "y": 3893,
+    "x": 0,
+    "y": 4443,
     "w": 462,
     "h": 416
    },
@@ -454,11 +497,12 @@
    "anchor": {
     "x": 0.493671,
     "y": 0.890995
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/mutation/Dawncharged": {
    "frame": {
-    "x": 0,
+    "x": 462,
     "y": 4443,
     "w": 398,
     "h": 413
@@ -478,11 +522,12 @@
    "anchor": {
     "x": 0.518703,
     "y": 0.796137
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/Delphinium": {
    "frame": {
-    "x": 398,
+    "x": 860,
     "y": 4443,
     "w": 218,
     "h": 398
@@ -502,11 +547,12 @@
    "anchor": {
     "x": 0.5,
     "y": 0.90625
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/RoseRed": {
    "frame": {
-    "x": 616,
+    "x": 1078,
     "y": 4443,
     "w": 173,
     "h": 382
@@ -526,11 +572,12 @@
    "anchor": {
     "x": 0.488889,
     "y": 0.977035
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/Saffron": {
    "frame": {
-    "x": 789,
+    "x": 1251,
     "y": 4443,
     "w": 182,
     "h": 378
@@ -550,11 +597,12 @@
    "anchor": {
     "x": 0.4,
     "y": 0.92602
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/Pumpkin": {
    "frame": {
-    "x": 971,
+    "x": 1433,
     "y": 4443,
     "w": 400,
     "h": 369
@@ -574,12 +622,13 @@
    "anchor": {
     "x": 0.495122,
     "y": 0.699739
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/Watermelon": {
    "frame": {
-    "x": 1371,
-    "y": 4443,
+    "x": 0,
+    "y": 4859,
     "w": 410,
     "h": 367
    },
@@ -598,12 +647,13 @@
    "anchor": {
     "x": 0.5,
     "y": 0.715267
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/Lily": {
    "frame": {
-    "x": 1781,
-    "y": 4443,
+    "x": 410,
+    "y": 4859,
     "w": 242,
     "h": 349
    },
@@ -622,12 +672,13 @@
    "anchor": {
     "x": 0.519531,
     "y": 0.773438
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/Aloe": {
    "frame": {
-    "x": 0,
-    "y": 4856,
+    "x": 652,
+    "y": 4859,
     "w": 380,
     "h": 343
    },
@@ -646,12 +697,13 @@
    "anchor": {
     "x": 0.5,
     "y": 0.781977
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/Lavender": {
    "frame": {
-    "x": 380,
-    "y": 4856,
+    "x": 1032,
+    "y": 4859,
     "w": 173,
     "h": 340
    },
@@ -670,12 +722,13 @@
    "anchor": {
     "x": 0.477273,
     "y": 0.898256
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/BabyDawnbreaker": {
    "frame": {
-    "x": 553,
-    "y": 4856,
+    "x": 1205,
+    "y": 4859,
     "w": 217,
     "h": 330
    },
@@ -694,12 +747,13 @@
    "anchor": {
     "x": 0.522346,
     "y": 0.76616
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/Echeveria": {
    "frame": {
-    "x": 770,
-    "y": 4856,
+    "x": 1422,
+    "y": 4859,
     "w": 308,
     "h": 312
    },
@@ -718,12 +772,13 @@
    "anchor": {
     "x": 0.503247,
     "y": 0.688312
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/mutation/Amberlit": {
    "frame": {
-    "x": 1078,
-    "y": 4856,
+    "x": 0,
+    "y": 5226,
     "w": 381,
     "h": 312
    },
@@ -742,12 +797,13 @@
    "anchor": {
     "x": 0.5,
     "y": 0.82006
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/mutation/Dawnlit": {
    "frame": {
-    "x": 1459,
-    "y": 4856,
+    "x": 381,
+    "y": 5226,
     "w": 380,
     "h": 309
    },
@@ -766,12 +822,13 @@
    "anchor": {
     "x": 0.50641,
     "y": 0.808511
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/mutation/ThunderchargedGround": {
    "frame": {
-    "x": 0,
-    "y": 5199,
+    "x": 761,
+    "y": 5226,
     "w": 315,
     "h": 307
    },
@@ -790,12 +847,13 @@
    "anchor": {
     "x": 0.498542,
     "y": 0.625
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/mutation/Puddle": {
    "frame": {
-    "x": 315,
-    "y": 5199,
+    "x": 1076,
+    "y": 5226,
     "w": 451,
     "h": 304
    },
@@ -814,12 +872,13 @@
    "anchor": {
     "x": 0.49061,
     "y": 0.506944
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/Milkcap": {
    "frame": {
-    "x": 766,
-    "y": 5199,
+    "x": 1527,
+    "y": 5226,
     "w": 282,
     "h": 300
    },
@@ -838,12 +897,13 @@
    "anchor": {
     "x": 0.507042,
     "y": 0.87013
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/Mushroom": {
    "frame": {
-    "x": 1048,
-    "y": 5199,
+    "x": 0,
+    "y": 5538,
     "w": 312,
     "h": 283
    },
@@ -862,12 +922,13 @@
    "anchor": {
     "x": 0.503205,
     "y": 0.82
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/VioletCort": {
    "frame": {
-    "x": 1360,
-    "y": 5199,
+    "x": 312,
+    "y": 5538,
     "w": 276,
     "h": 279
    },
@@ -886,12 +947,13 @@
    "anchor": {
     "x": 0.5,
     "y": 0.86762
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/Starweaver": {
    "frame": {
-    "x": 1636,
-    "y": 5199,
+    "x": 588,
+    "y": 5538,
     "w": 292,
     "h": 269
    },
@@ -910,12 +972,13 @@
    "anchor": {
     "x": 0.4895,
     "y": 0.459547
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/SnowdropDouble": {
    "frame": {
-    "x": 0,
-    "y": 5506,
+    "x": 880,
+    "y": 5538,
     "w": 185,
     "h": 265
    },
@@ -934,12 +997,13 @@
    "anchor": {
     "x": 0.567073,
     "y": 0.861244
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/DaisyPurple": {
    "frame": {
-    "x": 185,
-    "y": 5506,
+    "x": 1065,
+    "y": 5538,
     "w": 148,
     "h": 260
    },
@@ -958,12 +1022,13 @@
    "anchor": {
     "x": 0.493333,
     "y": 0.904943
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/Pear": {
    "frame": {
-    "x": 333,
-    "y": 5506,
+    "x": 1213,
+    "y": 5538,
     "w": 197,
     "h": 259
    },
@@ -982,12 +1047,13 @@
    "anchor": {
     "x": 0.5,
     "y": 1
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/BabyBeet": {
    "frame": {
-    "x": 530,
-    "y": 5506,
+    "x": 1410,
+    "y": 5538,
     "w": 188,
     "h": 256
    },
@@ -1006,12 +1072,13 @@
    "anchor": {
     "x": 0.5,
     "y": 0.7563
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/Tulip": {
    "frame": {
-    "x": 718,
-    "y": 5506,
+    "x": 1598,
+    "y": 5538,
     "w": 250,
     "h": 256
    },
@@ -1030,12 +1097,13 @@
    "anchor": {
     "x": 0.5,
     "y": 0.695313
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/Daffodil": {
    "frame": {
-    "x": 968,
-    "y": 5506,
+    "x": 0,
+    "y": 5821,
     "w": 255,
     "h": 253
    },
@@ -1054,12 +1122,13 @@
    "anchor": {
     "x": 0.507813,
     "y": 0.636719
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/Sunflower": {
    "frame": {
-    "x": 1223,
-    "y": 5506,
+    "x": 255,
+    "y": 5821,
     "w": 246,
     "h": 252
    },
@@ -1078,12 +1147,13 @@
    "anchor": {
     "x": 0.492188,
     "y": 0.5
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/Snowdrop": {
    "frame": {
-    "x": 1469,
-    "y": 5506,
+    "x": 501,
+    "y": 5821,
     "w": 155,
     "h": 250
    },
@@ -1102,12 +1172,13 @@
    "anchor": {
     "x": 0.550847,
     "y": 0.846561
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/Daisy": {
    "frame": {
-    "x": 1624,
-    "y": 5506,
+    "x": 656,
+    "y": 5821,
     "w": 139,
     "h": 243
    },
@@ -1126,12 +1197,13 @@
    "anchor": {
     "x": 0.482517,
     "y": 0.90535
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/DragonFruit": {
    "frame": {
-    "x": 1763,
-    "y": 5506,
+    "x": 795,
+    "y": 5821,
     "w": 188,
     "h": 242
    },
@@ -1150,12 +1222,13 @@
    "anchor": {
     "x": 0.5,
     "y": 1
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/Banana": {
    "frame": {
-    "x": 0,
-    "y": 5771,
+    "x": 983,
+    "y": 5821,
     "w": 233,
     "h": 238
    },
@@ -1174,12 +1247,13 @@
    "anchor": {
     "x": 0.5,
     "y": 1
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/Grape": {
    "frame": {
-    "x": 233,
-    "y": 5771,
+    "x": 1216,
+    "y": 5821,
     "w": 163,
     "h": 238
    },
@@ -1198,12 +1272,13 @@
    "anchor": {
     "x": 0.5,
     "y": 1
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/ThunderCelestialFruit": {
    "frame": {
-    "x": 396,
-    "y": 5771,
+    "x": 1379,
+    "y": 5821,
     "w": 96,
     "h": 238
    },
@@ -1222,12 +1297,13 @@
    "anchor": {
     "x": 0.45,
     "y": 0.0855019
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/BabyCarrot": {
    "frame": {
-    "x": 492,
-    "y": 5771,
+    "x": 1475,
+    "y": 5821,
     "w": 191,
     "h": 236
    },
@@ -1246,12 +1322,13 @@
    "anchor": {
     "x": 0.424084,
     "y": 0.756303
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/Corn": {
    "frame": {
-    "x": 683,
-    "y": 5771,
+    "x": 1666,
+    "y": 5821,
     "w": 254,
     "h": 235
    },
@@ -1270,12 +1347,13 @@
    "anchor": {
     "x": 0.491379,
     "y": 0.865116
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/mutation/Chilled": {
    "frame": {
-    "x": 937,
-    "y": 5771,
+    "x": 0,
+    "y": 6074,
     "w": 306,
     "h": 235
    },
@@ -1294,12 +1372,13 @@
    "anchor": {
     "x": 0.501961,
     "y": 0.543147
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/mutation/ThunderstruckGround": {
    "frame": {
-    "x": 1243,
-    "y": 5771,
+    "x": 306,
+    "y": 6074,
     "w": 315,
     "h": 235
    },
@@ -1318,12 +1397,13 @@
    "anchor": {
     "x": 0.5,
     "y": 0.5
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/Apple": {
    "frame": {
-    "x": 1558,
-    "y": 5771,
+    "x": 621,
+    "y": 6074,
     "w": 221,
     "h": 233
    },
@@ -1342,12 +1422,13 @@
    "anchor": {
     "x": 0.5,
     "y": 1
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/mutation/Frozen": {
    "frame": {
-    "x": 0,
-    "y": 6009,
+    "x": 842,
+    "y": 6074,
     "w": 287,
     "h": 226
    },
@@ -1366,12 +1447,13 @@
    "anchor": {
     "x": 0.5,
     "y": 0.474138
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/Cabbage": {
    "frame": {
-    "x": 287,
-    "y": 6009,
+    "x": 1129,
+    "y": 6074,
     "w": 244,
     "h": 222
    },
@@ -1390,12 +1472,13 @@
    "anchor": {
     "x": 0.5,
     "y": 0.621622
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/mutation/Wet": {
    "frame": {
-    "x": 531,
-    "y": 6009,
+    "x": 1373,
+    "y": 6074,
     "w": 287,
     "h": 220
    },
@@ -1414,12 +1497,13 @@
    "anchor": {
     "x": 0.5,
     "y": 0.486726
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/Peach": {
    "frame": {
-    "x": 818,
-    "y": 6009,
+    "x": 1660,
+    "y": 6074,
     "w": 205,
     "h": 219
    },
@@ -1438,12 +1522,13 @@
    "anchor": {
     "x": 0.5,
     "y": 1
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/CloverFourLeaf": {
    "frame": {
-    "x": 1023,
-    "y": 6009,
+    "x": 1865,
+    "y": 6074,
     "w": 123,
     "h": 211
    },
@@ -1462,12 +1547,13 @@
    "anchor": {
     "x": 0.488372,
     "y": 0.943925
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/ThunderCelestialShroom": {
    "frame": {
-    "x": 1146,
-    "y": 6009,
+    "x": 0,
+    "y": 6309,
     "w": 205,
     "h": 208
    },
@@ -1486,12 +1572,13 @@
    "anchor": {
     "x": 0.495192,
     "y": 0.875556
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/Eggplant": {
    "frame": {
-    "x": 1351,
-    "y": 6009,
+    "x": 205,
+    "y": 6309,
     "w": 104,
     "h": 206
    },
@@ -1510,12 +1597,13 @@
    "anchor": {
     "x": 0.5,
     "y": 1
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/Poinsettia": {
    "frame": {
-    "x": 1455,
-    "y": 6009,
+    "x": 309,
+    "y": 6309,
     "w": 217,
     "h": 205
    },
@@ -1534,12 +1622,13 @@
    "anchor": {
     "x": 0.520737,
     "y": 0.476636
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/Cacao": {
    "frame": {
-    "x": 1672,
-    "y": 6009,
+    "x": 526,
+    "y": 6309,
     "w": 126,
     "h": 203
    },
@@ -1558,12 +1647,13 @@
    "anchor": {
     "x": 0.5,
     "y": 1
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/BurrosTail": {
    "frame": {
-    "x": 1798,
-    "y": 6009,
+    "x": 652,
+    "y": 6309,
     "w": 124,
     "h": 197
    },
@@ -1582,12 +1672,13 @@
    "anchor": {
     "x": 0.53125,
     "y": 0.121094
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/MoonCelestialCrop": {
    "frame": {
-    "x": 0,
-    "y": 6235,
+    "x": 776,
+    "y": 6309,
     "w": 175,
     "h": 197
    },
@@ -1606,12 +1697,13 @@
    "anchor": {
     "x": 0.5,
     "y": 0.878641
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/Squash": {
    "frame": {
-    "x": 175,
-    "y": 6235,
+    "x": 951,
+    "y": 6309,
     "w": 124,
     "h": 194
    },
@@ -1630,12 +1722,13 @@
    "anchor": {
     "x": 0.5,
     "y": 1
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/DawnCelestialCrop": {
    "frame": {
-    "x": 299,
-    "y": 6235,
+    "x": 1075,
+    "y": 6309,
     "w": 174,
     "h": 194
    },
@@ -1654,12 +1747,13 @@
    "anchor": {
     "x": 0.497561,
     "y": 0.0634146
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/Lemon": {
    "frame": {
-    "x": 473,
-    "y": 6235,
+    "x": 1249,
+    "y": 6309,
     "w": 117,
     "h": 193
    },
@@ -1678,12 +1772,13 @@
    "anchor": {
     "x": 0.5,
     "y": 1
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/Pepper": {
    "frame": {
-    "x": 590,
-    "y": 6235,
+    "x": 1366,
+    "y": 6309,
     "w": 89,
     "h": 186
    },
@@ -1702,12 +1797,13 @@
    "anchor": {
     "x": 0.5,
     "y": 1
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/PassionFruit": {
    "frame": {
-    "x": 679,
-    "y": 6235,
+    "x": 1455,
+    "y": 6309,
     "w": 136,
     "h": 186
    },
@@ -1726,12 +1822,13 @@
    "anchor": {
     "x": 0.5,
     "y": 1
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/Coconut": {
    "frame": {
-    "x": 815,
-    "y": 6235,
+    "x": 1591,
+    "y": 6309,
     "w": 162,
     "h": 174
    },
@@ -1750,12 +1847,13 @@
    "anchor": {
     "x": 0.5,
     "y": 1
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/CloverThreeLeaf": {
    "frame": {
-    "x": 977,
-    "y": 6235,
+    "x": 1753,
+    "y": 6309,
     "w": 113,
     "h": 169
    },
@@ -1774,12 +1872,13 @@
    "anchor": {
     "x": 0.491379,
     "y": 0.934911
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/MarigoldCrop": {
    "frame": {
-    "x": 1090,
-    "y": 6235,
+    "x": 1866,
+    "y": 6309,
     "w": 181,
     "h": 169
    },
@@ -1798,12 +1897,13 @@
    "anchor": {
     "x": 0.5,
     "y": 0.5
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/Persimmon": {
    "frame": {
-    "x": 1271,
-    "y": 6235,
+    "x": 0,
+    "y": 6517,
     "w": 173,
     "h": 158
    },
@@ -1822,12 +1922,13 @@
    "anchor": {
     "x": 0.5,
     "y": 1
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/HabaneroPepper": {
    "frame": {
-    "x": 1444,
-    "y": 6235,
+    "x": 173,
+    "y": 6517,
     "w": 107,
     "h": 153
    },
@@ -1846,12 +1947,13 @@
    "anchor": {
     "x": 0.530029,
     "y": 0.323809
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/Tomato": {
    "frame": {
-    "x": 1551,
-    "y": 6235,
+    "x": 280,
+    "y": 6517,
     "w": 169,
     "h": 152
    },
@@ -1870,12 +1972,13 @@
    "anchor": {
     "x": 0.5,
     "y": 1
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/Strawberry": {
    "frame": {
-    "x": 1720,
-    "y": 6235,
+    "x": 449,
+    "y": 6517,
     "w": 110,
     "h": 142
    },
@@ -1894,12 +1997,13 @@
    "anchor": {
     "x": 0.5,
     "y": 1
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/FavaBean": {
    "frame": {
-    "x": 1830,
-    "y": 6235,
+    "x": 559,
+    "y": 6517,
     "w": 56,
     "h": 140
    },
@@ -1918,12 +2022,13 @@
    "anchor": {
     "x": 0.5,
     "y": 1
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/Date": {
    "frame": {
-    "x": 1886,
-    "y": 6235,
+    "x": 615,
+    "y": 6517,
     "w": 71,
     "h": 136
    },
@@ -1942,12 +2047,13 @@
    "anchor": {
     "x": 0.5,
     "y": 1
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/Camellia": {
    "frame": {
-    "x": 0,
-    "y": 6432,
+    "x": 686,
+    "y": 6517,
     "w": 160,
     "h": 130
    },
@@ -1966,12 +2072,13 @@
    "anchor": {
     "x": 0.503906,
     "y": 0.520674
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/Lychee": {
    "frame": {
-    "x": 160,
-    "y": 6432,
+    "x": 846,
+    "y": 6517,
     "w": 79,
     "h": 110
    },
@@ -1990,12 +2097,13 @@
    "anchor": {
     "x": 0.5,
     "y": 1
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/Chrysanthemum": {
    "frame": {
-    "x": 239,
-    "y": 6432,
+    "x": 925,
+    "y": 6517,
     "w": 131,
     "h": 104
    },
@@ -2014,12 +2122,13 @@
    "anchor": {
     "x": 0.5,
     "y": 0.570313
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/Blueberry": {
    "frame": {
-    "x": 370,
-    "y": 6432,
+    "x": 1056,
+    "y": 6517,
     "w": 94,
     "h": 101
    },
@@ -2038,12 +2147,13 @@
    "anchor": {
     "x": 0.5,
     "y": 1
-   }
+   },
+   "sourcePixelRatio": 2
   },
   "sprite/plant/PricklyPear": {
    "frame": {
-    "x": 464,
-    "y": 6432,
+    "x": 1150,
+    "y": 6517,
     "w": 82,
     "h": 83
    },
@@ -2062,7 +2172,8 @@
    "anchor": {
     "x": 0.504854,
     "y": 0.697248
-   }
+   },
+   "sourcePixelRatio": 2
   }
  },
  "animations": {},
@@ -2070,8 +2181,8 @@
  "meta": {
   "image": "sprites-composed.png",
   "size": {
-   "w": 2023,
-   "h": 6562
+   "w": 2047,
+   "h": 6675
   },
   "scale": 1
  }

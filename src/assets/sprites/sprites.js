@@ -145,6 +145,10 @@ export async function initSprites() {
 
           sourceSize: f?.sourceSize || null,
           spriteSourceSize: f?.spriteSourceSize || null,
+          // Le diviseur du jeu : `Go` calcule `h = Math.min(w, h) / e.sourcePixelRatio` avant de
+          // plafonner `h / 256`. Il était jeté ici, ce qui faisait passer une frame 2x pour une
+          // frame 1x — le composeur compensait avec un `1/2` transcrit (cf. `spriteComposer.js`).
+          sourcePixelRatio: f?.sourcePixelRatio ?? null,
         });
       }
 
