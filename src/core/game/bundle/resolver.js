@@ -5,6 +5,7 @@ import { logger } from "../../../logger/index.js";
 import { definesColorsFor } from "./colors.js";
 import { definesAbilityDescriptions } from "../../extractors/abilityText.js";
 import { ABILITY_COLOR_NAMES, MUTATION_COLOR_NAMES, COLOR_MIN_HITS } from "./colorNames.js";
+import { looksLikeArtTables, looksLikeSpriteNames } from "../art/probe.js";
 
 /**
  * Fetch une URL et retourne le texte.
@@ -95,6 +96,26 @@ const COLOR_TARGETS = [
 const ABILITY_TEXT_TARGET = {
   id: "abilityText",
   test: (content) => definesAbilityDescriptions(content),
+};
+
+// Les tables d'art de la mutation vivent dans le contrôleur de dessin, pas dans
+// le chunk de données : elles ne sont donc atteignables que par une seconde
+// cible. Le test est l'extraction réelle — `looksLikeArtTables` exige une
+// fonction qui divise par la tuile ET clôt sur la table des ancres et sur le
+// plafond, la reconnaissance que le plan §3.3 avait déjà mesurée — et jamais un
+// nom de fichier, qui porte une empreinte de contenu et change à chaque build.
+const ART_TARGET = {
+  id: "art",
+  test: (content) => looksLikeArtTables(content),
+};
+
+// La table des noms de sprite — celle qui résout `B.Plant.Aloe` en un chemin —
+// vit dans le chunk de données en 1176 et dans un chunk à part en 1192. Elle est
+// donc cherchée par sa forme comme le reste : sans elle, l'extraction d'art
+// refuse de publier des chemins qu'aucun témoin ne confirme.
+const SPRITE_NAMES_TARGET = {
+  id: "spriteNames",
+  test: (content) => looksLikeSpriteNames(content),
 };
 
 // Profondeur max de traversée du graphe de chunks (index -> loader -> main -> ...)
@@ -271,6 +292,8 @@ export async function fetchMainBundle(pageUrl = config.game.pageUrl) {
       test: (c) => definesColorsFor(c, t.names, COLOR_MIN_HITS),
     })),
     ABILITY_TEXT_TARGET,
+    ART_TARGET,
+    SPRITE_NAMES_TARGET,
   ];
 
   // 1. index.js lui-même (builds où l'entrée porte encore les données)
@@ -318,6 +341,16 @@ export async function fetchMainBundle(pageUrl = config.game.pageUrl) {
     );
   }
 
+  const namesChunk = found.get(SPRITE_NAMES_TARGET.id);
+
+  const artChunk = found.get(ART_TARGET.id);
+  if (!artChunk) {
+    logger.error(
+      { target: ART_TARGET.id },
+      "Art chunk not found in bundle graph (the art tables will be unavailable)"
+    );
+  }
+
   return {
     indexUrl,
     mainUrl: dataChunk.url,
@@ -325,5 +358,9 @@ export async function fetchMainBundle(pageUrl = config.game.pageUrl) {
     indexJs,
     uiColorsSources,
     abilityTextSource: abilityTextChunk?.content ?? null,
+    artUrl: artChunk?.url ?? null,
+    artSource: artChunk?.content ?? null,
+    namesUrl: namesChunk?.url ?? null,
+    namesSource: namesChunk?.content ?? null,
   };
 }

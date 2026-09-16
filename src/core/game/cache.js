@@ -17,6 +17,10 @@ const cache = {
   indexJs: null,
   uiColorsSources: null,
   abilityTextSource: null,
+  artUrl: null,
+  artSource: null,
+  namesUrl: null,
+  namesSource: null,
   fetchedAt: 0,
   categories: new Map(),
   pending: null,
@@ -33,6 +37,10 @@ function bundleSnapshot() {
     indexJs: cache.indexJs,
     uiColorsSources: cache.uiColorsSources,
     abilityTextSource: cache.abilityTextSource,
+    artUrl: cache.artUrl,
+    artSource: cache.artSource,
+    namesUrl: cache.namesUrl,
+    namesSource: cache.namesSource,
   };
 }
 
@@ -129,8 +137,17 @@ export async function getMainBundle() {
         return bundleSnapshot();
       }
 
-      const { mainUrl, mainJs, indexJs, uiColorsSources, abilityTextSource } =
-        await fetchBundleFor(heldVersion ?? latestVersion, latestVersion);
+      const {
+        mainUrl,
+        mainJs,
+        indexJs,
+        uiColorsSources,
+        abilityTextSource,
+        artUrl,
+        artSource,
+        namesUrl,
+        namesSource,
+      } = await fetchBundleFor(heldVersion ?? latestVersion, latestVersion);
 
       // Si la version a changé, flush les caches
       if (cache.mainUrl && cache.mainUrl !== mainUrl) {
@@ -145,6 +162,10 @@ export async function getMainBundle() {
       cache.indexJs = indexJs;
       cache.uiColorsSources = uiColorsSources;
       cache.abilityTextSource = abilityTextSource;
+      cache.artUrl = artUrl;
+      cache.artSource = artSource;
+      cache.namesUrl = namesUrl;
+      cache.namesSource = namesSource;
       cache.fetchedAt = Date.now();
 
       return bundleSnapshot();
@@ -190,6 +211,10 @@ export function invalidateAllCaches() {
   cache.indexJs = null;
   cache.uiColorsSources = null;
   cache.abilityTextSource = null;
+  cache.artUrl = null;
+  cache.artSource = null;
+  cache.namesUrl = null;
+  cache.namesSource = null;
   cache.fetchedAt = 0;
   cache.categories.clear();
   clearEnumCaches();

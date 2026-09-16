@@ -38,11 +38,19 @@ services:
       # relied on the default would be reachable only by accident.
       PORT: "3002"
 
-      # Defaults to `http://localhost:3000` (`src/config/index.js:73`) and is the
-      # absolute prefix in every sprite, animation and Rive URL. Set it to the
-      # origin clients actually reach, or every URL the API hands out points at
-      # the wrong host.
-      SPRITES_BASE_URL: ${SPRITES_BASE_URL:-http://localhost:3002}
+      # Left empty on purpose, which is also the code's default. Empty means every
+      # sprite, animation and Rive URL is built from the request that asked for it,
+      # so the answer names the host the client actually reached — correct on any
+      # port, host or proxy name, and nothing to configure. `API_PUBLIC_URL` is the
+      # same idea for the address the spec advertises. Set this only when the public
+      # URL genuinely differs from the one the process sees (a CDN, or a proxy that
+      # rewrites `Host`), and set it to *that* origin.
+      #
+      # This line used to default to `http://localhost:3002`, which handed every
+      # client a URL for a host that resolves only on the machine running the
+      # container — the defect fixed in the code as item 23, surviving in the
+      # deployment that reads this file.
+      SPRITES_BASE_URL: ${SPRITES_BASE_URL:-}
 
       # All three are CWD-relative in the code (`./sprites_dump`, `./data/...`),
       # so they follow the process's working directory unless pinned. Dockerfile
