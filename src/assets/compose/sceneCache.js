@@ -68,8 +68,12 @@ import { config } from "../../config/index.js";
  * v5 -> v6 is the **turn**: a crop's rotation is now drawn (`turnedPlacement` in `scenePainter.js`, with
  * `drawnBox` in `sceneLayout.js` growing the union by the turned rectangle). Every picture composed
  * before it is the same spec drawn upright, which is the wrong picture and not an old one.
+ *
+ * v6 -> v7 is the **materials** (`materials.js`): `Rainbow` and `Gold` have no colour overlay in the
+ * game's mutation table — they are shaders — so every picture composed before this drew them as
+ * unmutated art.
  */
-export const SCENE_LAYOUT = "v6";
+export const SCENE_LAYOUT = "v7";
 
 /**
  * The scene tree's own directory, beside the bake under the sprite export root.

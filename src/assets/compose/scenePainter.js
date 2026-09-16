@@ -31,6 +31,7 @@
 
 import sharp from "sharp";
 import { spritePng } from "./atlasPixels.js";
+import { materialPng } from "./materials.js";
 
 /** A wash as its three numbers and its opacity, from `rgba(r, g, b, a)`. */
 function parseWash(wash) {
@@ -115,7 +116,13 @@ export async function paintScene({ width, height, layers }) {
   await Promise.all(
     visible.map(async (operation) => {
       const image = await sizedPng(operation.sprite, operation.width, operation.height);
-      const washed = image === null ? null : await washedPng(image, operation.washes);
+      // A material replaces the sprite's colour, and the layout drops the washes when one is present —
+      // which is the game's own rule, a material being a whole surface rather than a colour.
+      const materialised =
+        image === null || operation.materialKind === null
+          ? image
+          : await materialPng(image, operation.materialKind);
+      const washed = materialised === null ? null : await washedPng(materialised, operation.washes);
       operation.input = washed;
       operation.placed = await turnedPlacement(operation, washed);
     }),
@@ -209,6 +216,7 @@ function collect(layer, operations, inherited = null) {
       width: layer.width,
       height: layer.height,
       washes: layer.material === true ? [] : (layer.washes ?? []),
+      materialKind: layer.materialKind ?? null,
       turn: turn?.turn ?? 0,
       pivot: turn?.pivot ?? null,
       input: null,

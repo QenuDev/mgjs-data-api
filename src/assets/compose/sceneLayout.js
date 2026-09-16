@@ -46,6 +46,7 @@ import {
 } from "./artBridge.js";
 import { assertWithinCanvas, ComposeSpecError, normalizeSpec, SPEC_VERSION } from "./spec.js";
 import { scatterPlaces } from "./sceneScatter.js";
+import { materialKindOf } from "./materials.js";
 
 /**
  * The pixels one tile is worth on the scene's own grid.
@@ -189,6 +190,10 @@ async function layOutCrop(item) {
   if (picture === null) return null;
 
   const at = placedPoint(item);
+  // `Rainbow` and `Gold` are materials, not washes (`materials.js`): the whole surface is replaced, so the
+  // overlay filter the recipe states — if any — is dropped, which is the game's own rule (`Cn` takes a
+  // colour overlay only while there is no material).
+  const material = materialKindOf(item.mutations);
   const layers = picture.layers.map((layer) => ({
     ...layer,
     left: layer.left + at.x,
@@ -197,6 +202,8 @@ async function layOutCrop(item) {
     // The point the crop stands on: the turn happens about it, in the layout's own arithmetic and in
     // the rasteriser, so it travels with the layer.
     pivot: at,
+    materialKind: layer.kind === "art" ? material : null,
+    washes: material === null ? [...(layer.washes ?? [])] : [],
   }));
 
   return laidItem(item, {
@@ -250,6 +257,9 @@ async function layOutPlant(item) {
       picture,
       recipe,
       at: { x, y },
+      // A crop's own mutations, for `cropLayersOf`: `Rainbow` and `Gold` are materials, and each crop in a
+      // pot wears its own.
+      material: materialKindOf(crop.mutations),
     });
   }
 
@@ -315,7 +325,8 @@ async function layOutPlant(item) {
       width: layer.width,
       height: layer.height,
       turn: 0,
-      washes: [...(layer.washes ?? [])],
+      materialKind: layer.kind === "art" ? materialKindOf(item.mutations) : null,
+      washes: materialKindOf(item.mutations) === null ? [...(layer.washes ?? [])] : [],
       material: layer.material === true,
       nested: null,
     }));
@@ -403,6 +414,7 @@ function cropLayersOf(recipe, origin, cropAt) {
       x: one.left + (layer.anchorX ?? 0) * layer.width,
       y: one.top + (layer.anchorY ?? 0) * layer.height,
     };
+    const material = cropAt[layer.composition.index]?.material ?? null;
     const drawn = {
       ...one,
       // The point the crop stands on: a turned crop is rotated about it — in `drawnBox` for the canvas
@@ -416,7 +428,8 @@ function cropLayersOf(recipe, origin, cropAt) {
         top: at.y + inner.top,
         width: inner.width,
         height: inner.height,
-        washes: [...(inner.washes ?? [])],
+        materialKind: inner.kind === "art" ? material : null,
+        washes: material === null ? [...(inner.washes ?? [])] : [],
         material: inner.material === true,
         nested: null,
       })),
@@ -541,6 +554,7 @@ async function layOutPatch(item) {
       at: { x: place.x, y: place.y },
       rotation: place.rotation,
       flipped: crop.flipped,
+      material: materialKindOf(crop.mutations),
     });
   }
 

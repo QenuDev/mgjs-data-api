@@ -42,6 +42,7 @@ const { SPEC_VERSION } = await import("../src/assets/compose/spec.js");
 const { REFERENCE_TILE_PX } = await import("@mg.js/art");
 const { initSprites } = await import("../src/assets/sprites/sprites.js");
 const { clearScenePainterCache, washedPng } = await import("../src/assets/compose/scenePainter.js");
+const { materialPng } = await import("../src/assets/compose/materials.js");
 const { clearSceneCaches } = await import("../src/assets/compose/sceneService.js");
 
 await initSprites();
@@ -253,4 +254,106 @@ test("la teinture d'une mutation est celle du shader du jeu, pas un mélange de 
   assert.ok(Math.abs(data[5] - 50) <= 1, `vert du pixel à demi transparent : ${data[5]}, attendu 50`);
   assert.ok(Math.abs(data[4] - 164) <= 1, `rouge du pixel à demi transparent : ${data[4]}, attendu 164`);
   assert.ok(Math.abs(data[4] - 228) > 10, "le rouge n'est pas celui du mélange de luminosité (228)");
+});
+/** La luminosité du jeu : `surface_material_luma`, `dot(color, (0.3, 0.59, 0.11))`. */
+const gameLuma = (rgb) => (0.3 * rgb[0] + 0.59 * rgb[1] + 0.11 * rgb[2]) / 255;
+
+/** Un art synthétique d'un pixel par couleur donnée, à la taille qui place les coordonnées voulues. */
+async function artOf(colours) {
+  const raw = Buffer.from(colours.flatMap(([r, g, b]) => [r, g, b, 255]));
+  return sharp(raw, { raw: { width: colours.length, height: 1, channels: 4 } }).png().toBuffer();
+}
+
+test("un Rainbow remplace la couleur de l'art à la luminosité de l'art, le long de l'axe du jeu", async () => {
+  // Le shader : `set_luminosity(surface_rainbow_color(t), surface_material_luma(base))` avec
+  // `t = dot(axis, coord - 0.5) + 0.5` et `axis = (cos 40°, sin 40°)`. Deux pixels de l'art, l'un sombre
+  // et vert, l'autre gris clair, à deux endroits de l'axe : la couleur change, la luminosité non.
+  const base = [
+    [90, 140, 90],
+    [200, 200, 200],
+  ];
+  const out = await materialPng(await artOf(base), "Rainbow");
+  const { data } = await sharp(out).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+
+  const seen = [];
+  for (const [index, colour] of base.entries()) {
+    const offset = index * 4;
+    const got = [data[offset], data[offset + 1], data[offset + 2]];
+    seen.push(got.join(","));
+    assert.ok(
+      Math.abs(gameLuma(got) - gameLuma(colour)) <= 2,
+      `pixel ${index} : la luminosité du jeu doit être conservée, ${gameLuma(got).toFixed(3)} au lieu de ${gameLuma(colour).toFixed(3)}`,
+    );
+    assert.ok(
+      got.some((channel, c) => Math.abs(channel - colour[c]) > 20),
+      `pixel ${index} : la couleur de l'art doit être remplacée, pas gardée (${got.join(",")})`,
+    );
+    assert.equal(data[offset + 3], 255, `pixel ${index} : l'alpha de l'art revient inchangé`);
+  }
+  assert.notEqual(seen[0], seen[1], "les deux pixels sont à des endroits différents de l'axe 40° : pas la même teinte");
+});
+
+test("un Gold passe l'art dans le matériau or du jeu et laisse l'encre noire noire", async () => {
+  const base = [
+    [128, 128, 128],
+    [4, 4, 4],
+  ];
+  const out = await materialPng(await artOf(base), "Gold");
+  const { data } = await sharp(out).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+
+  const mid = [data[0], data[1], data[2]];
+  assert.ok(mid[0] > mid[1] && mid[1] > mid[2], `le gris moyen devient de l'or : ${mid.join(",")}`);
+  assert.ok(mid[0] > 200 && mid[2] < 60, `l'or est chaud et clair : ${mid.join(",")}`);
+
+  // « Protect only genuine near-black ink » : `1 - smoothstep(0.025, 0.09, luma)` vaut 1 sous luma 0,025,
+  // donc le pixel d'encre garde 94 % de sa propre couleur.
+  const ink = [data[4], data[5], data[6]];
+  assert.ok(ink.every((channel) => channel < 20), `l'encre reste noire : ${ink.join(",")}`);
+  assert.equal(data[7], 255, "l'alpha de l'art revient inchangé");
+});
+
+test("une culture Rainbow garde la luminosité de l'art et change la teinte, pixel à pixel", async (t) => {
+  await cleanCache();
+  const api = await startTestApp();
+  t.after(async () => {
+    await api.close();
+    await cleanCache();
+  });
+
+  // `Rainbow` n'a ni sprite ni lavage : la seule différence entre les deux images est le matériau, donc
+  // les comparer pixel à pixel est exact, et c'est la propriété du shader qu'on regarde — la teinte
+  // change, la luminosité non.
+  const bare = await compose(api, oneClover({ kind: "crop" }));
+  const rainbow = await compose(api, oneClover({ kind: "crop", mutations: ["Rainbow"] }));
+  const [bareRaw, rainbowRaw] = await Promise.all([
+    sharp(bare).ensureAlpha().raw().toBuffer({ resolveWithObject: true }),
+    sharp(rainbow).ensureAlpha().raw().toBuffer({ resolveWithObject: true }),
+  ]);
+  assert.equal(rainbowRaw.info.width, bareRaw.info.width, "mêmes dimensions");
+  assert.equal(rainbowRaw.info.height, bareRaw.info.height, "mêmes dimensions");
+
+  let compared = 0;
+  let bareWarm = 0;
+  let rainbowWarm = 0;
+  let worstLuma = 0;
+  let worstChannel = 0;
+  for (let index = 0; index < bareRaw.data.length; index += 4) {
+    if (bareRaw.data[index + 3] < 250 || rainbowRaw.data[index + 3] < 250) continue;
+    const before = [bareRaw.data[index], bareRaw.data[index + 1], bareRaw.data[index + 2]];
+    const after = [rainbowRaw.data[index], rainbowRaw.data[index + 1], rainbowRaw.data[index + 2]];
+    compared += 1;
+    worstLuma = Math.max(worstLuma, Math.abs(gameLuma(after) - gameLuma(before)));
+    worstChannel = Math.max(worstChannel, ...after.map((channel, c) => Math.abs(channel - before[c])));
+    // Le trèfle est vert et blanc : rien de rouge dedans. Le dégradé, lui, passe par le rouge et le
+    // magenta sur une bonne part de son axe — c'est la teinte que le matériau apporte.
+    if (before[0] > before[1] + 40 && before[0] > before[2] + 40) bareWarm += 1;
+    if (after[0] > after[1] + 40 && after[0] > after[2] + 40) rainbowWarm += 1;
+  }
+  assert.ok(compared > 2000, `assez de pixels opaques pour comparer (${compared})`);
+  assert.ok(
+    rainbowWarm > compared * 0.02 && bareWarm < compared * 0.01,
+    `le Rainbow apporte des teintes que l'art n'a pas : ${rainbowWarm} pixels chauds contre ${bareWarm} avant, sur ${compared}`,
+  );
+  assert.ok(worstChannel > 60, `la teinte change franchement quelque part (pire écart de canal ${worstChannel})`);
+  assert.ok(worstLuma * 255 <= 6, `la luminosité du jeu est conservée partout (pire écart ${(worstLuma * 255).toFixed(1)}/255)`);
 });
