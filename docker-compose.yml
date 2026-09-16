@@ -1,0 +1,120 @@
+# docker-compose.yml
+#
+#   docker compose up -d --build
+#
+# That is the whole start. The compose file exists to supply the handful of
+# values whose code default is wrong for a container — every one of them is set
+# below with the reason, because a deployer who does not know why will remove it.
+#
+# `.env` is read for interpolation by compose (and by `--env-file` for a
+# bare-metal run). `.env.example` is the full environment table; copy it only if
+# you are overriding something.
+
+name: mg-api
+
+services:
+  api:
+    build: .
+    image: mg-api:2.0.0
+    restart: unless-stopped
+    # The pet-animation exporter `fork()`s a child (`src/services/animationSync.js:86`);
+    # with that switch off there is normally nothing to reap, but a stray child
+    # would otherwise be reparented to PID 1 and never collected.
+    init: true
+
+    ports:
+      - "3002:3002"
+
+    environment:
+      # Required, not cosmetic. `config.logging.pretty` is `NODE_ENV !== "production"`
+      # (`src/config/index.js:67`); pretty selects the pino-pretty transport, and
+      # pino resolves a transport target synchronously at import. pino-pretty is a
+      # devDependency and `npm ci --omit=dev` removes it, so without this line the
+      # container throws before `app.listen` and never binds a port.
+      NODE_ENV: production
+
+      # The code default is 3000 (`src/config/index.js:10`) while nginx proxies to
+      # 3002 (`nginx.conf:51,68,85,101`), and nothing else sets it. An image that
+      # relied on the default would be reachable only by accident.
+      PORT: "3002"
+
+      # Defaults to `http://localhost:3000` (`src/config/index.js:73`) and is the
+      # absolute prefix in every sprite, animation and Rive URL. Set it to the
+      # origin clients actually reach, or every URL the API hands out points at
+      # the wrong host.
+      SPRITES_BASE_URL: ${SPRITES_BASE_URL:-http://localhost:3002}
+
+      # All three are CWD-relative in the code (`./sprites_dump`, `./data/...`),
+      # so they follow the process's working directory unless pinned. Dockerfile
+      # sets WORKDIR to /app and creates these two directories owned by `node`,
+      # which is what makes them writable and what makes the data survive a
+      # rebuild. Stated rather than left to the default so a deployer can see
+      # where the state lands.
+      SPRITES_EXPORT_DIR: /app/sprites_dump
+      HISTORY_DB_PATH: /app/data/history.sqlite
+      HISTORY_EVENTS_DIR: /app/data/events
+
+      # No export on first boot. `checkSpritesOnStartup()` is fire-and-forget
+      # behind this flag and is its only caller (`src/services/spriteSync.js:469-478`);
+      # it force-exports when `sprites_dump/sprite` is missing or empty
+      # (`spriteSync.js:55-71`), which is exactly the state of a fresh volume. A
+      # boot with it on fetches the atlas and decodes ~575 sprites (the code's own
+      # sign: "tourne autour de 2 min", `spriteSync.js:43-44`) before there is a
+      # sprite to serve. Run the `export` profile below to populate the volume.
+      VERSION_WATCH_ENABLED: "false"
+      # The narrower switch inside that pipeline: without it the sync forks a Rive
+      # render that the code measures in tens of minutes (`animationSync.js:15-16`).
+      PET_ANIMATIONS_ENABLED: "false"
+
+      # Container-neutral settings, left overridable. RATE_LIMIT_MAX is 60 in code
+      # (`src/config/index.js:24`); README.md claimed 100 until this commit, and the
+      # code was right — the SSE limiter is `Math.floor(max / 10)` = 6 either way.
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
+      RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-60}
+
+    volumes:
+      # ~10 MB of PNGs after an extraction, and the disk the opt-in mutation bake
+      # of plan §3.1 needs when it lands (`BAKE=1`, 6,210 files at 7,720–107,300
+      # bytes each, measured: 100–250 MB). Size the host for both, not for the
+      # 10 MB, or the bake fills the disk of a live service.
+      - sprites:/app/sprites_dump
+      # SQLite plus one NDJSON file per UTC month. Small, but it is the only state
+      # here that cannot be regenerated from the game, so it is never in the image.
+      - history:/app/data
+      # nginx reads the sprite PNGs straight off disk (`nginx.conf:35` aliases
+      # `/srv/Magic-Garden-API/sprites_dump/sprite/`). To serve the same files
+      # nginx serves, bind-mount that host path here instead of using the named
+      # volume:
+      #     - /srv/Magic-Garden-API/sprites_dump:/app/sprites_dump
+      # Either way the export has to have run once — see the `export` service.
+
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3002/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+
+  # Opt-in atlas export: one run, writes into the same volume, exits.
+  #
+  #   docker compose --profile export run --rm export
+  #
+  # This is the existing exporter (`scripts/export-sprites.sh` →
+  # `src/assets/sprites/exportSpritesToDisk.js`), not the version watcher, so it
+  # finishes and returns instead of leaving a server running. The service is
+  # headed by the same image, so it writes with the same glibc and ABI.
+  export:
+    profiles: ["export"]
+    build: .
+    image: mg-api:2.0.0
+    environment:
+      NODE_ENV: production
+      SPRITES_EXPORT_DIR: /app/sprites_dump
+    volumes:
+      - sprites:/app/sprites_dump
+    command: ["bash", "scripts/export-sprites.sh", "/app/sprites_dump"]
+
+volumes:
+  sprites:
+  history:
