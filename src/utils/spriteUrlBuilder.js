@@ -6,6 +6,24 @@
 import { config } from "../config/index.js";
 
 /**
+ * L'origine à mettre dans une URL absolue : celle que le client a utilisée.
+ *
+ * `config.sprites.baseUrl` gagne quand il est renseigné — c'est le seul cas où
+ * l'URL publique diffère vraiment de celle que le serveur voit, un CDN ou un
+ * proxy devant lui. Sinon c'est l'origine de la requête, ce qui est correct sur
+ * n'importe quel hôte, port ou nom de proxy, sans configuration.
+ *
+ * @param {import("express").Request} req
+ * @returns {string} Une origine sans slash final, ou "" si la requête n'en dit rien
+ */
+export function requestOrigin(req) {
+  if (config.sprites.baseUrl) return config.sprites.baseUrl;
+  const host = typeof req?.get === "function" ? req.get("host") : null;
+  if (!host) return "";
+  return `${req.protocol}://${host}`;
+}
+
+/**
  * Build sprite URL for a given category and sprite name
  * @param {string} category - Sprite category (plants, seeds, tallPlants, etc.)
  * @param {string} spriteName - Sprite filename (without .png)

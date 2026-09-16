@@ -158,7 +158,13 @@ export const config = {
     // retombent pas sur le disque.
     routesEnabled: spritesProfile === "full",
     exportDir: process.env.SPRITES_EXPORT_DIR || "./sprites_dump",
-    baseUrl: process.env.SPRITES_BASE_URL || "http://localhost:3000",
+    // L'URL publique de ce serveur, si elle diffère de celle qu'un client a
+    // utilisée pour l'atteindre (CDN devant, proxy qui réécrit le Host). Vide
+    // veut dire "celle de la requête" : chaque route qui construit une URL
+    // absolue demande l'origine au client plutôt que d'en inventer une, et un
+    // serveur lancé sur un autre port qu'un client interroge ne peut plus lui
+    // répondre une adresse où personne n'écoute.
+    baseUrl: (process.env.SPRITES_BASE_URL || "").replace(/\/+$/, ""),
   },
 
   // Animations de pets (boucles WebP/GIF rendues depuis rive/pets.riv).

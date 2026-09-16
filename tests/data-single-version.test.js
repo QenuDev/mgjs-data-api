@@ -208,7 +208,11 @@ function versionsInBody(value, found = new Set()) {
   return found;
 }
 
-const versionOf = (url) => new URL(url).searchParams.get("v");
+// Les URLs de sprite sont relatives à cette API quand aucune URL publique n'est
+// configurée : une charge utile mise en cache ne peut pas porter l'origine d'un
+// appelant, donc la seule chose qu'un « v » puisse affirmer est la version. Le
+// socle ci-dessous rend les deux formes lisibles sans changer ce qui est testé.
+const versionOf = (url) => new URL(url, "http://this-api.invalid").searchParams.get("v");
 
 test("le bundle servi reste celui de la version enregistrée", async () => {
   const { getMainBundle, getCacheStats } = await import("../src/core/game/cache.js");

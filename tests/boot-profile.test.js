@@ -382,3 +382,86 @@ function runConfigChild(env) {
     child.on("exit", (code) => resolve({ code, stdout, stderr }));
   });
 }
+
+// ---------------------------------------------------------------------------
+// Où les URLs de l'index envoient le client.
+// ---------------------------------------------------------------------------
+
+/**
+ * Le défaut : `config.sprites.baseUrl` valait `http://localhost:3000` par
+ * défaut, donc un serveur écoutant ailleurs répondait à chaque client une
+ * adresse où personne n'écoute — constaté en lançant l'API sur 3999. Une
+ * réponse construite pour la requête qui l'a demandée peut nommer l'origine de
+ * cette requête ; c'est le cas de cet index, et c'est ce qui est testé ici. Le
+ * port est éphémère, donc une constante ne peut pas le produire.
+ */
+test("l'index des sprites renvoie l'origine qui a été appelée", async (t) => {
+  const game = await startFakeGame();
+  t.after(() => game.close());
+
+  await withSprityDump(async (exportDir) => {
+    const api = await startProfileServer({
+      VERSION_WATCH_ENABLED: "false",
+      PET_ANIMATIONS_ENABLED: "false",
+      HISTORY_ENABLED: "false",
+      CORS_ENABLED: "false",
+      RATE_LIMIT_ENABLED: "false",
+      LOG_LEVEL: "silent",
+      SPRITES_EXPORT_DIR: exportDir,
+      GAME_ORIGIN: game.origin,
+      GAME_PAGE_URL: game.pageUrl,
+    });
+    t.after(() => api.close());
+
+    const catalog = await (await fetch(`${api.baseUrl}/assets/sprites`)).json();
+    const urls = Object.values(catalog.sprites).flat().map((entry) => entry.url);
+    assert.ok(urls.length > 0, "l'index a des entrées, sinon rien ci-dessous ne dit quoi que ce soit");
+
+    const origin = new URL(api.baseUrl).origin;
+    for (const url of urls) {
+      assert.equal(new URL(url).origin, origin, `l'URL pointe sur l'hôte appelé : ${url}`);
+    }
+    assert.equal(catalog.baseUrl, origin, "et la réponse dit la même origine que ses URLs");
+    assert.equal(
+      urls.some((url) => url.includes("localhost:3000")),
+      false,
+      "aucune URL ne nomme le port par défaut"
+    );
+  });
+});
+
+/**
+ * L'autre moitié : le seul cas où l'URL publique diffère vraiment de celle que
+ * le serveur voit — un CDN, ou un proxy qui réécrit le `Host`. Elle gagne, et
+ * son slash final est normalisé plutôt que doublé.
+ */
+test("SPRITES_BASE_URL gagne sur l'origine de la requête", async (t) => {
+  const game = await startFakeGame();
+  t.after(() => game.close());
+
+  await withSprityDump(async (exportDir) => {
+    const api = await startProfileServer({
+      VERSION_WATCH_ENABLED: "false",
+      PET_ANIMATIONS_ENABLED: "false",
+      HISTORY_ENABLED: "false",
+      CORS_ENABLED: "false",
+      RATE_LIMIT_ENABLED: "false",
+      LOG_LEVEL: "silent",
+      SPRITES_EXPORT_DIR: exportDir,
+      GAME_ORIGIN: game.origin,
+      GAME_PAGE_URL: game.pageUrl,
+      SPRITES_BASE_URL: "https://cdn.example/",
+    });
+    t.after(() => api.close());
+
+    const catalog = await (await fetch(`${api.baseUrl}/assets/sprites`)).json();
+    const urls = Object.values(catalog.sprites).flat().map((entry) => entry.url);
+    assert.ok(urls.length > 0, "l'index a des entrées");
+
+    for (const url of urls) {
+      assert.equal(new URL(url).origin, "https://cdn.example", `l'URL publique configurée : ${url}`);
+      assert.equal(url.includes("//assets"), false, `et le slash final n'est pas doublé : ${url}`);
+    }
+    assert.equal(catalog.baseUrl, "https://cdn.example", "la réponse annonce l'URL publique, pas celle de la requête");
+  });
+});

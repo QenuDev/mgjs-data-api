@@ -7,7 +7,7 @@ import { config } from "../../config/index.js";
 import { logger } from "../../logger/index.js";
 import { asyncHandler, Errors } from "../middleware/index.js";
 import { applyCacheHeaders, buildWeakEtag, isFresh } from "../../utils/httpCache.js";
-import { buildSpriteUrl } from "../../utils/spriteUrlBuilder.js";
+import { buildSpriteUrl, requestOrigin } from "../../utils/spriteUrlBuilder.js";
 import { getStoredVersionCached } from "../../core/game/versionStorage.js";
 
 export const spritesRouter = express.Router();
@@ -199,6 +199,9 @@ spritesRouter.get(
 
     const catalog = await getSpriteCatalog();
     const version = await getStoredVersionCached().catch(() => null);
+    // L'origine de cette réponse, pas le port par défaut : un client reçoit des
+    // URLs vers l'hôte qu'il a lui-même appelé.
+    const baseUrl = requestOrigin(req);
     const categories = Array.from(ALLOWED_CATEGORIES).sort();
     const needle = search ? String(search).toLowerCase() : null;
 
@@ -213,21 +216,21 @@ spritesRouter.get(
       if (!matching.length) continue;
       sprites[category] = matching.map((name) => ({
         name,
-        url: buildSpriteUrl(category, name, { version }),
+        url: buildSpriteUrl(category, name, { version, baseUrl }),
       }));
       count += matching.length;
     }
 
     const payload = {
       count,
-      baseUrl: config.sprites.baseUrl,
+      baseUrl,
       categories,
       sprites,
     };
 
     const etag = buildWeakEtag(
       "assets:sprites",
-      config.sprites.baseUrl,
+      baseUrl,
       String(version),
       cat || "",
       needle || "",

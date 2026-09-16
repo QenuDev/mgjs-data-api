@@ -7,6 +7,7 @@ import { logger } from "../../logger/index.js";
 import { config } from "../../config/index.js";
 import { asyncHandler, Errors } from "../middleware/index.js";
 import { applyCacheHeaders, buildWeakEtag, isFresh } from "../../utils/httpCache.js";
+import { requestOrigin } from "../../utils/spriteUrlBuilder.js";
 import {
   getAnimationEntries,
   getAnimationSources,
@@ -95,7 +96,7 @@ animationsRouter.get(
 
     const payload = {
       count: filtered.length,
-      baseUrl: config.sprites.baseUrl,
+      baseUrl: requestOrigin(req),
       categories: Array.from(ALLOWED_CATEGORIES),
       formats: config.animations.formats,
       // Une source par catégorie : chacune vient de son propre .riv, et leurs
@@ -106,7 +107,7 @@ animationsRouter.get(
 
     const etag = buildWeakEtag(
       "assets:animations",
-      config.sprites.baseUrl,
+      requestOrigin(req),
       JSON.stringify(sources),
       req.originalUrl,
       String(filtered.length)
