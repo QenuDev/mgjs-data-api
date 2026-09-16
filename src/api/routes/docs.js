@@ -2,51 +2,31 @@
 
 import express from "express";
 import { readFileSync } from "node:fs";
-import YAML from "yamljs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { getShopTypes } from "../../services/historyQueries.js";
+import {
+  buildBaseOpenApiDocument,
+  withRuntimeContract,
+} from "../../docs/contract.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const docsDir = join(__dirname, "..", "..", "docs");
 
-// Load OpenAPI spec once at startup
-const openapiDocument = YAML.load(join(docsDir, "openapi.yaml"));
-
-const SHOP_PARAM_NAME = "shop";
-
-let specCache = { key: null, spec: openapiDocument };
-
-/**
- * Remplace l'enum du paramètre `shop` par la liste réelle des shops du jeu,
- * pour que la doc (et le sélecteur de l'explorer) ne périme pas quand le jeu
- * en ajoute un.
- */
-function withShopEnum(shopTypes) {
-  const spec = structuredClone(openapiDocument);
-
-  for (const pathItem of Object.values(spec.paths ?? {})) {
-    for (const operation of Object.values(pathItem ?? {})) {
-      for (const param of operation?.parameters ?? []) {
-        if (param?.name === SHOP_PARAM_NAME && Array.isArray(param.schema?.enum)) {
-          param.schema.enum = [...shopTypes];
-        }
-      }
-    }
-  }
-
-  return spec;
-}
+// Le document et les faits de l'instance viennent de `src/docs/contract.js` :
+// c'est la même source que `/schema.json`, donc les deux ne peuvent pas
+// annoncer des versions de contrat différentes.
+let specCache = { key: null, base: null };
 
 async function getSpec() {
   const shopTypes = await getShopTypes();
   const key = shopTypes.join(",");
   if (specCache.key !== key) {
-    specCache = { key, spec: withShopEnum(shopTypes) };
+    specCache = { key, base: buildBaseOpenApiDocument({ shopTypes }) };
   }
-  return specCache.spec;
+  return withRuntimeContract(specCache.base);
 }
 
 // Custom interactive docs page (landing + endpoint explorer with try-it)

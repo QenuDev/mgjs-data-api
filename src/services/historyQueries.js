@@ -3,6 +3,7 @@
 import { getDB } from "./historyDB.js";
 import { gameDataService } from "./gameData.js";
 import { liveDataService } from "./liveData.js";
+import { getCacheStats } from "../core/game/cache.js";
 import { logger } from "../logger/index.js";
 
 // Amorce utilisée tant qu'aucune source dynamique n'a répondu (démarrage à froid
@@ -83,19 +84,30 @@ export function resolveBucket(bucket, { from, to }) {
 export async function getShopTypes() {
   const shopTypes = new Set(cachedShopTypes ?? FALLBACK_SHOP_TYPES);
 
-  try {
-    const { eligibleShops } = await gameDataService.getEnums();
-    for (const shop of eligibleShops ?? []) shopTypes.add(String(shop).toLowerCase());
-  } catch (err) {
-    logger.warn({ err: err?.message }, "Shop types: enums unavailable, using live shops only");
+  // Le bundle n'est lu que s'il est déjà en cache : `getEnums()` n'a pas de
+  // cache disque et l'extraire coûte un téléchargement plus une passe sur ~10 Mo
+  // de chunks. `/docs/openapi.json` n'a pas besoin de payer ça à froid — et ne
+  // le peut pas hors ligne : l'amorce et les shops live suffisent jusqu'à la
+  // première requête de données.
+  let fromBundle = false;
+  if (getCacheStats().hasBundleCached) {
+    try {
+      const { eligibleShops } = await gameDataService.getEnums();
+      for (const shop of eligibleShops ?? []) shopTypes.add(String(shop).toLowerCase());
+      fromBundle = true;
+    } catch (err) {
+      logger.warn({ err: err?.message }, "Shop types: enums unavailable, using live shops only");
+    }
   }
 
   for (const shop of Object.keys(liveDataService.getShops() ?? {})) {
     shopTypes.add(shop.toLowerCase());
   }
 
-  cachedShopTypes = [...shopTypes];
-  return cachedShopTypes;
+  // La liste n'est figée que si le bundle a répondu : sinon une requête à froid
+  // garderait l'amorce pour toute la vie du process.
+  if (fromBundle) cachedShopTypes = [...shopTypes];
+  return [...shopTypes];
 }
 
 export async function validateShop(shop) {

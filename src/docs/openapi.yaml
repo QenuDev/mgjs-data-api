@@ -1,7 +1,10 @@
 openapi: 3.0.3
 info:
   title: Magic Garden API
-  version: 2.0.0
+  # Version du *contrat*, pas du serveur ni du jeu. Un client la compare à celle
+  # qu'il sait lire avant de faire confiance à une URL. Chaîne parce que
+  # l'OpenAPI 3.0 l'exige ; /schema.json et /data/version la servent en nombre.
+  version: "1"
   description: |
     **Unofficial API** for Magic Garden game data that dynamically extracts and provides game content.
 
@@ -72,6 +75,38 @@ info:
     name: Ariedam
   license:
     name: ISC
+
+# Le contrat lui-même, lisible par un client sans analyser les chemins :
+# quelles parties de l'API existent ici, quelles catégories de données le bundle
+# courant permet de construire, et de quelle version du jeu elles viennent.
+# Servi tel quel par /docs/openapi.json, et sous forme plate par /schema.json.
+x-mg-contract:
+  api: 1
+  capabilities:
+    - data
+    - sprites
+    - sprites.composed
+    - sprites.data
+    - live.weather
+    - live.shops
+    - animations
+    - rive
+  data:
+    - plants
+    - pets
+    - items
+    - decors
+    - eggs
+    - abilities
+    - mutations
+    - weathers
+    - weather-groups
+    - enums
+  # Remplis à chaque réponse depuis l'instance qui sert : `null` dans ce fichier
+  # veut dire « pas encore construit » (aucune synchronisation sur cet hôte).
+  gameVersion: null
+  artVersion: null
+  generatedAt: null
 
 servers:
   - url: https://mg-api.ariedam.fr
@@ -213,6 +248,79 @@ paths:
                       live: "/live"
                       health: "/health"
                       docs: "/docs"
+
+  /schema.json:
+    get:
+      tags:
+        - Health
+      summary: The API contract, as this instance serves it now
+      description: |
+        The contract a client checks before it trusts this host, in plain JSON and
+        without authentication: the contract version, the paths this deployment
+        serves, the capabilities it declares, the `/data` categories the running
+        bundle can actually build, the game version the data and sprites were built
+        from, and when.
+
+        This is the same contract `/docs/openapi.json` carries in its
+        `x-mg-contract` extension, read from the same `openapi.yaml` — the two
+        cannot drift apart. A client that does not find the contract version or a
+        capability it needs should refuse the URL rather than parse whatever comes
+        back.
+
+        Cached for one minute.
+      responses:
+        '200':
+          description: The contract of the running instance
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  contract:
+                    type: integer
+                    description: Contract version, same as `info.version` in this document
+                    example: 1
+                  api:
+                    type: integer
+                    example: 1
+                  capabilities:
+                    type: array
+                    items:
+                      type: string
+                  paths:
+                    type: array
+                    items:
+                      type: string
+                  data:
+                    type: array
+                    items:
+                      type: string
+                  unavailable:
+                    type: object
+                    additionalProperties:
+                      type: string
+                  gameVersion:
+                    type: string
+                    nullable: true
+                  artVersion:
+                    type: string
+                    nullable: true
+                  generatedAt:
+                    type: string
+                    nullable: true
+              examples:
+                schema:
+                  summary: Contract of the running instance
+                  value:
+                    contract: 1
+                    api: 1
+                    capabilities: ["data", "sprites", "sprites.composed", "sprites.data", "live.weather", "live.shops", "animations", "rive"]
+                    paths: ["/", "/health", "/schema.json", "/data", "/data/plants"]
+                    data: ["plants", "pets", "items", "decors", "eggs", "abilities", "mutations", "weathers", "weather-groups", "enums"]
+                    unavailable: {}
+                    gameVersion: "1191"
+                    artVersion: "1191"
+                    generatedAt: "2026-09-16T05:00:00.000Z"
 
   /health:
     get:

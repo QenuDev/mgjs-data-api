@@ -16,7 +16,7 @@ import {
 import {
   dataRouter, dataCsvRootHandler, dataTsvRootHandler,
   liveRouter, liveCsvRootHandler, liveTsvRootHandler,
-  healthRouter, docsRouter, assetsRouter, statsRouter,
+  healthRouter, docsRouter, schemaRouter, assetsRouter, statsRouter,
   weatherStationRouter,
 } from "./routes/index.js";
 
@@ -60,6 +60,9 @@ export function createApp() {
 
   // Health check (pas de rate limit)
   app.use("/health", healthRouter);
+
+  // Le contrat public servi à plat, pour les clients : /docs est la vue humaine.
+  app.use("/schema.json", schemaRouter);
 
   // API Documentation (Swagger UI)
   app.use("/docs", docsRouter);

@@ -375,6 +375,16 @@ const CATEGORY_DEFS = [
 ];
 
 /**
+ * Les catégories servies sous `/data` : nom de route et clé de cache de la
+ * construction. Source unique pour l'inscription des routes, `/schema.json` et
+ * le bloc `x-mg-contract` du document.
+ */
+export const DATA_CATEGORIES = CATEGORY_DEFS.map(([route, cacheKey]) => ({
+  route,
+  cacheKey,
+}));
+
+/**
  * Construit toutes les catégories (partagé par `/data` et les racines
  * `.csv`/`.tsv`).
  *
