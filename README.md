@@ -122,6 +122,7 @@ profile, answers `/health`, `/schema.json` and `/data/version`, and refuses imag
 | `GET /data/weathers` | Weather definitions with sprites |
 | `GET /data/weather-groups` | Weather scheduling engine: duration, time slots and weighted drop table per group (Hydro, Lunar) |
 | `GET /data/enums` | Canonical game enums (rarity, currency, eligibleShops, itemType, weather, mutationTierOrder) |
+| `GET /data/art` | The mutation-side art tables, extracted from the drawing controller rather than the data table: per-species mutation anchors, the tall/narrow display flags, the scale cap and its formula, the over-mutation set, the icon z-order ladder, each mutation's crop tint (or the fact that it is a shader rather than a colour), and the placement function itself as source. Read this instead of transcribing those numbers — it is the same extraction the composer uses, and it carries the game version it came from |
 
 #### Ability descriptions
 
