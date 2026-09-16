@@ -114,15 +114,9 @@ const artOf = (species) => {
 };
 
 // The crop art's own dimensions, derived from the *fixture's* atlas frame — the committed
-// capture — and not from any helper the production code owns.
-//
-// The tests below deliberately do NOT assert that a picture's dimensions equal these, nor
-// that its box is `{0,0,...}`: the box convention is settled the other way (the game draws a
-// crop's mutation art into the union of the art and its layers — see
-// `src/assets/sprites/cropBox.js`) and plan item 24 owns the correction to the composer and
-// the endpoint. What is asserted is convention-free and must survive that correction: the
-// picture is at least as big as the crop's art, its box comes from the composer rather than
-// from the bake's manifest, and the manifest states no geometry at all.
+// capture — and not from any helper the production code owns. The composed picture is the
+// tight union of that art and the layers drawn over it (`src/assets/sprites/cropBox.js` states
+// the convention and the evidence), and the manifest states the art's own rectangle inside it.
 const artSize = (artKey) => {
   const meta = lookupSprite(artKey);
   return {
@@ -273,14 +267,51 @@ describe("the bake's enumeration comes from the game's data", () => {
   });
 
   it("states the composed picture's box in exactly one place", async () => {
-    const { cropBox, cropArtSize } = await import("../src/assets/sprites/cropBox.js");
+    const { cropComposition, cropArtSize, overlayClip } = await import("../src/assets/sprites/cropBox.js");
 
-    // The production statement of the box the composer uses, tied to a literal. `cropBox.js`
-    // documents that this clamped convention is the WRONG one — the game draws a crop's
-    // mutation art into the union, not clipped to the crop's own frame — and that plan item 24
-    // owns the correction. So this assertion is a tripwire, not a promise: item 24 replaces
-    // `cropBox` and is expected to change this line, deliberately and visibly, in one place.
-    assert.deepEqual(cropBox(116, 169), { x: 0, y: 0, width: 116, height: 169 });
+    // The production statement of the picture the composer builds, tied to literals: the
+    // canvas is the tight union of the art and the layer rectangles, and the box is the art's
+    // own rectangle inside it (`src/assets/sprites/cropBox.js` records the bundle evidence).
+    //
+    // No layer reaches past the art: the picture is the art, at the origin.
+    assert.deepEqual(cropComposition(116, 169, []), {
+      canvas: { width: 116, height: 169 },
+      box: { x: 0, y: 0, width: 116, height: 169 },
+    });
+    // A layer 21 px above the art's top and wholly inside it horizontally: the canvas grows by
+    // exactly that overhang and the art's corner moves down by it. This is the arithmetic the
+    // live measurement of Clover + `Gold,Frozen,Ambercharged` produces (116x190, box y = 21).
+    assert.deepEqual(
+      cropComposition(116, 169, [{ left: 13, top: -21, width: 88, height: 111 }]),
+      {
+        canvas: { width: 116, height: 190 },
+        box: { x: 0, y: 21, width: 116, height: 169 },
+      },
+    );
+    // A layer that also reaches left: the box's x moves with it, and neither axis is -0.
+    assert.deepEqual(
+      cropComposition(191, 238, [{ left: -8, top: -4, width: 175, height: 123 }]),
+      {
+        canvas: { width: 199, height: 242 },
+        box: { x: 8, y: 4, width: 191, height: 238 },
+      },
+    );
+
+    // The one clip that stays: the tall-plant overlay is masked to the crop body's own
+    // texture, so it is cut to the art's rectangle. Frozen's overlay is 1024x1024 and
+    // PricklyPear's art is 103x109, so the kept piece is exactly the art — whether the
+    // overlay hangs from the art's top or its bottom (the arithmetic for the two mutations
+    // the game anchors differently).
+    assert.deepEqual(overlayClip(103, 109, 1024, 1024, 0.5, false), {
+      x: 0, y: 0, cropLeft: 460, cropTop: 0, width: 103, height: 109,
+    });
+    assert.deepEqual(overlayClip(103, 109, 1024, 1024, 0.5, true), {
+      x: 0, y: 0, cropLeft: 460, cropTop: 915, width: 103, height: 109,
+    });
+    // An overlay smaller than the art is not cut at all.
+    assert.deepEqual(overlayClip(200, 200, 50, 40, 0.5, false), {
+      x: 75, y: 0, cropLeft: 0, cropTop: 0, width: 50, height: 40,
+    });
 
     // The art's own dimensions come from the atlas frame's `sourceSize` when it is trimmed.
     assert.deepEqual(
@@ -334,10 +365,12 @@ describe("the crop bake", () => {
     assert.equal(summary.gameVersion, "1192");
 
     const manifest = await readPublishedManifest();
-    assert.equal(manifest.format, "mg-crop-bake/1");
+    assert.equal(manifest.format, "mg-crop-bake/2");
     assert.equal(manifest.gameVersion, "1192");
     assert.equal(manifest.pictures, 180);
     assert.deepEqual(Object.keys(manifest.crops).sort(), [PINNED.multiple, PINNED.single].sort());
+
+    const { composedBox } = await import("../src/assets/sprites/spriteComposer.js");
 
     let bytesOnDisk = 0;
     for (const [species, entry] of Object.entries(manifest.crops)) {
@@ -350,13 +383,23 @@ describe("the crop bake", () => {
           new RegExp(`^${BAKE_LAYOUT}/1192/crops/.+/.+\\.png$`),
           `${species} "${slug}" path`,
         );
-        // No geometry in the manifest: the box convention is under correction and a box
-        // written under today's composer would freeze the degenerate `0,0,width,height` for
-        // every picture. Item 24 adds the union box and the art's rectangle, in one place.
+        // The manifest is the record of what is on disk, geometry included: `file`, `bytes`
+        // and the box the picture is in. The box is the art's own rectangle, stated by the
+        // one composer that owns the convention (plan item 24), not the degenerate
+        // `0,0,width,height` a picture the size of the art would have.
         assert.deepEqual(
           Object.keys(picture).sort(),
-          ["bytes", "file"],
-          `${species} "${slug}": the manifest states geometry`,
+          ["box", "bytes", "file"],
+          `${species} "${slug}": the manifest's shape changed`,
+        );
+        const art = artSize(entry.art);
+        assert.equal(picture.box.width, art.width, `${species} "${slug}": box width is not the art's`);
+        assert.equal(picture.box.height, art.height, `${species} "${slug}": box height is not the art's`);
+        assert.ok(picture.box.x >= 0 && picture.box.y >= 0, `${species} "${slug}": box outside the picture`);
+        assert.deepEqual(
+          picture.box,
+          await composedBox(entry.art, slug ? slug.split("+") : []),
+          `${species} "${slug}": the manifest's box is not the one a composition states`,
         );
 
         const stat = await fs.stat(path.join(root, picture.file));
@@ -369,15 +412,42 @@ describe("the crop bake", () => {
     assert.equal(summary.bytes, bytesOnDisk, "the reported total is what is on disk");
     assert.equal(await countFiles(path.join(root, BAKE_LAYOUT, "1192", "crops")), 180);
 
-    // The picture really is the crop (measured on the file, not trusted from the manifest):
-    // it holds at least the crop's own art. Asserted as "at least", not "equal to", because
-    // the equal-to form is the clamped convention that item 24 corrects.
+    // The picture really is the union (measured on the file, not trusted from the manifest):
+    // the bare crop has nothing to union, so its file is exactly the art and its box is the
+    // whole picture — the one case where the old degenerate answer was also the right one.
     const art = artSize(artOf(PINNED.single));
     const bare = manifest.crops[PINNED.single].sets[""];
     const meta = await sharp(path.join(root, bare.file)).metadata();
+    assert.equal(
+      `${meta.width}x${meta.height}`,
+      `${art.width}x${art.height}`,
+      "the bare crop's picture is not the crop's own art",
+    );
+    assert.deepEqual(bare.box, { x: 0, y: 0, width: art.width, height: art.height });
+
+    // A set that grows really does grow: PricklyPear is a tall plant in the captured records,
+    // its art is 103x109, and a tall plant wears its decal twice the size, so Thunderstruck's
+    // ground decal reaches 15 px above the art (`sprite/mutation/ThunderstruckGround`), which
+    // is the same overhang the live atlas gives this pair. Asserted as "at least the art, and
+    // the box's corner moved to match", because which mutation reaches where is the placement
+    // port's business (§3.3), not the bake's.
+    const tallArt = artSize(artOf(PINNED.multiple));
+    const grownSlug = canonicalSet(["Thunderstruck"]);
+    const grown = manifest.crops[PINNED.multiple].sets[grownSlug];
+    const grownMeta = await sharp(path.join(root, grown.file)).metadata();
     assert.ok(
-      meta.width >= art.width && meta.height >= art.height,
-      `the picture ${meta.width}x${meta.height} does not hold the crop's art ${art.width}x${art.height}`,
+      grownMeta.width >= tallArt.width && grownMeta.height >= tallArt.height,
+      `PricklyPear + Thunderstruck is ${grownMeta.width}x${grownMeta.height}, smaller than its art`,
+    );
+    assert.equal(grown.box.width, tallArt.width);
+    assert.equal(grown.box.height, tallArt.height);
+    assert.ok(
+      grown.box.x + tallArt.width <= grownMeta.width && grown.box.y + tallArt.height <= grownMeta.height,
+      `the box ${JSON.stringify(grown.box)} does not fit the ${grownMeta.width}x${grownMeta.height} picture`,
+    );
+    assert.ok(
+      grownMeta.height > tallArt.height,
+      "the decal no longer grows the picture, so this case proves nothing about the union",
     );
 
     // The bare crop and a three-mutation set are both there, and both are files.
@@ -438,7 +508,7 @@ describe("the crop bake", () => {
     // composer and nothing else.
     await fs.writeFile(
       path.join(root, "manifest.json"),
-      JSON.stringify({ format: "mg-crop-bake/1", gameVersion: "1192", crops: {}, pictures: 0 }),
+      JSON.stringify({ format: "mg-crop-bake/2", layout: BAKE_LAYOUT, gameVersion: "1192", crops: {}, pictures: 0 }),
     );
     assert.equal(await lookupBaked(artOf(PINNED.single), ["Wet"]), null);
     assert.equal(
@@ -484,9 +554,13 @@ describe("the crop bake", () => {
 
     const hit = await lookupBaked(art, ["Dawnlit"]);
     assert.ok(hit, "the miss was not persisted");
-    assert.equal("box" in hit, false, "the manifest answered with geometry it must not state");
     assert.deepEqual(hit.mutations, ["Dawnlit"]);
     assert.ok(await fs.stat(hit.file), "the persisted file is not on disk");
+    // The manifest states the box, so the persisted picture can be placed without composing
+    // it again: it is the art's own rectangle (Squash's art is 124x196) inside its union.
+    assert.ok(hit.box, "the manifest states no box for the picture it just recorded");
+    assert.equal(hit.box.width, artSize(art).width);
+    assert.equal(hit.box.height, artSize(art).height);
 
     // And the manifest now records it, which is what makes the next request a file read.
     const manifest = await readPublishedManifest();
@@ -500,9 +574,11 @@ describe("the crop bake", () => {
     const resolved = await resolveComposedSprite(art, ["Dawnlit"]);
     assert.equal(resolved.source, "baked", "the persisted set is not served from disk");
     assert.ok(resolved.buffer.equals(first.buffer), "the persisted picture differs from the first answer");
-    // The box comes from the composer, which owns the convention — not from the manifest.
+    // The box is the one the manifest states, and it is the one a fresh composition would
+    // state: the bake's geometry and the composer's are the same statement (`composedBox`).
     const composed = await composeSpriteWithBox(art, ["Dawnlit"]);
     assert.deepEqual(resolved.box, composed.box, "the baked path states a different box");
+    assert.deepEqual(resolved.box, hit.box, "the served box is not the one the manifest records");
 
     const layout = await getViaRoute(art, ["Dawnlit"], { format: "layout" });
     assert.equal(layout.status, 200);
@@ -631,22 +707,29 @@ describe("the crop bake", () => {
     gameDataService.getMutations = async () => onlyGroups(["Growth", "Hydro"]);
 
     const art = artOf(PINNED.single);
+    // `v1` is the clamped layout: the picture was the crop's own art and the box was the
+    // degenerate `0,0,width,height`. A composer change moves the shape of every picture while
+    // the game version stays put, so a v1 tree must be neither served nor resumed as v2's —
+    // otherwise the old bytes would be answered under the new box.
     const stale = {
-      format: "mg-crop-bake/0",
-      layout: "v0", // an older picture shape, e.g. before the box convention was corrected
+      format: "mg-crop-bake/1",
+      layout: "v1", // the clamped picture shape, before the union box (plan item 24)
       gameVersion: "1192",
       generatedAt: "2020-01-01T00:00:00.000Z",
       pictures: 1,
       bytes: 1,
-      crops: { [PINNED.single]: { art, sets: { "": { file: "v0/1192/crops/x/bare.png", bytes: 1 } } } },
+      crops: { [PINNED.single]: { art, sets: { "": { file: "v1/1192/crops/x/bare.png", bytes: 1 } } } },
     };
     await publishManifest(stale, { root });
+    await fs.mkdir(path.join(root, "v1", "1192", "crops", "x"), { recursive: true });
+    await fs.writeFile(path.join(root, stale.crops[PINNED.single].sets[""].file), Buffer.from("x"));
 
     // Not served: a picture baked under another shape must not answer as if it were this one.
     assert.equal(await readPublishedManifest(), null, "an old-layout manifest was accepted");
     assert.equal(await lookupBaked(art, []), null, "an old-layout picture was served");
 
-    // Not resumed either: the whole space is rendered into this layout's own tree.
+    // Not resumed either: the whole space is rendered into this layout's own tree, even though
+    // the v1 file is on disk and decodable — it is not a picture in this layout's shape.
     const spy = makeComposer();
     const summary = await bakeCrops({ gameVersion: "1192", compose: spy.compose });
     assert.equal(summary.layout, BAKE_LAYOUT);
@@ -737,6 +820,56 @@ describe("the crop bake", () => {
 });
 
 // ─── The version watcher's pass ───────────────────────────────────────────────
+
+describe("the one layer the composer still clips", () => {
+  // The tall-plant overlay (`sprite/mutation-overlay/*TallPlant`) is the layer the game *does*
+  // mask, to the crop body's own texture, and only for a plant flagged `isTallPlant`. A fix
+  // that removed every clamp would have drawn it unclipped, over-drawing; these tests are what
+  // says the composer still cuts exactly that layer and no other.
+  it("clips the overlay to the crop body's own texture, so it cannot grow the picture", async () => {
+    // The captured records flag PricklyPear tall (the game's `tileTransformOrigin: "bottom"`),
+    // and the overlay art the game masks is in the same fixture — and is much bigger than the
+    // art it is masked to.
+    assert.equal(PLANTS.PricklyPear.plant.tileTransformOrigin, "bottom");
+    const overlay = lookupSprite("sprite/mutation-overlay/FrozenTallPlant");
+    assert.ok(overlay, "the fixture has no Frozen tall-plant overlay to clip");
+    assert.deepEqual(overlay.sourceSize, { w: 1024, h: 1024 });
+
+    const art = artSize("sprite/plant/PricklyPear"); // 103x109
+    const composed = await composeSpriteWithBox("sprite/plant/PricklyPear", ["Frozen"]);
+    const meta = await sharp(composed.buffer).metadata();
+
+    // Frozen hangs its 1024x1024 overlay from the art's top, 460 px to the left of a 103 px
+    // art, so an unclipped overlay would put the union at roughly 1024x1024. Clipped, it is
+    // exactly the art's own rectangle: it cannot move the picture at all.
+    assert.equal(`${meta.width}x${meta.height}`, `${art.width}x${art.height}`);
+    assert.deepEqual(composed.box, { x: 0, y: 0, width: art.width, height: art.height });
+    assert.ok(
+      meta.width < overlay.sourceSize.w && meta.height < overlay.sourceSize.h,
+      "the overlay was not cut to the art: it is as big as its own frame",
+    );
+  });
+
+  it("keeps clipping the overlay while a decal is still allowed to grow the picture", async () => {
+    // Thunderstruck also states an overlay, and its ground decal (the tall icon) reaches 15 px
+    // above the same art: the decal grows the canvas — no clamp touches it — and the overlay
+    // still cannot.
+    const art = artSize("sprite/plant/PricklyPear");
+    const composed = await composeSpriteWithBox("sprite/plant/PricklyPear", ["Thunderstruck"]);
+    const meta = await sharp(composed.buffer).metadata();
+
+    assert.equal(meta.width, art.width);
+    assert.equal(meta.height, art.height + 15);
+    assert.deepEqual(composed.box, { x: 0, y: 15, width: art.width, height: art.height });
+
+    const overlay = lookupSprite("sprite/mutation-overlay/ThunderstruckTallPlant");
+    assert.ok(overlay, "the fixture has no Thunderstruck tall-plant overlay to clip");
+    assert.ok(
+      meta.height < overlay.sourceSize.h,
+      "the overlay's own frame set the picture's height: it was not clipped to the art",
+    );
+  });
+});
 
 describe("the bake joins the version watcher's pass", () => {
   const spriteSyncPath = path.join(

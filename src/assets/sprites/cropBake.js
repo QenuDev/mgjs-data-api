@@ -28,16 +28,18 @@
 // persisted under the same naming scheme, which is what makes a gap one slow request
 // rather than a 404.
 //
-// ## No geometry in the manifest, deliberately
+// ## The manifest states each picture's box
 //
-// The manifest names each picture's file and its byte count, and states **no box**. The box
-// convention is under correction — the game draws a crop's mutation art into the union of the
-// art and its layers, not clipped to the crop's own frame (`./cropBox.js` records the
-// evidence, plan item 24 owns the fix) — and a box written here under the current, clamped
-// composer would assert the degenerate `0,0,width,height` for every one of the pictures. So
-// the box is left out rather than frozen wrong, a request's box comes from the composer that
-// owns the convention, and item 24 adds the union box plus the art's rectangle inside it in
-// one place.
+// Every entry names its file, its byte count, and the box that picture is in — the art's own
+// rectangle inside the union canvas (`./cropBox.js` states the convention and the evidence).
+// The box is part of the manifest because the manifest is the record of what is on disk: a
+// reader can place a baked picture without composing it again, and a picture resumed from a
+// crashed run still carries the box a fresh composition would state (`composedBox()`, which
+// needs atlas metadata and no pixels).
+//
+// A box baked under the old, clamped convention is the degenerate `0,0,width,height`, which
+// is why this module's tree is namespaced by `BAKE_LAYOUT`: a manifest whose layout is not
+// the current one is neither served nor resumed.
 
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -50,7 +52,7 @@ import { loadStoredVersion } from "../../core/game/versionStorage.js";
 import { initSprites, lookupSprite } from "./sprites.js";
 
 /** The manifest's own shape version, so a consumer can refuse one it does not know. */
-export const BAKE_FORMAT = "mg-crop-bake/1";
+export const BAKE_FORMAT = "mg-crop-bake/2";
 
 /**
  * The shape of the *pictures*, as a path segment: `<root>/<layout>/<game-version>/crops/…`.
@@ -61,12 +63,14 @@ export const BAKE_FORMAT = "mg-crop-bake/1";
  * not this one, which makes the host compose — correct pictures — until the re-bake publishes,
  * and makes the re-bake render everything instead of resuming an old tree's files.
  *
- * This is what keeps the box convention a one-edit change. The game version alone is not
- * enough: a change to the composer (plan item 24 corrects the box from the clamped crop frame
- * to the union of the art and its layers) changes every picture while the game version stays
- * put, and reusing those files would serve the old geometry under the new boxes.
+ * `v2` is the union box (plan item 24): the canvas is the tight union of the crop art and the
+ * layers drawn over it, and the manifest states the art's own rectangle inside it. A `v1`
+ * picture is composed into the crop's own frame — measured on the live atlas and plant records
+ * of game 1192, that is a different size for 4,818 of the 6,210 (crop art, reachable set)
+ * pictures — so its bytes and the degenerate `0,0,width,height` it would be served with must
+ * never be read as this layout's.
  */
-export const BAKE_LAYOUT = "v1";
+export const BAKE_LAYOUT = "v2";
 
 /** True when the operator asked for a bake (`BAKE=1`). */
 export function isBakeEnabled() {
@@ -267,8 +271,9 @@ export async function publishManifest(manifest, { root } = {}) {
  * is missing — every one of which leaves the caller to compose it, which is what keeps
  * correctness independent of the bake.
  *
- * No box: the manifest states no geometry (see the header), so the caller takes the box from
- * the composer that owns the convention.
+ * `box` is the picture's own box as the manifest states it (the art's rectangle inside the
+ * union canvas). It can be null for an entry a manifest from before the box was recorded
+ * carries; the caller then takes the box from the composer that owns the convention.
  */
 export async function lookupBaked(baseKey, mutationIds = []) {
   if (!isBakeEnabled()) return null;
@@ -296,6 +301,7 @@ export async function lookupBaked(baseKey, mutationIds = []) {
   return {
     file,
     bytes: stat.size,
+    box: picture.box ?? null,
     mutations: canonical ? canonical.split("+") : [],
     species: entry.species,
     art: entry.art,
@@ -348,7 +354,7 @@ async function persistComposedNow(baseKey, mutationIds, composed) {
   await fs.mkdir(path.dirname(dest), { recursive: true });
   await fs.writeFile(dest, composed.buffer);
 
-  entry.sets[canonical] = { file: relative, bytes: composed.buffer.length };
+  entry.sets[canonical] = { file: relative, bytes: composed.buffer.length, box: composed.box };
   manifest.crops[entry.species] = { art: entry.art, sets: entry.sets };
   manifest.pictures = countPictures(manifest);
   manifest.bytes = countBytes(manifest);
@@ -377,10 +383,10 @@ function countBytes(manifest) {
  * A picture that is already on disk: its byte count, or null when the file is not a picture
  * after all.
  *
- * Only decodability and size are checked, because that is all the manifest records — no
- * geometry, so nothing here has to know the box convention. A file that does not decode (a
- * write the process did not finish) is not a picture, which is what makes a resumed bake heal
- * a torn file instead of advertising it.
+ * Only decodability and size are checked here. A file that does not decode (a write the
+ * process did not finish) is not a picture, which is what makes a resumed bake heal a torn
+ * file instead of advertising it; its box is the one geometry the manifest records, and the
+ * caller states it from `composedBox()` for a resumed picture (`bakeCrops`).
  */
 async function existingPicture(file) {
   try {
@@ -403,12 +409,13 @@ async function existingPicture(file) {
  * decodes —
  * and it publishes only after the last picture is on disk.
  *
- * `compose` is injectable; the default is the real composer, imported lazily so this module
- * and the composer do not form a load-time cycle.
+ * `compose` and `boxOf` are injectable; the defaults are the real composer, imported lazily so
+ * this module and the composer do not form a load-time cycle.
  */
 export async function bakeCrops({
   gameVersion,
   compose = null,
+  boxOf = null,
   force = false,
   root = null,
   log = logger,
@@ -420,6 +427,7 @@ export async function bakeCrops({
 
   const dir = root ? path.resolve(root) : bakeRoot();
   const composeFn = compose ?? (await import("./spriteComposer.js")).composeSpriteWithBox;
+  const boxFn = boxOf ?? (await import("./spriteComposer.js")).composedBox;
 
   const published = await readPublishedManifest({ root: dir });
   if (!force && published?.gameVersion === version && Object.keys(published.crops ?? {}).length > 0) {
@@ -475,24 +483,32 @@ export async function bakeCrops({
 
       const existing = await existingPicture(dest);
       let bytes;
+      let box;
 
       if (existing) {
         bytes = existing.bytes;
+        // The picture is already there; only its box is missing from this run's manifest.
+        // Geometry needs no pixels, so a resume stays cheap (`composedBox`).
+        box = await boxFn(artKey, set);
+        if (!box) {
+          throw new Error(`The composer states no box for ${artKey} [${canonical || "bare"}]`);
+        }
         resumed++;
       } else {
         const composed = await composeFn(artKey, set);
-        if (!composed?.buffer) {
-          throw new Error(`The composer produced nothing for ${artKey} [${canonical || "bare"}]`);
+        if (!composed?.buffer || !composed.box) {
+          throw new Error(`The composer produced no picture or box for ${artKey} [${canonical || "bare"}]`);
         }
         await fs.mkdir(path.dirname(dest), { recursive: true });
         await fs.writeFile(dest, composed.buffer);
         bytes = composed.buffer.length;
+        box = composed.box;
         rendered++;
       }
 
-      // `file` and `bytes` only: no geometry (see the header — the box convention is under
-      // correction, and item 24 adds it here in one place).
-      entry.sets[canonical] = { file: relative, bytes };
+      // `file`, `bytes` and the box: the manifest is the record of what is on disk, geometry
+      // included (`./cropBox.js` states the convention).
+      entry.sets[canonical] = { file: relative, bytes, box };
       manifest.pictures++;
       manifest.bytes += bytes;
 

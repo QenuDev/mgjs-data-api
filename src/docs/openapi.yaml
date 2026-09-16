@@ -2213,16 +2213,21 @@ paths:
         4. Tall-plant overlays (masked to base silhouette, tall plants only)
         5. Floating icons (Dawnlit, Ambershine, Dawncharged, Ambercharged)
 
-        The picture is the crop's own art: the canvas is the base sprite's own box, so the
-        image dimensions are exactly what the game draws for that key, and a mutation's art
-        that lands outside that box is **clipped** to it rather than allowed to grow the
-        picture.
+        The picture is the **tight union** of the crop's own art and every layer drawn over it:
+        an icon that reaches past the crop's frame grows the picture instead of being clipped
+        to it, so the image dimensions are the union's, not the crop art's. The one exception
+        is the tall-plant overlay (`sprite/mutation-overlay/*TallPlant`, tall plants only),
+        which the game itself masks to the crop body's own texture: that layer is still cut to
+        the crop art's rectangle and never changes the picture's size.
 
         The box is stated rather than assumed, in two forms of the same fact:
         `X-MG-Sprite-Box: x,y,width,height` on the response, and `?format=layout` for the
-        same box as a JSON body. The JSON form is the one a cross-origin page can read: the
-        header is deliberately *not* in `Access-Control-Expose-Headers`, so a browser asks
-        for the layout instead of trying to read a header it was never given.
+        same box as a JSON body. It is the **crop art's own rectangle inside the picture** —
+        `width`/`height` are the art's, `x`/`y` the corner it sits at, so a caller places the
+        picture on a tile with the art where it belongs. The JSON form is the one a
+        cross-origin page can read: the header is deliberately *not* in
+        `Access-Control-Expose-Headers`, so a browser asks for the layout instead of trying to
+        read a header it was never given.
 
         **Mutations supported:** `Gold`, `Rainbow`, `Wet`, `Chilled`, `Frozen`, `Thunderstruck`,
         `Dawnlit`, `Ambershine`, `Dawncharged`, `Ambercharged`
@@ -2281,10 +2286,10 @@ paths:
                   summary: The box `X-MG-Sprite-Box` states, as a readable body
                   value:
                     key: "sprite/plant/Carrot"
-                    mutations: ["Gold"]
+                    mutations: ["Ambercharged"]
                     box:
                       x: 0
-                      y: 0
+                      y: 50
                       width: 191
                       height: 238
         '400':
@@ -4241,12 +4246,11 @@ components:
     SpriteBox:
       type: object
       description: |
-        Where a composed crop's art sits inside the picture, in picture pixels. `x`
-        and `y` are the crop's corner; today they are `0,0`, because the picture
-        *is* the crop's own box — the shape is stated rather than assumed so that a
-        picture which later carries padding or a shadow says so here instead of
-        silently changing size under a caller. `width` and `height` are the
-        picture's dimensions, which are exactly the base sprite's own art.
+        The crop art's own rectangle inside the composed picture, in picture pixels. `x`
+        and `y` are the corner the art sits at — `0,0` only when no mutation layer reaches
+        past the art — and `width`/`height` are the art's own dimensions, so a caller places
+        the picture on a tile with the art where it belongs. The picture itself is the tight
+        union of the art and its layers, so it is at least that big and usually bigger.
 
         The same fact as `X-MG-Sprite-Box` and as the `?format=layout` body, which
         carries it under this shape.
@@ -4258,17 +4262,19 @@ components:
       properties:
         x:
           type: integer
+          description: Left edge of the crop art inside the picture
           example: 0
         y:
           type: integer
-          example: 0
+          description: Top edge of the crop art inside the picture
+          example: 50
         width:
           type: integer
-          description: Picture width in pixels, which is the crop art's own width
+          description: The crop art's own width in pixels
           example: 191
         height:
           type: integer
-          description: Picture height in pixels, which is the crop art's own height
+          description: The crop art's own height in pixels
           example: 238
 
     SpriteLayout:
@@ -4330,8 +4336,10 @@ components:
 
     SpriteBox:
       description: |
-        Where the composed crop's art sits inside the picture:
-        `x,y,width,height` in picture pixels, one parseable value, no PNG decoding.
+        The crop art's own rectangle inside the composed picture:
+        `x,y,width,height` in picture pixels, one parseable value, no PNG decoding. The
+        picture is the tight union of the art and its layers, so this rectangle is what
+        says where the art landed in it.
 
         Sent on both representations — the picture and the `?format=layout` body. Not
         sent on `304`, which states no box. Deliberately **not** in the CORS
@@ -4340,4 +4348,4 @@ components:
         it can read.
       schema:
         type: string
-        example: "0,0,191,238"
+        example: "0,50,191,238"
