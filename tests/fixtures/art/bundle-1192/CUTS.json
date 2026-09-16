@@ -1,6 +1,6 @@
 {
   "gameVersion": "1192",
-  "source": "../../mgafk-pi/json/bundle-1192-0",
+  "source": "../mgafk-pi/json/bundle-1192-0",
   "note": "`start`/`end` sont les intervalles du déclarateur dans le chunk du jeu, `initializerStart`/`initializerEnd` ceux de la valeur verbatim, et `fixtureValueStart`/`fixtureValueEnd` où cette même valeur se trouve dans le fichier écrit. `aliasOf` nomme la déclaration du chunk dont une entrée est une liaison.",
   "cuts": [
     {

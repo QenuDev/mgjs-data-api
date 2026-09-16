@@ -88,6 +88,11 @@ docker compose up -d      # the API on :3002, plus the sprite exporter
   code's default is 3000 while the reverse-proxy config proxies to 3002.
 - **`.env.example`** documents every setting, including `SPRITES_PROFILE=data` for a host that serves
   data only and must not spend disk or CPU exporting an atlas.
+- **Add `--build`** (`docker compose up -d --build`) when you want the tree in front of you rather than a
+  published image. The compose file names `mg-api:2.0.0`, so a plain `up` uses that image if it is already on
+  the machine — which is the right default on a host pulling releases and a silent surprise on a host that has
+  just changed the code. Measured on this machine: `mg-api:2.0.0` and a fresh build of the same tree are both
+  357 MB and both answer, so nothing tells them apart from the outside.
 - **`nginx.conf`** is not started by the compose file. It is the reverse-proxy configuration to install
   in front if you want one — TLS, caching and a published sprite directory served straight off disk,
   which is faster than going through Node. The API works without it.
