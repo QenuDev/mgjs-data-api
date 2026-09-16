@@ -129,6 +129,15 @@ tags:
 
       **Refresh rate:** Data is cached for 5 minutes by default.
 
+      **Provenance:** every response carries `X-Game-Version`, the game version its
+      body was built from. Every JSON body also states that version, the contract
+      version and `generatedAt` together under one reserved `_meta` key — reserved
+      because these bodies are the game's data keyed by entity name, so any root
+      field could collide with a plant or an item. Should a category ever hold an
+      entry named `_meta`, the block retreats to `__meta` rather than overwrite it.
+      `/data/version` is the exception: its body **is** that block, so it carries
+      the header and no `_meta`.
+
   - name: Assets
     description: |
       Game assets including sprites, cosmetics, and audio.
@@ -186,6 +195,10 @@ tags:
     description: |
       Every `/data/*` and `/live/*` endpoint is available as CSV or TSV by appending `.csv` or `.tsv` to the URL.
       Nested fields are flattened with dot notation. Ideal for Excel, Google Sheets (`=IMPORTDATA(...)`), or any spreadsheet tool.
+
+      Each export carries `X-Game-Version` like every other `/data` response, and
+      deliberately no `_meta`: the format is a table, so a metadata key would add an
+      empty column to every entity and one empty row.
 
   - name: Health
     description: |
@@ -476,12 +489,16 @@ paths:
         never synced reports `null` for both rather than inventing a version.
 
         These are the same three facts `/schema.json` reports, so a client can
-        read either.
+        read either. This body **is** the provenance block, so it carries no `_meta`
+        key; like every other `/data` response it carries `X-Game-Version`.
 
         Cached for one minute.
       responses:
         '200':
           description: Build version of this instance
+          headers:
+            X-Game-Version:
+              $ref: '#/components/headers/GameVersion'
           content:
             application/json:
               schema:
@@ -530,6 +547,9 @@ paths:
 
         **Note:** All sprite URLs are absolute and ready to use.
 
+        **Provenance:** the body carries `X-Game-Version` and the reserved `_meta`
+        key (`gameVersion`, `contract`, `generatedAt`) described below.
+
         **Partial responses:** a game update can move the data out from under one of
         the extractors. When that happens the affected key is simply **absent** from
         this response rather than the whole endpoint failing, so read defensively
@@ -539,11 +559,16 @@ paths:
       responses:
         '200':
           description: All game data
+          headers:
+            X-Game-Version:
+              $ref: '#/components/headers/GameVersion'
           content:
             application/json:
               schema:
                 type: object
                 properties:
+                  _meta:
+                    $ref: '#/components/schemas/ResponseMeta'
                   plants:
                     type: object
                     description: All plants data (keyed by plant ID)
@@ -634,10 +659,16 @@ paths:
       responses:
         '200':
           description: Plants data
+          headers:
+            X-Game-Version:
+              $ref: '#/components/headers/GameVersion'
           content:
             application/json:
               schema:
                 type: object
+                properties:
+                  _meta:
+                    $ref: '#/components/schemas/ResponseMeta'
                 additionalProperties:
                   $ref: '#/components/schemas/PlantData'
               examples:
@@ -704,10 +735,16 @@ paths:
       responses:
         '200':
           description: Pets data
+          headers:
+            X-Game-Version:
+              $ref: '#/components/headers/GameVersion'
           content:
             application/json:
               schema:
                 type: object
+                properties:
+                  _meta:
+                    $ref: '#/components/schemas/ResponseMeta'
                 additionalProperties:
                   $ref: '#/components/schemas/PetData'
               examples:
@@ -781,10 +818,16 @@ paths:
       responses:
         '200':
           description: Items data
+          headers:
+            X-Game-Version:
+              $ref: '#/components/headers/GameVersion'
           content:
             application/json:
               schema:
                 type: object
+                properties:
+                  _meta:
+                    $ref: '#/components/schemas/ResponseMeta'
                 additionalProperties:
                   $ref: '#/components/schemas/ItemData'
               examples:
@@ -844,10 +887,16 @@ paths:
       responses:
         '200':
           description: Decorations data
+          headers:
+            X-Game-Version:
+              $ref: '#/components/headers/GameVersion'
           content:
             application/json:
               schema:
                 type: object
+                properties:
+                  _meta:
+                    $ref: '#/components/schemas/ResponseMeta'
                 additionalProperties:
                   type: object
               examples:
@@ -895,10 +944,16 @@ paths:
       responses:
         '200':
           description: Eggs data
+          headers:
+            X-Game-Version:
+              $ref: '#/components/headers/GameVersion'
           content:
             application/json:
               schema:
                 type: object
+                properties:
+                  _meta:
+                    $ref: '#/components/schemas/ResponseMeta'
                 additionalProperties:
                   type: object
               examples:
@@ -967,10 +1022,16 @@ paths:
       responses:
         '200':
           description: Abilities data
+          headers:
+            X-Game-Version:
+              $ref: '#/components/headers/GameVersion'
           content:
             application/json:
               schema:
                 type: object
+                properties:
+                  _meta:
+                    $ref: '#/components/schemas/ResponseMeta'
                 additionalProperties:
                   type: object
               examples:
@@ -1046,10 +1107,16 @@ paths:
       responses:
         '200':
           description: Mutations data
+          headers:
+            X-Game-Version:
+              $ref: '#/components/headers/GameVersion'
           content:
             application/json:
               schema:
                 type: object
+                properties:
+                  _meta:
+                    $ref: '#/components/schemas/ResponseMeta'
                 additionalProperties:
                   type: object
               examples:
@@ -1107,10 +1174,16 @@ paths:
       responses:
         '200':
           description: Weathers data
+          headers:
+            X-Game-Version:
+              $ref: '#/components/headers/GameVersion'
           content:
             application/json:
               schema:
                 type: object
+                properties:
+                  _meta:
+                    $ref: '#/components/schemas/ResponseMeta'
                 additionalProperties:
                   type: object
               examples:
@@ -1171,10 +1244,16 @@ paths:
       responses:
         '200':
           description: Weather groups data
+          headers:
+            X-Game-Version:
+              $ref: '#/components/headers/GameVersion'
           content:
             application/json:
               schema:
                 type: object
+                properties:
+                  _meta:
+                    $ref: '#/components/schemas/ResponseMeta'
                 additionalProperties:
                   type: object
               examples:
@@ -1208,6 +1287,9 @@ paths:
                         splits: [[2, 2, 2], [1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2], [3, 2, 1]]
         '304':
           description: Not modified (matched If-None-Match)
+          headers:
+            X-Game-Version:
+              $ref: '#/components/headers/GameVersion'
 
   /data/enums:
     get:
@@ -1235,11 +1317,16 @@ paths:
       responses:
         '200':
           description: Canonical enums
+          headers:
+            X-Game-Version:
+              $ref: '#/components/headers/GameVersion'
           content:
             application/json:
               schema:
                 type: object
                 properties:
+                  _meta:
+                    $ref: '#/components/schemas/ResponseMeta'
                   rarity:
                     type: array
                     items:
@@ -1276,6 +1363,9 @@ paths:
                     mutationTierOrder: ["Wet", "Chilled", "Frozen", "Thunderstruck", "Dawnlit", "Ambershine", "Dawncharged", "Ambercharged"]
         '304':
           description: Not modified (matched If-None-Match)
+          headers:
+            X-Game-Version:
+              $ref: '#/components/headers/GameVersion'
 
   /data/plants.csv:
     get:
@@ -1307,12 +1397,19 @@ paths:
         Arrays are serialized as JSON strings within cells.
         The combined `/data.csv` includes a `category` column.
 
+        Every export carries `X-Game-Version`, and none carries `_meta`:
+        `jsonToDelimited` turns each top-level key into a table row, so a metadata
+        key would add an empty column to every entity and one row with no data.
+
         **Google Sheets:** `=IMPORTDATA("/data/plants.csv")`
 
         **Excel:** Data > From Web > paste the `.csv` URL
       responses:
         '200':
           description: CSV file
+          headers:
+            X-Game-Version:
+              $ref: '#/components/headers/GameVersion'
           content:
             text/csv:
               schema:
@@ -4061,6 +4158,49 @@ components:
             category: "seeds"
             filename: "NonExistent.png"
 
+    # Le bloc de provenance des corps de `/data/*`. La clé est réservée : les
+    # corps sont les données du jeu keyées par nom, et un nom peut être
+    # n'importe quoi. Si une catégorie porte déjà `_meta`, le bloc recule
+    # (`__meta`) plutôt que d'écraser une entité.
+    ResponseMeta:
+      type: object
+      description: |
+        Provenance of a `/data/*` body: the game version it was built from, the
+        contract version it respects, and when the build completed. The same three
+        facts `/data/version` publishes, and the same version the `?v=` of the
+        sprite URLs inside the body carries.
+
+        A reserved key, not an ordinary one. These bodies are the game's data keyed by
+        entity name, so any name is possible: a plant called `gameVersion`, an item
+        called `contract`. Three fields at the root would be three ways to overwrite
+        an entity, so the facts travel together under one underscore-prefixed key,
+        which the game identifiers do not use. If a category ever holds an entry
+        literally named `_meta`, the block retreats to `__meta` (and deeper if
+        needed) rather than overwrite it, and the collision is logged.
+      required:
+        - gameVersion
+        - contract
+        - generatedAt
+      properties:
+        gameVersion:
+          type: string
+          nullable: true
+          description: |
+            Game version this body was built from: the same value as the
+            `X-Game-Version` response header and as the `?v=` of the sprite URLs
+            inside the body. `null` on a host that has neither a bundle in cache
+            nor a build record — where the header is absent rather than empty.
+          example: "1191"
+        contract:
+          type: integer
+          description: "Contract version this body respects (this document's `info.version`)"
+          example: 1
+        generatedAt:
+          type: string
+          nullable: true
+          description: When the build that produced this body completed (ISO 8601), `null` if unknown
+          example: "2026-09-16T05:00:00.000Z"
+
   responses:
     InternalError:
       description: Internal server error
@@ -4075,3 +4215,20 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
+
+  # Un seul en-tête, référencé par chaque chemin de `/data` sous son nom réel
+  # (`GAME_VERSION_HEADER` dans `src/api/routes/data.js`).
+  headers:
+    GameVersion:
+      description: |
+        Game version the body was built from: the same version as the `?v=` of the
+        sprite URLs inside it, as the provenance block's `gameVersion`, and as the
+        version the ETag is derived from. Sent on every `/data` response, `304 Not
+        Modified` included, so a client or a caching proxy learns which version it
+        holds without parsing a body or reading a URL.
+
+        A host that has neither a bundle in cache nor a build record has no honest
+        version to announce: the header is **absent** rather than empty.
+      schema:
+        type: string
+        example: "1191"
