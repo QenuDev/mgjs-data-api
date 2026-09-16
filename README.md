@@ -512,6 +512,50 @@ environment:
 
 Without `SPRITES_PROFILE=data` such a container still answers `/assets/*` with `200` and serves whatever the mounted `sprites_dump` contains — including a previous game version's art — which is what the explicit profile exists to prevent.
 
+## Testing
+
+The suite is offline by default - `npm test` does not touch the network.
+
+```bash
+npm test           # everything that can be checked offline
+npm run test:live  # the same suite plus the checks that need the real game
+```
+
+Game *metadata* - the manifest and the atlas JSON - is asserted against a frozen
+copy of what the game served at version 1192, under `tests/fixtures/game/`. See
+[`tests/fixtures/README.md`](tests/fixtures/README.md) for provenance and how to
+re-capture it. Pinning it is the point: an assertion tied to whatever the game
+serves today goes red the week a new version ships, for a reason that has
+nothing to do with this code.
+
+Two things cannot be frozen into the repository: the game's *binaries*. A KTX2
+atlas image is 1-5 MB and `rive/pets.riv` is 2.4 MB. The tests that need them
+are skipped, and each skip says what it is missing and how to run it:
+
+```
+ok 5 - pets Rive asset (live .riv) # SKIP needs the live rive/pets.riv (~2.4 MB) to
+load artboards and render pet loops - run `MG_LIVE_ASSETS=1 npm run test:live` with
+network access
+```
+
+`npm run test:live` sets `MG_LIVE_ASSETS=1`, which turns those skips back into
+tests. It needs network access; a single file works too:
+
+```bash
+MG_LIVE_ASSETS=1 npm run test:live                      # whole suite
+MG_LIVE_ASSETS=1 node --test tests/rive-pets.test.js    # one file
+```
+
+Two caveats when reading the output. `node --test` counts skips attached to a
+single test but not those gating a whole suite, so read the `# SKIP` lines in
+the log rather than the `skipped` tally. And a skip is not a pass: if a check
+can no longer measure what it was written to measure, it is skipped with the
+reason rather than left to pass vacuously.
+
+Some live tests only look for drift - a file the frozen copy pinned that the
+game has since moved. They are gated the same way, and they exist so a stale
+fixture cannot stay green forever.
+
 ## Limitations & Warnings
 
 - **Unofficial API** - Not affiliated with the game developers

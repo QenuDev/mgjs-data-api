@@ -26,16 +26,17 @@ import { buildAnimationUrl } from "../src/utils/spriteUrlBuilder.js";
 import { buildAnimationLinks } from "../src/assets/sprites/riveAnimations.js";
 import { buildRiveSource } from "../src/assets/sprites/riveSource.js";
 import { resolveRiveUrl } from "../src/assets/sprites/riveManifest.js";
+import { SKIP_DECOR_RIVE, SKIP_PETS_RIVE } from "./helpers/live-assets.js";
 
 const FETCH_TIMEOUT = 30_000;
 const TARGET_HEIGHT = 128;
 
-describe("pet animation rendering", () => {
+describe("pet animation rendering", { skip: SKIP_PETS_RIVE }, () => {
   let riveFile = null;
 
   before(async () => {
     const riveUrl = await resolvePetsRiveUrl();
-    if (!riveUrl) return;
+    assert.ok(riveUrl, "pets.riv not found in the live manifest");
 
     const res = await fetch(riveUrl, {
       headers: { "User-Agent": "Mozilla/5.0" },
@@ -288,13 +289,13 @@ describe("rive source", () => {
   });
 });
 
-describe("decor animations", () => {
+describe("decor animations", { skip: SKIP_DECOR_RIVE }, () => {
   it("derives clips from what the artboard declares, not from a hardcoded list", async () => {
     // Les noms de timelines des décors sont incohérents (`WoodWindmill_On`,
     // `WindSpinner_Spins`, `Caludron` — la faute est dans le fichier du jeu, et
     // deux `Timeline 1`). Les coder en dur casserait à la première maj.
     const riveUrl = await resolveRiveUrl("decor", {});
-    if (!riveUrl) return;
+    assert.ok(riveUrl, "decor.riv not found in the live manifest");
 
     const res = await fetch(riveUrl, {
       headers: { "User-Agent": "Mozilla/5.0" },
@@ -323,7 +324,7 @@ describe("decor animations", () => {
 
   it("renders a decor loop without needing a state machine name", async () => {
     const riveUrl = await resolveRiveUrl("decor", {});
-    if (!riveUrl) return;
+    assert.ok(riveUrl, "decor.riv not found in the live manifest");
 
     const res = await fetch(riveUrl, {
       headers: { "User-Agent": "Mozilla/5.0" },
@@ -345,12 +346,12 @@ describe("decor animations", () => {
   });
 });
 
-describe("incremental export", () => {
+describe("incremental export", { skip: SKIP_PETS_RIVE }, () => {
   let riveFile = null;
 
   before(async () => {
     const riveUrl = await resolvePetsRiveUrl();
-    if (!riveUrl) return;
+    assert.ok(riveUrl, "pets.riv not found in the live manifest");
     const res = await fetch(riveUrl, {
       headers: { "User-Agent": "Mozilla/5.0" },
       signal: AbortSignal.timeout(FETCH_TIMEOUT),
