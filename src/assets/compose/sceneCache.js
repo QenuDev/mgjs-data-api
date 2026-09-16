@@ -46,8 +46,14 @@ import { config } from "../../config/index.js";
  * code, answered with the same 257,999 bytes, and the only way to see the fix was to empty
  * `sprites_dump/compose` by hand. A cache that cannot be invalidated by the change that invalidates it
  * is not a cache, it is a lie with a fast path.
+ *
+ * v2 -> v3 is spec 2 (`src/assets/compose/spec.js`): a patch composes a **cluster** where the old code
+ * drew one art on the tile, so a picture of the same spec has a different shape. The key is still the
+ * spec alone — an old spec and a new one can even normalise to the same content — so without this
+ * segment a host with a warm tree would go on answering v2 pictures for a v2 spec, which is now the
+ * wrong picture rather than an old one.
  */
-export const SCENE_LAYOUT = "v2";
+export const SCENE_LAYOUT = "v3";
 
 /**
  * The scene tree's own directory, beside the bake under the sprite export root.

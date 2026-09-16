@@ -21,7 +21,13 @@ process.env.RATE_LIMIT_ENABLED = "false";
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { COMPOSE_LIMITS, SPEC_VERSION, ComposeSpecError, normalizeSpec } from "../src/assets/compose/spec.js";
+import {
+  COMPOSE_LIMITS,
+  SPEC_VERSION,
+  SUPPORTED_SPEC_VERSIONS,
+  ComposeSpecError,
+  normalizeSpec,
+} from "../src/assets/compose/spec.js";
 import { contentKey } from "../src/assets/compose/sceneCache.js";
 import { startTestApp } from "./helpers/httpApp.js";
 
@@ -42,6 +48,9 @@ test("une spec minimale est normalisée et prend ses défauts", () => {
       at: null,
       size: null,
       mutations: [],
+      // Spec 2: the game's own per-crop flag the save carries, echoed with its default so the shape a
+      // caller reads back is the shape it sent, filled in.
+      flipped: false,
       startTime: null,
       endTime: null,
       ready: null,
@@ -68,7 +77,7 @@ test("une spec malformée est refusée par un code nommé", () => {
   const cases = [
     [null, "must be a JSON object"],
     [{ items: [] }, "spec"],
-    [{ spec: 2, items: [{ id: "a", species: "Clover" }] }, "spec 2 is not supported"],
+    [{ spec: 3, items: [{ id: "a", species: "Clover" }] }, "spec 3 is not supported"],
     [{ spec: 1 }, "items"],
     [{ spec: 1, items: [] }, "at least one item"],
     [{ spec: 1, items: [{ species: "Clover" }] }, "id"],
@@ -81,6 +90,18 @@ test("une spec malformée est refusée par un code nommé", () => {
     [{ spec: 1, canvas: { fit: "tile" }, items: [{ id: "a", species: "Clover" }] }, "fit"],
     [{ spec: 1, canvas: { padding: 999 }, items: [{ id: "a", species: "Clover" }] }, "padding"],
     [{ spec: 1, background: { kind: "solid" }, items: [{ id: "a", species: "Clover" }] }, "kind"],
+    // Spec 2 : une place est un nombre fini, et une patch a besoin de ses brins.
+    [{ spec: 2, items: [{ id: "a", species: "Clover", at: { column: 0, row: 0, x: "0.5" } }] }, "x must be a finite number"],
+    [
+      { spec: 2, items: [{ id: "a", species: "Clover", at: { column: 0, row: 0, rotation: false } }] },
+      "rotation must be a finite number",
+    ],
+    [{ spec: 2, items: [{ id: "a", kind: "patch", species: "Clover" }] }, "at least one crop"],
+    [{ spec: 2, items: [{ id: "a", kind: "patch", species: "Clover", crops: [] }] }, "at least one crop"],
+    [
+      { spec: 2, items: [{ id: "a", kind: "patch", species: "Clover", crops: [{ size: 50, at: { x: "0.1" } }] }] },
+      "x must be a finite number",
+    ],
   ];
 
   for (const [raw, expected] of cases) {
@@ -94,6 +115,56 @@ test("une spec malformée est refusée par un code nommé", () => {
     assert.match(thrown.message, new RegExp(expected), `${JSON.stringify(raw)} : le message nomme la faute`);
     assert.equal(thrown.status, 400);
   }
+});
+
+test("spec 2 normalise une place et une patch, et spec 1 reste acceptée", () => {
+  // Une place : x et y en fractions de tuile, rotation en degrés, remplie telle quelle.
+  const placed = normalizeSpec({
+    spec: 2,
+    items: [
+      {
+        id: "a",
+        kind: "crop",
+        species: "Clover",
+        at: { column: 2, row: 3, x: 0.125, y: -0.25, rotation: 30 },
+      },
+    ],
+  });
+  assert.deepEqual(placed.items[0].at, { column: 2, row: 3, x: 0.125, y: -0.25, rotation: 30 });
+
+  // Une patch : les brins, chacun avec sa taille, ses mutations et sa place optionnelle.
+  const patch = normalizeSpec({
+    spec: 2,
+    items: [
+      {
+        id: "p",
+        kind: "patch",
+        species: "Clover",
+        at: { column: 0, row: 0 },
+        crops: [{ size: 100 }, { size: 50, at: { x: 0.1, y: 0.2, rotation: 5 }, flipped: true }],
+      },
+    ],
+  });
+  assert.equal(patch.items[0].kind, "patch");
+  assert.equal(patch.items[0].crops.length, 2);
+  assert.deepEqual(patch.items[0].crops[0], {
+    slot: 0,
+    size: 100,
+    mutations: [],
+    flipped: false,
+    at: { x: null, y: null, rotation: null },
+  });
+  assert.deepEqual(patch.items[0].crops[1].at, { x: 0.1, y: 0.2, rotation: 5 });
+  assert.equal(patch.items[0].crops[1].flipped, true);
+  // Une patch n'a pas de mutations de corps : le champ existe et reste vide.
+  assert.deepEqual(patch.items[0].mutations, []);
+
+  // Spec 1 est toujours acceptée, et une spec sans place normalise la même chose dans les deux
+  // versions : c'est ce qui garde une clé de contenu stable pour une scène qui ne s'en sert pas.
+  assert.deepEqual(SUPPORTED_SPEC_VERSIONS, [2, 1]);
+  const one = normalizeSpec({ spec: 1, items: [{ id: "a", kind: "crop", species: "Clover" }] });
+  const two = normalizeSpec({ spec: 2, items: [{ id: "a", kind: "crop", species: "Clover" }] });
+  assert.deepEqual(one.items, two.items);
 });
 
 test("une version de spec inconnue a son propre code, et dit ce que l'instance implémente", () => {

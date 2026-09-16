@@ -26,7 +26,7 @@ import { asyncHandler, Errors, requireSpriteExport } from "../middleware/index.j
 import { buildWeakEtag, isFresh } from "../../utils/httpCache.js";
 import { clearSceneCaches, resolveScene } from "../../assets/compose/sceneService.js";
 import { cacheDirectory, readScene } from "../../assets/compose/sceneCache.js";
-import { COMPOSE_LIMITS, SPEC_VERSION } from "../../assets/compose/spec.js";
+import { COMPOSE_LIMITS, SPEC_VERSION, SUPPORTED_ITEM_KINDS } from "../../assets/compose/spec.js";
 
 export const composeRouter = express.Router();
 
@@ -58,7 +58,7 @@ composeRouter.get(
       body: "a scene spec; see /docs/openapi.json",
       formats: ["image/png", "application/json"],
       layout: "?format=layout",
-      itemKinds: ["plant", "crop"],
+      itemKinds: [...SUPPORTED_ITEM_KINDS],
       limits: { ...COMPOSE_LIMITS },
       cache: { directory: cacheDirectory(), keyedBy: "sha256 of the normalised spec" },
       result: "/compose/<key>.png",

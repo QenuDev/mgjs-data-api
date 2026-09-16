@@ -116,7 +116,7 @@ x-mg-contract:
   # lit les deux et les compare : une limite qui bouge dans le code et pas ici refuserait un client
   # que le contrat lui a dit acceptable.
   compose:
-    spec: 1
+    spec: 2
     maxItems: 256
     maxCanvas: "4096x4096"
     maxPixels: 16777216
@@ -3238,7 +3238,7 @@ paths:
               twoPlantsAndABareCrop:
                 summary: Two plants and a bare crop
                 value:
-                  spec: 1
+                  spec: 2
                   canvas:
                     fit: content
                     padding: 0
@@ -3270,7 +3270,7 @@ paths:
               tiledGround:
                 summary: A ground of the game's own tile art
                 value:
-                  spec: 1
+                  spec: 2
                   canvas:
                     fit: content
                     padding: 16
@@ -3304,7 +3304,7 @@ paths:
                 layout:
                   summary: The same boxes the picture was drawn into
                   value:
-                    spec: 1
+                    spec: 2
                     key: "9f2c1d1b2a3c4d5e6f708192a3b4c5d6e7f80912"
                     canvas:
                       width: 792
@@ -3350,8 +3350,8 @@ paths:
                   value:
                     error:
                       code: "COMPOSE_SPEC_VERSION_UNSUPPORTED"
-                      message: "spec 7 is not supported; this instance implements spec 1"
-                      limit: 1
+                      message: "spec 7 is not supported; this instance implements spec 2, 1"
+                      limit: 2
                       saw: 7
                 overTheItemCount:
                   summary: More items than the declared maximum
@@ -5184,16 +5184,22 @@ components:
     ComposeSpec:
       description: |
         A scene: what to draw, and where. Every value names something the game names — a species, a
-        tile column and row, a mutation, a crop's own size on the game's 50-to-100 band. **No field
-        is a pixel coordinate**: the API owns the reference tile, the slot offsets, the size curve,
-        the rotation and the z-order.
+        tile column and row, a mutation, a crop's own size on the game's 50-to-100 band, and (spec 2)
+        a place **inside** a tile as a fraction of it. **No field is a pixel coordinate**: the API owns
+        the reference tile, the slot offsets, the size curve, the rotation and the z-order.
+
+        Spec 2 adds two things and changes nothing else: an optional in-tile place on `at`
+        (`x`, `y`, `rotation` — the unit the save states a crop's own place in), and
+        `kind: "patch"`, a tile that holds a **cluster** of the species' crops. Spec 1 is still
+        accepted and behaves exactly as it did.
       type: object
       required: [spec, items]
       properties:
         spec:
           type: integer
-          description: The spec version; this instance implements `1`
-          example: 1
+          enum: [2, 1]
+          description: The spec version; this instance implements `2` and `1`
+          example: 2
         canvas:
           type: object
           properties:
@@ -5231,19 +5237,24 @@ components:
 
     ComposeItem:
       description: |
-        One thing in the scene. `kind: "plant"` draws the species' plant with its pot and the crops
-        in its slots; `kind: "crop"` is a bare crop — a menu picture, a seed packet. Both take an
-        optional `at`, the tile the thing occupies; without one the item flows with the rest of the
-        content.
+        One thing in the scene. `kind: "plant"` draws the species' plant with its pot and the crops in
+        its slots; `kind: "patch"` draws a cluster of the species' crops on one tile — a patch species
+        is one the plant table states `harvestType: "Single"` **and** a `slotCapacity` for, and its
+        `crops` are the sprigs, capped by that capacity; `kind: "crop"` is a bare crop — a menu
+        picture, a seed packet. Every kind takes an optional `at`, the tile the thing occupies; without
+        one the item flows with the rest of the content.
       type: object
       required: [id, species]
       properties:
         id:
           type: string
-          description: The caller's own name for the item, echoed in the layout
+          description: |
+            The caller's own name for the item, echoed in the layout. It is also the **seed** of a
+            patch's scatter: the same id lays a patch out the same way every time, which is what keeps
+            a content-addressed picture stable.
         kind:
           type: string
-          enum: ["plant", "crop"]
+          enum: ["plant", "patch", "crop"]
           default: "crop"
         species:
           type: string
@@ -5251,6 +5262,11 @@ components:
           example: "Clover"
         at:
           type: object
+          description: |
+            The tile the item occupies, and (spec 2) where inside it. `x` and `y` are **fractions of a
+            tile** and `rotation` is **degrees**, which is the unit the game's own save states a crop's
+            place in; absent means `0`, the tile's middle. A crop's art anchor lands on
+            `tileCentre + (x, y) × 256` and the sprite is turned `rotation` degrees about that anchor.
           properties:
             column:
               type: integer
@@ -5258,6 +5274,18 @@ components:
             row:
               type: integer
               minimum: 0
+            x:
+              type: number
+              description: Across the tile, as a fraction of it (`0` is the middle)
+              example: 0.125
+            y:
+              type: number
+              description: Down the tile, as a fraction of it (`0` is the middle)
+              example: -0.25
+            rotation:
+              type: number
+              description: Degrees about the art's own anchor
+              example: 12.5
         size:
           type: integer
           minimum: 50

@@ -23,9 +23,30 @@
 // `SPEC_VERSION` is the version of *this* shape. A caller that sends a version this instance
 // does not implement is refused by name, the same way a caller refuses an API contract it does
 // not know.
+//
+// ## Why spec 2, and what it adds
+//
+// A patch tile is a **cluster**: fifteen crops on one tile for Clover, each with its own size, its
+// own drawn scale and its own place inside the tile. Spec 1 could only say "on this tile", so all
+// fifteen landed on one point. Spec 2 adds the two things the cluster needs and changes nothing
+// else:
+//
+//   * an optional in-tile place on an item's `at` — `x` and `y` as **fractions of a tile**, and
+//     `rotation` in degrees, which is the unit the save states them in (`crop.x`, `crop.y`,
+//     `crop.rotation`: the renderer multiplies the fractions by the 256-pixel tile and sets
+//     `container.angle` from the degrees). Absent means `0`, the tile's middle, which is where
+//     spec 1 drew everything;
+//   * `kind: "patch"` — one entry per sprig in `crops`, each with its own size and mutations, and a
+//     sprig's place from the game's own scatter when the sprig does not state one.
+//
+// Spec 1 stays accepted and behaves exactly as it did: the new fields are optional and their
+// defaults are what spec 1 meant, so the two versions normalise to the same value.
+
+/** The spec shapes this instance implements, newest first. The first is the one an answer echoes. */
+export const SUPPORTED_SPEC_VERSIONS = Object.freeze([2, 1]);
 
 /** The spec shape this instance implements, declared in the contract and echoed in every answer. */
-export const SPEC_VERSION = 1;
+export const SPEC_VERSION = SUPPORTED_SPEC_VERSIONS[0];
 
 /**
  * The limits, as one record. The contract document declares the same numbers, and
@@ -45,15 +66,25 @@ const MAX_PADDING = 256;
 const CROP_SIZE_MIN = 50;
 const CROP_SIZE_MAX = 100;
 
-/** The kinds a spec may state. `decor`, `egg` and `crystal` are the tile vocabulary's rest and are not drawn yet. */
-export const SUPPORTED_ITEM_KINDS = Object.freeze(["plant", "crop"]);
+/**
+ * The kinds a spec may state. `decor`, `egg` and `crystal` are the tile vocabulary's rest and are
+ * not drawn yet.
+ *
+ * `patch` is a tile that holds a **cluster** of the species' own crops rather than one art: the
+ * game draws a `harvestType: "Single"` species that way (its plant art *is* what stands on the
+ * tile, and each crop on it is a sprig at its own place), and `crops` on a `plant` item has always
+ * meant the same thing to the composer. The two are kept apart because they take different fields:
+ * a `plant` has a pot, a maturity and a body of its own, a patch has neither.
+ */
+export const SUPPORTED_ITEM_KINDS = Object.freeze(["plant", "patch", "crop"]);
 
 /**
  * A spec this instance refuses, with the reason named.
  *
  * `code` is what a client branches on (`COMPOSE_SPEC_INVALID`, `COMPOSE_LIMIT_EXCEEDED`,
- * `COMPOSE_SPEC_VERSION_UNSUPPORTED`); `limit` and `saw` name the bound and what the spec
- * stated, so a caller can fix it without re-reading this file.
+ * `COMPOSE_SPEC_VERSION_UNSUPPORTED`, and the two a `patch` can raise —
+ * `COMPOSE_PATCH_NOT_A_PATCH`, `COMPOSE_PATCH_OVER_CAPACITY`); `limit` and `saw` name the bound and
+ * what the spec stated, so a caller can fix it without re-reading this file.
  */
 export class ComposeSpecError extends Error {
   constructor(code, message, { limit = null, saw = null, status = 400 } = {}) {
@@ -121,7 +152,15 @@ function sortedUnique(values) {
   return [...new Set(values)].sort();
 }
 
-/** `at` — the tile a thing occupies, or `null` for content flow. */
+/**
+ * `at` — the tile a thing occupies, and (spec 2) where inside it.
+ *
+ * `x` and `y` are **fractions of a tile** and `rotation` is degrees, which is the unit the game's
+ * own save states a crop's place in. The schema calls them optional unbounded numbers and the
+ * renderer supplies the units — `x * 256` pixels, `container.angle` degrees — and it compares them
+ * field by field, so they are persisted instance data rather than something recomputed. A caller
+ * that states none asks for `0`, the tile's middle, which is what the composer drew before spec 2.
+ */
 function positionOf(value, where) {
   if (value === undefined || value === null) return null;
   if (!isRecord(value)) throw invalid(`${where}: at must be an object with column and row`);
@@ -129,7 +168,37 @@ function positionOf(value, where) {
   const row = integerOf(value.row);
   if (column === null || row === null) throw invalid(`${where}: at.column and at.row must be integers`);
   if (column < 0 || row < 0) throw invalid(`${where}: at.column and at.row must not be negative`);
-  return { column, row };
+  return { column, row, ...placeOf(value, `${where}.at`) };
+}
+
+/**
+ * The in-tile place a spec states: `x`/`y` as tile fractions, `rotation` in degrees, `null` for
+ * absent.
+ *
+ * A place is a *number*, not a pixel count: the API multiplies it by the 256-pixel reference tile
+ * (`sceneLayout.js`). Nothing here is bounded, because the game's own schema is not — a place
+ * outside the tile is a caller's own choice and the scene's canvas union already accounts for it;
+ * the game's scatter, which is what a caller that states nothing gets, stays inside the tile.
+ */
+function placeOf(value, where) {
+  // A place can be absent — on a crop that does not state one, and on a spec that was normalised
+  // before (where the absent place is three nulls).
+  if (value === undefined || value === null) return { x: null, y: null, rotation: null };
+  const parse = (key) => {
+    const stated = value[key];
+    // A normalized spec states `null` for a place it was not given, and every path that lays a scene
+    // out normalizes first (`layOutScene`), so `null` and absent have to mean the same thing.
+    if (stated === undefined || stated === null) return null;
+    const parsed = numberOrNull(stated);
+    if (parsed === null) throw invalid(`${where}: ${key} must be a finite number`);
+    return parsed;
+  };
+  return { x: parse("x"), y: parse("y"), rotation: parse("rotation") };
+}
+
+/** A finite number, or `null` — `0` is a number and must not be read as absent. */
+function numberOrNull(value) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
 /**
@@ -183,6 +252,7 @@ function itemOf(raw, index, seenIds) {
       at,
       size,
       mutations: mutationsOf(raw.mutations, where),
+      flipped: booleanOf(raw.flipped, false),
       // A crop that is still growing states its window, and the API applies the growth the way the
       // game animates it. `ready: true` asks for the ripe picture whatever the window says.
       startTime: integerOf(raw.startTime),
@@ -191,22 +261,28 @@ function itemOf(raw, index, seenIds) {
     };
   }
 
-  // A plant: its own mutations are the ones its body wears; each crop in its slots carries its own.
+  // Both remaining kinds carry crops: a `plant`'s stand in its slots, a `patch`'s are the sprigs of
+  // the cluster. Each crop states its own size and mutations, and a place when it has one.
   if (raw.crops !== undefined && !Array.isArray(raw.crops)) {
     throw invalid(`${where}: crops must be an array`);
   }
-  const crops = (raw.crops ?? []).map((crop, slotIndex) => {
-    if (!isRecord(crop)) throw invalid(`${where}.crops[${slotIndex}]: a crop must be an object`);
-    const slot = integerOf(crop.slot);
-    if (crop.slot !== undefined && (slot === null || slot < 0)) {
-      throw invalid(`${where}.crops[${slotIndex}]: slot must be a non-negative integer`);
+
+  const cropEntries = (raw.crops ?? []).map((crop, cropIndex) => cropOf(crop, `${where}.crops[${cropIndex}]`, cropIndex, kind));
+
+  if (kind === "patch") {
+    if (cropEntries.length === 0) {
+      throw invalid(`${where}: a patch needs at least one crop; "crops" is what the cluster is made of`);
     }
     return {
-      slot: slot ?? slotIndex,
-      size: sizeOf(crop.size, `${where}.crops[${slotIndex}]`),
-      mutations: mutationsOf(crop.mutations, `${where}.crops[${slotIndex}]`),
+      id,
+      kind,
+      species,
+      at,
+      // A patch's mutations are the sprigs' own; it has no body for a mutation of its own to land on.
+      mutations: [],
+      crops: cropEntries,
     };
-  });
+  }
 
   return {
     id,
@@ -216,7 +292,32 @@ function itemOf(raw, index, seenIds) {
     potted: booleanOf(raw.potted, false),
     matured: booleanOf(raw.matured, false),
     mutations: mutationsOf(raw.mutations, where),
-    crops,
+    crops: cropEntries,
+  };
+}
+
+/**
+ * One entry of an item's `crops[]`, normalised.
+ *
+ * `slot` is a `plant`'s field: it names the place the species' own `slotOffsets` table gives it, and
+ * a crop that states none is the next one. A `patch`'s sprigs are not placed by a slot table — the
+ * game places them by the save's per-crop `x`/`y`/`rotation` — so a sprig may still state a slot (it
+ * is the index in the game's own crop list) but nothing places it by one.
+ */
+function cropOf(crop, where, cropIndex, kind) {
+  if (!isRecord(crop)) throw invalid(`${where}: a crop must be an object`);
+  const slot = integerOf(crop.slot);
+  if (crop.slot !== undefined && (slot === null || slot < 0)) {
+    throw invalid(`${where}: slot must be a non-negative integer`);
+  }
+  return {
+    slot: slot ?? cropIndex,
+    size: sizeOf(crop.size, where),
+    mutations: mutationsOf(crop.mutations, where),
+    flipped: booleanOf(crop.flipped, false),
+    // A place inside the tile, when the crop states one; three nulls mean "let the composer place
+    // me", which for a patch is the game's own scatter.
+    at: kind === "patch" ? placeOf(crop.at, where) : null,
   };
 }
 
@@ -269,10 +370,10 @@ export function normalizeSpec(raw) {
 
   const spec = integerOf(raw.spec);
   if (spec === null) throw invalid("spec: the spec version is required and must be an integer");
-  if (spec !== SPEC_VERSION) {
+  if (!SUPPORTED_SPEC_VERSIONS.includes(spec)) {
     throw new ComposeSpecError(
       "COMPOSE_SPEC_VERSION_UNSUPPORTED",
-      `spec ${spec} is not supported; this instance implements spec ${SPEC_VERSION}`,
+      `spec ${spec} is not supported; this instance implements spec ${SUPPORTED_SPEC_VERSIONS.join(", ")}`,
       { limit: SPEC_VERSION, saw: spec },
     );
   }

@@ -46,6 +46,7 @@ const PLANTS = await plantFixture();
 gameDataService.getPlants = async () => PLANTS;
 
 const { frameBox, boxOf, cropComposition, mutationAnchor, plantPicture } = await import("@mg.js/art");
+const { SPEC_VERSION } = await import("../src/assets/compose/spec.js");
 const { drawnFrame } = await import("../src/assets/compose/artBridge.js");
 const { resetSceneCache, composeCount, cachedKeys } = await import("../src/assets/compose/sceneCache.js");
 const { clearSceneCaches } = await import("../src/assets/compose/sceneService.js");
@@ -57,7 +58,7 @@ const { clearSceneCaches } = await import("../src/assets/compose/sceneService.js
  */
 function spec() {
   return {
-    spec: 1,
+    spec: SPEC_VERSION,
     canvas: { fit: "content", padding: 0 },
     items: [
       {
@@ -198,7 +199,7 @@ test("POST /compose répond un PNG dont les dimensions sont le canevas de la dis
   const key = layoutResponse.headers.get("x-mg-compose-key");
   assert.equal(layout.key, key);
   assert.match(key, /^[0-9a-f]{40}$/, "la clé est le hachage du contenu");
-  assert.equal(layout.spec, 1);
+  assert.equal(layout.spec, SPEC_VERSION);
   assert.equal(layout.items.length, 3);
 
   const pictureResponse = await api.get("/compose", {
