@@ -35,6 +35,13 @@
 // item 3 read the set of pictures whose union is bigger than the art as the number its clamp
 // had fixed, when it is the number the clamp was throwing away.
 //
+// Those two counts are the placement *before* plan item 25 keyed the mutation anchors by
+// species, so they are the composer this block was written about rather than the one that
+// ships now. The fixture-sized sweep is the one that can be re-run without the network — and
+// it measures different numbers, because the fixture's arts are not the live ones: over the
+// 6,210 (art, set) pairs of the committed atlas, item 25 moves 1,086 pictures and takes the
+// ones whose union is bigger than the art from 3,780 to 3,918.
+//
 // ## The other convention, and why the two differ by design
 //
 // `@mg.js/art`'s composer (`garden-viewer`) unions too, but its box is **species-wide**: it
@@ -49,15 +56,15 @@
 // conventions *on purpose*, and a picture from one is not supposed to equal a picture from the
 // other; do not file that as a bug. Measured 2026-09-16:
 //
-//   * they agree where the placements agree — `Sunflower` (whose art key is the game's species
-//     name, so both sides read the same anchor) wearing `Ambercharged` is 256×322 with the art
-//     at `(0, 66)` from both composers, and wearing `Frozen` it is 256×256 from both;
-//   * they differ for `CloverThreeLeaf` wearing `Frozen,Thunderstruck`: 116×169 here against
-//     116×206 there, whose box reserves room for Ambercharged as well (the union of the worn
-//     layers would be 116×184). Part of that gap is placement rather than the box: the game's
-//     anchor table is keyed by species, `spriteComposer.js` looks it up by the art key's last
-//     segment, and `anchors.Clover.y = 0.3` therefore never applies to `CloverThreeLeaf`
-//     (plan item 25 owns that; with the override applied the pair unions to 116×184).
+//   * they agree where the placements agree. `Sunflower` wearing `Ambercharged` is 256×322 with
+//     the art at `(0, 66)` from both composers — its art key is the game's species name, so
+//     both sides read the same anchor row — and wearing `Frozen` it is 256×256 from both;
+//   * they differ for `CloverThreeLeaf` wearing `Frozen,Thunderstruck`: 116×184 here against
+//     116×206 there, whose box reserves room for Ambercharged as well — a box difference and
+//     not a placement one. Both agree on where the worn layers land since plan item 25 keyed
+//     the game's anchor table by species (`src/assets/sprites/mutationAnchor.js`); before that
+//     fix this composer answered 116×169 for the pair, because `anchors.Clover.y = 0.3` was
+//     read with the art key's last segment (`CloverThreeLeaf`) and never applied.
 //
 // ## The one clip that stays
 //

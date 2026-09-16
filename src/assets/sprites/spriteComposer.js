@@ -7,6 +7,7 @@ import { gameDataService } from "../../services/gameData.js";
 import { getRiveFrames, clearRiveFramesCache, riveSpritePath } from "./riveFrames.js";
 import { cropComposition, cropArtSize, overlayClip } from "./cropBox.js";
 import { isBakeEnabled, lookupBaked, persistComposed } from "./cropBake.js";
+import { REFERENCE_TILE_PX, artIndex, mutationAnchorFor } from "./mutationAnchor.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -50,15 +51,12 @@ const FLOATING_MUTATIONS = new Set(["Dawnlit", "Ambershine", "Dawncharged", "Amb
 const WARM_MUTATIONS      = new Set(["Ambershine", "Dawnlit", "Dawncharged", "Ambercharged"]);
 const WATER_ICE_MUTATIONS = new Set(["Wet", "Chilled", "Frozen", "Thunderstruck", "Thundercharged"]);
 
-// Exact values from game bundle ($d and ef)
-const MUT_ICON_Y_EXCEPT = {
-  Banana: 0.68, Beet: 0.65, Carrot: 0.60, Sunflower: 0.50,
-  Starweaver: 0.50, Clover: 0.30, FourLeafClover: 0.30,
-  FavaBean: 0.25, BurrosTail: 0.20, Rose: 0.16,
-};
-const MUT_ICON_X_EXCEPT = { Pepper: 0.60, Banana: 0.60 };
-
-const TILE_SIZE_WORLD       = 256;
+// The per-species mutation anchors, the 256-px reference tile, the 0.75 cap they are taken
+// against and the 1.5 aspect test the game's own placement function states live in
+// `./mutationAnchor.js`, keyed by **species** and by the part the art is — the atlas key's
+// last segment is only a species' name by luck (`CloverThreeLeaf`), and keying by it is what
+// plan item 25 fixes. The two scale factors the game hands its renderer stay here, because
+// they are not part of a placement: they are what this composer draws a layer at.
 const BASE_ICON_SCALE       = 0.5; // du=1/2 in game bundle
 const TALL_ICON_SCALE_BOOST = 2;   // tf=2 in game bundle
 
@@ -80,11 +78,13 @@ const RAINBOW_STOPS = (() => {
 // Lazy-loaded from plant data. Keyed by the sprite filename (last path segment, no ext).
 // Built from species where plant.tileTransformOrigin === "bottom" (game's tall-plant marker).
 // harvestTypeMap: species → "Single" | "Multiple" (from plant.harvestType)
+// artIndex: atlas key → { species, part } for that species' plant and crop art, which is what
+// says whose mutation anchors apply to a composed art (`./mutationAnchor.js`).
 let plantMetaCache = null;
 
 async function getPlantMeta() {
   if (plantMetaCache) return plantMetaCache;
-  const meta = { tallSpriteNames: new Set(), harvestTypeMap: new Map() };
+  const meta = { tallSpriteNames: new Set(), harvestTypeMap: new Map(), artIndex: new Map() };
   try {
     const plants = await gameDataService.getPlants();
     for (const [species, data] of Object.entries(plants)) {
@@ -96,6 +96,7 @@ async function getPlantMeta() {
         meta.harvestTypeMap.set(species, data.plant.harvestType);
       }
     }
+    meta.artIndex = artIndex(plants);
   } catch {
     // leave sets/maps empty on error
   }
@@ -456,27 +457,34 @@ async function spriteGeometry(key) {
  * The icon position for a crop, from the bundle's own placement math (the port §3.3 of the
  * plan keeps honest): the icon is scaled by the crop's smaller dimension against the 256-px
  * reference tile, then placed on the crop's anchor moved to the mutation's target point.
+ *
+ * The target point and the species' own scale come from `./mutationAnchor.js`, which holds
+ * the game's per-species table and reads it with the species and the part this art is — the
+ * reading `planComposition` resolves through the plant records, never from the art key.
  */
-function iconRect(iconSprite, baseW, baseH, baseAnchor, species, isTall, harvestType = "Single") {
+function iconRect(iconSprite, baseW, baseH, baseAnchor, species, part, isTall, harvestType = "Single") {
   const { width: iconW, height: iconH, anchor: iconAnchor } = iconSprite;
   const anchorX = baseAnchor.x;
   const anchorY = baseAnchor.y;
 
-  let targetX = anchorX;
-  if (MUT_ICON_X_EXCEPT[species] !== undefined) targetX = MUT_ICON_X_EXCEPT[species];
-
-  const isVertical = baseH > baseW * 1.5;
-  let targetY = (harvestType === "Single" && isVertical) ? anchorY : 0.4;
-  if (MUT_ICON_Y_EXCEPT[species] !== undefined) targetY = MUT_ICON_Y_EXCEPT[species];
+  const { x: targetX, y: targetY, scale } = mutationAnchorFor(
+    species, part, baseW, baseH, anchorX, anchorY, harvestType,
+  );
 
   const basePosX  = baseW * anchorX;
   const basePosY  = baseH * anchorY;
   const offsetX   = (targetX - anchorX) * baseW;
   const offsetY   = (targetY - anchorY) * baseH;
 
-  const minDim    = Math.min(baseW, baseH);
-  const scale     = Math.min(1.5, minDim / TILE_SIZE_WORLD);
-  const iconScale = BASE_ICON_SCALE * scale * (isTall ? TALL_ICON_SCALE_BOOST : 1);
+  // The ratio the game sizes a mutation by: the crop's smaller side over the 256-px reference
+  // tile. The game then caps it at `.75` for every species; this renderer has always used 1.5,
+  // which is the same number for any art whose smaller side is at most 384 px — that is, for
+  // all 69 species the 1192 atlas holds — and larger above it. `GAME_SCALE_CAP` in
+  // `./mutationAnchor.js` records the game's own number and what applying it would move; this
+  // commit keys the anchors and does not move a second value.
+  const tileRatio = Math.min(1.5, Math.min(baseW, baseH) / REFERENCE_TILE_PX);
+
+  const iconScale = BASE_ICON_SCALE * tileRatio * scale * (isTall ? TALL_ICON_SCALE_BOOST : 1);
 
   const drawW = Math.max(1, Math.round(iconW * iconScale));
   const drawH = Math.max(1, Math.round(iconH * iconScale));
@@ -504,8 +512,15 @@ async function planComposition(baseKey, sorted) {
   const base = await spriteGeometry(baseKey);
   if (!base) return null;
 
-  const species = baseKey.split("/").pop() ?? "";
-  const { harvestTypeMap } = await getPlantMeta();
+  // Whose anchors apply to this art, from the plant records and not from the key's spelling:
+  // the game keys its mutation table by species and reads it with the part the art is, so an
+  // art that is some species' plant or crop art is resolved through that species
+  // (`./mutationAnchor.js`). A key no plant record states — a `sprite/tallplant/…` alias, a
+  // pet — keeps the old last-segment reading and the `crop` part.
+  const { harvestTypeMap, artIndex: artSpecies } = await getPlantMeta();
+  const stated = artSpecies.get(baseKey);
+  const species = stated?.species ?? (baseKey.split("/").pop() ?? "");
+  const part = stated?.part ?? "crop";
   const harvestType = harvestTypeMap.get(species) ?? "Single";
 
   const colorList   = buildColorList(sorted);
@@ -522,7 +537,7 @@ async function planComposition(baseKey, sorted) {
     if (FLOATING_MUTATIONS.has(mutation)) zIndex = 10;
     else if (base.isTall) zIndex = -1;
 
-    icons.push({ mutation, zIndex, key, ...iconRect(icon, base.width, base.height, base.anchor, species, base.isTall, harvestType) });
+    icons.push({ mutation, zIndex, key, ...iconRect(icon, base.width, base.height, base.anchor, species, part, base.isTall, harvestType) });
   }
 
   // The canvas and the box a caller places the picture by are the same decision, so both come
@@ -533,7 +548,7 @@ async function planComposition(baseKey, sorted) {
     icons.map((i) => ({ left: i.drawX, top: i.drawY, width: i.drawW, height: i.drawH })),
   );
 
-  return { ...base, species, harvestType, colorList, overlayList, icons, canvas, box };
+  return { ...base, species, part, harvestType, colorList, overlayList, icons, canvas, box };
 }
 
 /**
