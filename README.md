@@ -72,6 +72,34 @@ npm start
 
 The server starts on `http://localhost:3000`
 
+### Running it as a service
+
+The repository carries what you need to run this on a host rather than on your laptop, and until now
+nothing here pointed at it:
+
+```bash
+cp .env.example .env      # every setting, with what it does
+docker compose up -d      # the API on :3002, plus the sprite exporter
+```
+
+- **`docker-compose.yml`** runs two services: the API and the sprite exporter. `NODE_ENV=production`
+  is required rather than cosmetic — the image is built without devDependencies, and without it the
+  logger's pretty transport fails to resolve before `app.listen`. `PORT` is pinned to 3002 because the
+  code's default is 3000 while the reverse-proxy config proxies to 3002.
+- **`.env.example`** documents every setting, including `SPRITES_PROFILE=data` for a host that serves
+  data only and must not spend disk or CPU exporting an atlas.
+- **`nginx.conf`** is not started by the compose file. It is the reverse-proxy configuration to install
+  in front if you want one — TLS, caching and a published sprite directory served straight off disk,
+  which is faster than going through Node. The API works without it.
+- **`SPRITES_BASE_URL` and `API_PUBLIC_URL`** are both empty by default, deliberately: the API then
+  builds every URL it hands out from the request that asked for it, so the answer names the host the
+  client actually reached, on any port or proxy name. Set them only when the public URL genuinely
+  differs from the one the process sees.
+
+Measured on this tree rather than assumed: the image builds at **357 MB**, boots on the data-only
+profile, answers `/health`, `/schema.json` and `/data/version`, and refuses image routes with a named
+`SPRITES_PROFILE` error rather than a 404.
+
 ## Main Endpoints
 
 ### Game data (bundle)
