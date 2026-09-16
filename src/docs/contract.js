@@ -14,6 +14,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import YAML from "yamljs";
 
+import { getCacheStats, getCachedBundleVersion } from "../core/game/cache.js";
 import { getStoredVersionInfoCached } from "../core/game/versionStorage.js";
 
 const docsDir = dirname(fileURLToPath(import.meta.url));
@@ -75,19 +76,51 @@ export function buildBaseOpenApiDocument({ shopTypes } = {}) {
 }
 
 /**
+ * Ce que cette instance sait de la version du jeu qu'elle sert, sans aucun
+ * appel réseau.
+ *
+ * Deux sources, dans cet ordre :
+ * - le bundle en cache : la version dont `/data` extrait ses données, connue
+ *   dès la première requête de données même quand aucune synchronisation de
+ *   sprites n'a tourné (export coupé, `data/version.json` absent) ;
+ * - l'enregistrement de construction sur disque (`data/version.json`) : la
+ *   version dont les sprites/atlas sur disque ont été construits, écrite à la
+ *   fin d'une synchro, avec son horodatage.
+ *
+ * Un hôte qui n'a encore rien fait (démarrage à froid, aucune requête de
+ * données) ne sait rien : les trois champs valent `null` plutôt qu'une version
+ * inventée.
+ */
+export async function getBuildInfo() {
+  const { version: storedVersion, generatedAt } = await getStoredVersionInfoCached();
+  const { bundleFetchedAt } = getCacheStats();
+  const bundleVersion = getCachedBundleVersion();
+
+  return {
+    gameVersion: bundleVersion ?? storedVersion ?? null,
+    // L'art sur disque vient de la synchro ; à défaut, la version servie est
+    // tout ce que le process peut honnêtement annoncer.
+    artVersion: storedVersion ?? bundleVersion ?? null,
+    // La synchro des sprites horodate sa construction ; sans elle, le moment où
+    // le bundle servi a été récupéré est la seule date vraie disponible.
+    generatedAt: generatedAt ?? bundleFetchedAt ?? null,
+  };
+}
+
+/**
  * Le document avec les faits de l'instance. Copie superficielle : seuls le bloc
  * de contrat et son contenu changent, pas les 39 chemins.
  */
 export async function withRuntimeContract(spec) {
-  const { version, generatedAt } = await getStoredVersionInfoCached();
+  const { gameVersion, artVersion, generatedAt } = await getBuildInfo();
 
   return {
     ...spec,
     "x-mg-contract": {
       ...(spec["x-mg-contract"] ?? {}),
-      gameVersion: version ?? null,
-      artVersion: version ?? null,
-      generatedAt: generatedAt ?? null,
+      gameVersion,
+      artVersion,
+      generatedAt,
     },
   };
 }
@@ -100,7 +133,7 @@ export async function withRuntimeContract(spec) {
  * (`decors`, `weather-groups`) et non en clés de cache internes.
  */
 export async function buildRuntimeContract({ unavailable = {} } = {}) {
-  const { version, generatedAt } = await getStoredVersionInfoCached();
+  const { gameVersion, artVersion, generatedAt } = await getBuildInfo();
   const declaredData = declaredContract.data ?? [];
 
   return {
@@ -112,8 +145,8 @@ export async function buildRuntimeContract({ unavailable = {} } = {}) {
     unavailable: Object.fromEntries(
       declaredData.filter((category) => category in unavailable).map((c) => [c, unavailable[c]])
     ),
-    gameVersion: version ?? null,
-    artVersion: version ?? null,
-    generatedAt: generatedAt ?? null,
+    gameVersion,
+    artVersion,
+    generatedAt,
   };
 }

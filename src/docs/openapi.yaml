@@ -102,6 +102,7 @@ x-mg-contract:
     - weathers
     - weather-groups
     - enums
+    - version
   # Remplis à chaque réponse depuis l'instance qui sert : `null` dans ce fichier
   # veut dire « pas encore construit » (aucune synchronisation sur cet hôte).
   gameVersion: null
@@ -452,6 +453,55 @@ paths:
                   summary: Service alive
                   value:
                     alive: true
+
+  /data/version:
+    get:
+      tags:
+        - Data
+      summary: Game version this instance's data was built from
+      description: |
+        Returns the game version this host's data and sprites were built from, the
+        contract version, and when that build last completed.
+
+        `mg.js` already asks for this path; the upstream host answers 404. Both
+        `gameVersion` and `artVersion` come from the on-disk build record
+        (`data/version.json`, written when a sprite/atlas sync finishes), never
+        from a fresh call to the game's `/platform/v1/version`: the point is what
+        this host's data **is**, not what the game is right now. A host that has
+        never synced reports `null` for both rather than inventing a version.
+
+        These are the same three facts `/schema.json` reports, so a client can
+        read either.
+
+        Cached for one minute.
+      responses:
+        '200':
+          description: Build version of this instance
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  gameVersion:
+                    type: string
+                    nullable: true
+                  artVersion:
+                    type: string
+                    nullable: true
+                  contract:
+                    type: integer
+                    example: 1
+                  generatedAt:
+                    type: string
+                    nullable: true
+              examples:
+                built:
+                  summary: A host that has synced
+                  value:
+                    gameVersion: "1191"
+                    artVersion: "1191"
+                    contract: 1
+                    generatedAt: "2026-09-16T05:00:00.000Z"
 
   /data:
     get:

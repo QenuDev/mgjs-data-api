@@ -5,6 +5,7 @@ import { asyncHandler } from "../middleware/index.js";
 import { gameDataService } from "../../services/index.js";
 import { getCacheStats } from "../../core/game/cache.js";
 import { getStoredVersionCached } from "../../core/game/versionStorage.js";
+import { CONTRACT_VERSION, getBuildInfo } from "../../docs/contract.js";
 import { ENGINE_SIGNATURE, eraAt } from "../../core/weather/index.js";
 import { logger } from "../../logger/index.js";
 import { getTransformedPlants, enrichPlantsWithPurchasable } from "../../services/plantTransformer.js";
@@ -199,6 +200,35 @@ dataRouter.get(
 
     setDataCacheHeaders(res, "all", spriteVersion);
     res.json(withEnrichedPlants(data));
+  })
+);
+
+/**
+ * GET /data/version
+ *
+ * La version du jeu que cette instance sert, la version du contrat, et quand.
+ * `mg.js` demande déjà ce chemin (`DEFAULT_REMOTE_PATHS.version`) ; l'hôte amont
+ * répond 404.
+ *
+ * Les faits viennent de `getBuildInfo()` — le bundle actuellement en cache
+ * d'abord (la version dont `/data` extrait ses données), l'enregistrement de
+ * construction `data/version.json` ensuite (la version des sprites sur disque) —
+ * jamais d'un appel à `/platform/v1/version` : un client veut savoir ce que cet
+ * hôte sert, pas ce que le jeu est à cet instant. Démarrage à froid, sans
+ * bundle ni synchro : les trois champs valent `null`, ce qui est la vérité.
+ */
+dataRouter.get(
+  "/version",
+  asyncHandler(async (_req, res) => {
+    const { gameVersion, artVersion, generatedAt } = await getBuildInfo();
+
+    res.set("Cache-Control", "public, max-age=60, stale-while-revalidate=30");
+    res.json({
+      gameVersion,
+      artVersion,
+      contract: CONTRACT_VERSION,
+      generatedAt,
+    });
   })
 );
 

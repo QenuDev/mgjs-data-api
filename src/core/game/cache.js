@@ -120,3 +120,25 @@ export function getCacheStats() {
     categoriesCached: Array.from(cache.categories.keys()),
   };
 }
+
+const VERSIONED_ASSET_RE = /\/version\/([^/]+)\//;
+
+/**
+ * La version du jeu portée par l'URL d'un asset versionné
+ * (`…/version/1192/assets/main-*.js`), ou null si l'URL n'en porte pas.
+ */
+export function gameVersionFromAssetUrl(url) {
+  const match = VERSIONED_ASSET_RE.exec(String(url ?? ""));
+  return match ? match[1] : null;
+}
+
+/**
+ * La version du jeu dont le bundle actuellement en cache a été extrait.
+ *
+ * C'est la version que `/data` sert réellement, et le process la connaît dès la
+ * première requête de données — avant toute synchronisation de sprites, qui
+ * écrit `data/version.json` bien plus tard (ou jamais, si l'export est coupé).
+ */
+export function getCachedBundleVersion() {
+  return gameVersionFromAssetUrl(cache.mainUrl);
+}

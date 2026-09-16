@@ -24,20 +24,26 @@ import { startTestApp } from "./helpers/httpApp.js";
 const concrete = (path) => path.replace(/\{[^}]+\}/g, "x");
 
 /**
- * Les chemins posés directement sur l'app (`/`, `/data.csv`, `/live.tsv`…).
+ * Les routes posées directement sur l'app (`/`, `/data.csv`, `/live.tsv`…),
+ * avec les verbes qu'elles déclarent.
  *
  * Express 5 ne répond la liste `Allow` automatique (200) que pour un chemin
  * servi par un routeur monté : une route posée sur l'app répond 404 à OPTIONS
  * comme un chemin inconnu. On lit donc ce petit ensemble dans la table des
  * routes, et on vérifie tout le reste par OPTIONS — sans exécuter un seul
- * handler.
+ * handler. Dans les deux cas c'est le verbe `GET` qui est vérifié, parce que
+ * c'est celui qu'un client utilisera.
  */
-function appLevelPaths(expressApp) {
-  return new Set(
-    expressApp.router.stack
-      .filter((layer) => layer.route)
-      .map((layer) => layer.route.path)
-  );
+function appLevelRoutes(expressApp) {
+  const routes = new Map();
+  for (const layer of expressApp.router.stack) {
+    if (!layer.route) continue;
+    routes.set(
+      layer.route.path,
+      new Set(Object.keys(layer.route.methods).map((method) => method.toLowerCase()))
+    );
+  }
+  return routes;
 }
 
 /** Capacité déclarée -> chemin qui la porte, pour que le contrat ne réclame rien d'absent. */
@@ -82,7 +88,7 @@ test("chaque chemin du contrat est réellement monté", async (t) => {
   const schema = await (await api.get("/schema.json")).json();
   assert.ok(schema.paths.length > 0, "le contrat ne liste aucun chemin");
 
-  const direct = appLevelPaths(api.app);
+  const direct = appLevelRoutes(api.app);
 
   // Contrôle négatif : la sonde distingue un chemin monté d'un chemin inconnu.
   const missing = await api.get("/not-a-route", { method: "OPTIONS" });
@@ -90,7 +96,12 @@ test("chaque chemin du contrat est réellement monté", async (t) => {
   assert.ok(!direct.has("/not-a-route"));
 
   for (const path of schema.paths) {
-    if (direct.has(path)) continue;
+    const verbs = direct.get(path);
+    if (verbs) {
+      assert.ok(verbs.has("get"), `${path} est monté, mais pas en GET`);
+      continue;
+    }
+
     const res = await api.get(concrete(path), { method: "OPTIONS" });
     assert.equal(res.status, 200, `${path} est déclaré mais pas monté`);
     assert.match(res.headers.get("allow") ?? "", /GET/, `${path} n'accepte pas GET`);
