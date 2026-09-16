@@ -1,0 +1,23 @@
+{
+ "bundles": [
+  {
+   "name": "default",
+   "assets": [
+    {
+     "alias": [
+      "atlases/sprites-composed.json"
+     ],
+     "src": [
+      {
+       "src": "sprites-composed.json",
+       "resolution": 2
+      }
+     ],
+     "data": {
+      "tags": {}
+     }
+    }
+   ]
+  }
+ ]
+}
