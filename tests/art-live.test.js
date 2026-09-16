@@ -11,6 +11,15 @@
 // survit à un build que personne n'a encore lu. Les prédicats sont datés par
 // construction ; c'est ici qu'on l'apprend, et c'est pour cela que la cible
 // d'art du résolveur est un test d'extraction et non un nom de fichier.
+//
+// Ce test **exige de lire la version servie**. Il a déjà accepté l'autre issue —
+// un refus nommé par un prédicat connu, journalisé et toléré — et c'est
+// exactement ainsi qu'un `/data/art` qui répondait 500 contre 1192 a coexisté
+// avec une suite verte : la dérive était « attendue » par le seul test qui
+// touchait le bundle vivant. Un refus reste une réponse, mais ce n'est plus une
+// réponse acceptable : la version servie est celle que les fixtures couvrent
+// (`tests/art-versions.test.js`), donc un refus ici est une régression, et il
+// fait tomber le test.
 
 process.env.LOG_LEVEL = "silent";
 
@@ -19,10 +28,7 @@ import assert from "node:assert/strict";
 
 import { fetchMainBundle } from "../src/core/game/bundle/resolver.js";
 import { ExtractionError, extractArtPayload } from "../src/core/game/art/index.js";
-import { PREDICATES } from "../src/core/game/art/predicates.js";
 import { placementFailures, structureFailures } from "./helpers/art-invariants.js";
-
-const KNOWN_PREDICATES = new Set(PREDICATES.map((predicate) => predicate.predicate));
 
 const LIVE = process.env.MG_LIVE_ASSETS === "1";
 const SKIP = LIVE ? false : "a besoin du bundle servi par le jeu - lancer `MG_LIVE_ASSETS=1 npm run test:live` avec le réseau";
@@ -45,36 +51,20 @@ test("les tables d'art se lisent dans le bundle que le jeu sert", { skip: SKIP }
     "la table des noms de sprite n'a pas été reconnue par sa forme dans le graphe du bundle servi"
   );
 
+  // Lire la version servie, ou tomber. Le refus est nommé dans l'échec pour que
+  // celui qui le lit sache quel prédicat a lâché sur quel chunk — c'est ce que
+  // la route rendrait en 500, et c'est ce que ce test existe pour empêcher.
+  const version = bundle.mainUrl?.match(/\/version\/([^/]+)\//)?.[1] ?? "unknown";
   let payload = null;
-  let refusal = null;
   try {
     payload = extractArtPayload(bundle);
   } catch (err) {
-    // Un plantage du lecteur n'est pas une dérive de forme : il doit se voir.
-    if (!(err instanceof ExtractionError)) throw err;
-    refusal = err;
-  }
-
-  if (refusal !== null) {
-    // La version servie a une forme que les prédicats datés ne lisent pas. C'est
-    // une réponse, pas un silence, et c'est ce que l'item demande : l'extraction
-    // refuse **en nommant le prédicat**, donc la route rend un 500 qui porte ce
-    // nom au lieu de publier des nombres que rien ne confirme.
-    //
-    // Ce test ne peut donc pas rester vert quand une table bouge — mais il
-    // distingue les deux façons de ne pas lire la version servie : un refus
-    // nommé sur une forme (attendu, et rapporté ici), et toute autre erreur
-    // (relancée).
-    const version = bundle.mainUrl?.match(/\/version\/([^/]+)\//)?.[1] ?? "unknown";
-    console.log(
-      `# art: la version ${version} n'est pas lisible par les prédicats — ${refusal.predicate} a refusé : ${refusal.saw?.[0] ?? ""}`
-    );
-    assert.ok(
-      KNOWN_PREDICATES.has(refusal.predicate),
-      `le refus ne vient pas d'un prédicat connu : ${refusal.predicate}`
-    );
-    assert.match(refusal.message, /vu :/, "le refus ne dit pas ce qu'il a vu");
-    return;
+    if (err instanceof ExtractionError) {
+      assert.fail(
+        `la version servie (${version}) n'est pas lisible par les prédicats : ${err.predicate} a refusé — ${err.saw?.[0] ?? ""}, donc /data/art répondrait 500`
+      );
+    }
+    throw err;
   }
 
   assert.deepEqual(structureFailures(payload), [], "un invariant de forme ne tient pas sur la version servie");
