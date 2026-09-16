@@ -8,14 +8,14 @@
 //
 // Three kinds of claim, and they are different ones:
 //
-//   * **every entry is pinned as a literal.** The table is a transcription of the game's own
-//     `Uo` (bundle 1176) / `Tn` (1192) declaration, which the module's header quotes in full,
-//     so each of the 22 species is written out here. A wrong digit fails this test rather
-//     than a picture; the one thing a test cannot do offline is re-read the bundle, which is
-//     why plan item 19's `placement.declarations` is the number to diff against once it lands.
+//   * **the module's fallback table is the game's extraction.** The composer reads the anchors
+//     out of `src/core/game/art`'s extraction when it can reach the bundle and falls back to
+//     `MUTATION_ANCHORS` when it cannot (the offline suite), so the two are compared here,
+//     entry for entry, against the extraction of the *committed* game chunk under
+//     `tests/fixtures/art/bundle-1176/`. A digit that drifts in either one fails this test.
 //   * **the resolution is by species and by part.** `tests/fixtures/bake/plants.json` is the
 //     game's own plant records, captured from 1192: every art the bake enumerates resolves to
-//     its species, the nine whose last segment spells a different name resolve to the right
+//     its species, the arts whose last segment spells a different name resolve to the right
 //     one, and `Carrot`'s per-part row is read with the part the art is.
 //   * **the fallbacks are the game's own.** `x` falls back to the art's anchor, `scale` to 1,
 //     and `y` to 0.4 — except for a single-harvest patch taller than 1.5× its width, which
@@ -25,14 +25,19 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import { describe, it } from "node:test";
 
+import { extractArtTables } from "../src/core/game/art/index.js";
+import { artChunks } from "./helpers/art-fixtures.js";
 import {
+  FALLBACK_MUTATION_TABLES,
   GAME_SCALE_CAP,
   MUTATION_ANCHORS,
   PLACEMENT_ANCHOR_Y,
   REFERENCE_TILE_PX,
   TALL_ART_ASPECT,
   artIndex,
+  loadMutationTables,
   mutationAnchorFor,
+  setMutationTablesForTest,
 } from "../src/assets/sprites/mutationAnchor.js";
 
 const PLANTS = JSON.parse(
@@ -40,45 +45,59 @@ const PLANTS = JSON.parse(
 );
 
 /**
- * The game's `Uo` (1176) / `Tn` (1192), written out entry by entry.
+ * The game's anchors as the fork's own extractor reads them out of the committed chunk.
  *
- * Quoted from `LayoutMotionController-CwhDlPns.js`; the same record `@mg.js/art` publishes as
- * `tables.anchors` and the `garden-viewer` reads. This is the transcription the module holds,
- * and asserting it here is what makes a typo in either one fail.
+ * `tests/fixtures/art/bundle-1176/` is a verbatim cut of `LayoutMotionController-CwhDlPns.js`,
+ * so this is the game's `Uo` / `Tn` rather than a copy of it. The same pass is what `/data/art`
+ * publishes and what `loadMutationTables()` prefers at runtime.
  */
-const GAME_ANCHORS = {
-  Banana: { x: 0.6, y: 0.68 },
-  Beet: { y: 0.65 },
-  BurrosTail: { y: 0.2 },
-  Cardoon: { y: 0.8 },
-  Carrot: { x: { crop: 0.5 }, y: { plant: 0.6, crop: 0.42 } },
-  Clover: { y: 0.3 },
-  Daisy: { y: 0.21 },
-  Dawnbreaker: { y: { plant: 0.25, crop: 0.13 } },
-  Eggplant: { x: 0.57 },
-  FavaBean: { y: 0.25 },
-  FourLeafClover: { y: 0.3 },
-  Leek: { y: { plant: 0.55 }, scale: { plant: 0.7 } },
-  Milkcap: { y: 0.3 },
-  Pepper: { x: 0.6 },
-  PurpleDaisy: { y: 0.21 },
-  Rose: { y: 0.16 },
-  Saffron: { x: 0.52, y: 0.22 },
-  Snowdrop: { x: 0.3, y: 0.23, scale: 0.5 },
-  SnowdropDouble: { x: 0.27, y: 0.21, scale: 0.5 },
-  Starweaver: { y: 0.5 },
-  Sunflower: { y: 0.5 },
-  Ube: { y: 0.5 },
-};
+const EXTRACTED = extractArtTables({ chunks: artChunks(), gameVersion: "1176" }).tables;
 
-/** The atlas key the bake composes for a species: its patch art when Single, its crop otherwise. */
+/**
+ * The atlas key the bake composes for a species: its patch art when Single, its crop otherwise.
+ */
 const artOf = (record) =>
   record.plant?.harvestType === "Single" ? record.plant?.sprite : record.crop?.sprite;
 
 describe("the mutation anchor table is the game's own", () => {
-  it("holds every entry the game states, and nothing else", () => {
-    assert.deepEqual(MUTATION_ANCHORS, GAME_ANCHORS);
+  it("holds exactly what the fork's extractor reads out of the game's own chunk", () => {
+    assert.deepEqual(MUTATION_ANCHORS, EXTRACTED.anchors);
     assert.equal(Object.keys(MUTATION_ANCHORS).length, 22, "the game states 22 species");
+    // The extraction is not empty and is not the fallback by construction: 22 species, and the
+    // two per-part rows the reader has to index are both there.
+    assert.equal(Object.keys(EXTRACTED.anchors).length, 22);
+    assert.deepEqual(EXTRACTED.anchors.Carrot, { x: { crop: 0.5 }, y: { plant: 0.6, crop: 0.42 } });
+    assert.deepEqual(EXTRACTED.anchors.Leek, { y: { plant: 0.55 }, scale: { plant: 0.7 } });
+  });
+
+  it("prefers the extraction, and answers the fallback when the bundle is out of reach", async () => {
+    // The composer asks for whichever table is reachable and always gets a usable one: offline
+    // (this process) the memo rejects and the fallback stands, and the two are equal, so the
+    // offline path cannot place a mutation anywhere the extracted one would not.
+    const offline = await loadMutationTables();
+    assert.deepEqual(offline, FALLBACK_MUTATION_TABLES, "the offline answer is the fallback exactly");
+
+    // The injection point the composer uses is exercised with the real extraction, and a
+    // placement follows it: a species the fallback states no row for and the injected table
+    // does must move.
+    const previous = setMutationTablesForTest({
+      anchors: { ...EXTRACTED.anchors, PricklyPear: { y: 0.66 } },
+      scaleCap: EXTRACTED.scale.cap,
+    });
+    try {
+      assert.deepEqual(await loadMutationTables(), {
+        anchors: { ...EXTRACTED.anchors, PricklyPear: { y: 0.66 } },
+        scaleCap: 0.75,
+      });
+      assert.equal(
+        mutationAnchorFor("PricklyPear", "crop", 103, 109, 0.5, 0.5, "Single", await loadMutationTables()).y,
+        0.66,
+        "a placement follows the table it is handed",
+      );
+    } finally {
+      setMutationTablesForTest(FALLBACK_MUTATION_TABLES);
+      assert.equal(previous instanceof Promise || previous === null, true);
+    }
   });
 
   it("holds the game's own constants rather than copies of them", () => {

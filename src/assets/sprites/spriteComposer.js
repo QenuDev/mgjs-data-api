@@ -7,7 +7,9 @@ import { gameDataService } from "../../services/gameData.js";
 import { getRiveFrames, clearRiveFramesCache, riveSpritePath } from "./riveFrames.js";
 import { cropComposition, cropArtSize, overlayClip } from "./cropBox.js";
 import { isBakeEnabled, lookupBaked, persistComposed } from "./cropBake.js";
-import { REFERENCE_TILE_PX, artIndex, mutationAnchorFor } from "./mutationAnchor.js";
+import {
+  REFERENCE_TILE_PX, artIndex, loadMutationTables, mutationAnchorFor,
+} from "./mutationAnchor.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -462,13 +464,13 @@ async function spriteGeometry(key) {
  * the game's per-species table and reads it with the species and the part this art is — the
  * reading `planComposition` resolves through the plant records, never from the art key.
  */
-function iconRect(iconSprite, baseW, baseH, baseAnchor, species, part, isTall, harvestType = "Single") {
+function iconRect(iconSprite, baseW, baseH, baseAnchor, species, part, isTall, harvestType = "Single", tables) {
   const { width: iconW, height: iconH, anchor: iconAnchor } = iconSprite;
   const anchorX = baseAnchor.x;
   const anchorY = baseAnchor.y;
 
   const { x: targetX, y: targetY, scale } = mutationAnchorFor(
-    species, part, baseW, baseH, anchorX, anchorY, harvestType,
+    species, part, baseW, baseH, anchorX, anchorY, harvestType, tables,
   );
 
   const basePosX  = baseW * anchorX;
@@ -518,6 +520,9 @@ async function planComposition(baseKey, sorted) {
   // (`./mutationAnchor.js`). A key no plant record states — a `sprite/tallplant/…` alias, a
   // pet — keeps the old last-segment reading and the `crop` part.
   const { harvestTypeMap, artIndex: artSpecies } = await getPlantMeta();
+  // The game's own anchor table, from the extraction at `/data/art` when it can be reached
+  // (`./mutationAnchor.js`), read in parallel with the plant records it is keyed by.
+  const anchorTables = await loadMutationTables();
   const stated = artSpecies.get(baseKey);
   const species = stated?.species ?? (baseKey.split("/").pop() ?? "");
   const part = stated?.part ?? "crop";
@@ -537,7 +542,7 @@ async function planComposition(baseKey, sorted) {
     if (FLOATING_MUTATIONS.has(mutation)) zIndex = 10;
     else if (base.isTall) zIndex = -1;
 
-    icons.push({ mutation, zIndex, key, ...iconRect(icon, base.width, base.height, base.anchor, species, part, base.isTall, harvestType) });
+    icons.push({ mutation, zIndex, key, ...iconRect(icon, base.width, base.height, base.anchor, species, part, base.isTall, harvestType, anchorTables) });
   }
 
   // The canvas and the box a caller places the picture by are the same decision, so both come
