@@ -26,9 +26,13 @@ process.env.CACHE_BUNDLE_TTL = "1";
 import test, { after } from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+
+const execFileAsync = promisify(execFile);
 
 const REPO = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const VERSION_FILE = path.join(REPO, "data", "version.json");
@@ -471,5 +475,71 @@ test("les formats délimités portent la version, mais aucune ligne de métadonn
   const csv = await (await api.get("/data/plants.csv")).text();
   assert.match(csv.split("\n")[1], /^Carrot,/);
   assert.ok(!/_meta/.test(csv), `métadonnées dans le CSV :\n${csv}`);
+});
+
+test("le verrou est relâché quand rien ne mettra l'enregistrement à jour", async () => {
+  // `heldBundleVersion()` dépend de `VERSION_WATCH_ENABLED`, lue par `config` à
+  // l'import : sa branche « watcher coupé » ne peut se prouver que dans un autre
+  // processus. C'est la différence entre « l'hôte sert la dernière version
+  // quand personne ne rattrapera l'enregistrement » et « l'hôte fige sa donnée
+  // en silence » — et une seule des deux est acceptable.
+  //
+  // La sonde vit ici, et pas dans un fichier de test à part, parce qu'elle a
+  // besoin de l'enregistrement de build que ce fichier écrit et restaure : deux
+  // processus se courraient après sur `data/version.json`.
+  const probe = path.join(REPO, "tests", "helpers", "pin-probe.mjs");
+
+  const runProbe = async (watcherEnabled) => {
+    const before = requested.length;
+
+    const { stdout } = await execFileAsync(process.execPath, [probe], {
+      env: {
+        ...process.env,
+        LOG_LEVEL: "silent",
+        GAME_ORIGIN: upstream.baseUrl,
+        VERSION_WATCH_ENABLED: watcherEnabled ? "true" : "false",
+        CACHE_BUNDLE_TTL: "1",
+      },
+    });
+
+    const line = stdout
+      .trim()
+      .split("\n")
+      .filter((candidate) => candidate.startsWith("{"))
+      .pop();
+
+    assert.ok(line, `la sonde n'a rien imprimé :\n${stdout}`);
+
+    return {
+      ...JSON.parse(line),
+      requests: requested.slice(before),
+      askedLatest: requested
+        .slice(before)
+        .some((url) => url.startsWith(`/version/${LATEST}/`)),
+    };
+  };
+
+  // Watcher actif : la synchro va rattraper, donc on reste sur la version dont
+  // les sprites sont sur disque — et le bundle de la nouvelle version n'est
+  // même pas téléchargé.
+  const watched = await runProbe(true);
+  assert.equal(watched.stored, BUILT, "l'enregistrement de build n'est pas celui attendu");
+  assert.equal(watched.hasBundle, true);
+  assert.equal(watched.served, BUILT, "watcher actif : le bundle servi a changé de version");
+  assert.equal(
+    watched.askedLatest,
+    false,
+    `watcher actif : le bundle ${LATEST} a été téléchargé alors que la synchro allait rattraper`
+  );
+
+  // Watcher coupé : personne ne rattrapera l'enregistrement, donc le verrou ne
+  // s'applique pas et l'hôte sert la dernière version du jeu.
+  const unwatched = await runProbe(false);
+  assert.equal(unwatched.served, LATEST, "watcher coupé : la donnée est figée sur la version enregistrée");
+  assert.equal(
+    unwatched.askedLatest,
+    true,
+    "watcher coupé : le bundle de la dernière version n'a pas été demandé"
+  );
 });
 
