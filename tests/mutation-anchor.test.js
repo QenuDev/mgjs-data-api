@@ -26,7 +26,7 @@ import fs from "node:fs/promises";
 import { describe, it } from "node:test";
 
 import { extractArtTables } from "../src/core/game/art/index.js";
-import { artChunks } from "./helpers/art-fixtures.js";
+import { artChunks, newestArtFixtureVersion } from "./helpers/art-fixtures.js";
 import {
   FALLBACK_MUTATION_TABLES,
   GAME_SCALE_CAP,
@@ -47,11 +47,12 @@ const PLANTS = JSON.parse(
 /**
  * The game's anchors as the fork's own extractor reads them out of the committed chunk.
  *
- * `tests/fixtures/art/bundle-1176/` is a verbatim cut of `LayoutMotionController-CwhDlPns.js`,
- * so this is the game's `Uo` / `Tn` rather than a copy of it. The same pass is what `/data/art`
- * publishes and what `loadMutationTables()` prefers at runtime.
+ * `tests/fixtures/art/bundle-<version>/` is a verbatim cut of the drawing controller, so this
+ * is the game's own declaration rather than a copy of it — the newest cut is the game the API
+ * serves. The same pass is what `/data/art` publishes and what `loadMutationTables()` prefers.
  */
-const EXTRACTED = extractArtTables({ chunks: artChunks(), gameVersion: "1176" }).tables;
+const ART_VERSION = newestArtFixtureVersion();
+const EXTRACTED = extractArtTables({ chunks: artChunks(ART_VERSION), gameVersion: ART_VERSION }).tables;
 
 /**
  * The atlas key the bake composes for a species: its patch art when Single, its crop otherwise.
