@@ -1100,9 +1100,59 @@
    },
    "sourcePixelRatio": 2
   },
-  "sprite/plant/Daffodil": {
+  "tile/Dirt_A": {
    "frame": {
     "x": 0,
+    "y": 5821,
+    "w": 256,
+    "h": 256
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 256,
+    "h": 256
+   },
+   "sourceSize": {
+    "w": 256,
+    "h": 256
+   },
+   "anchor": {
+    "x": 0,
+    "y": 0
+   },
+   "sourcePixelRatio": null
+  },
+  "tile/Grass_C": {
+   "frame": {
+    "x": 256,
+    "y": 5821,
+    "w": 256,
+    "h": 256
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 256,
+    "h": 256
+   },
+   "sourceSize": {
+    "w": 256,
+    "h": 256
+   },
+   "anchor": {
+    "x": 0,
+    "y": 0
+   },
+   "sourcePixelRatio": null
+  },
+  "sprite/plant/Daffodil": {
+   "frame": {
+    "x": 512,
     "y": 5821,
     "w": 255,
     "h": 253
@@ -1127,7 +1177,7 @@
   },
   "sprite/plant/Sunflower": {
    "frame": {
-    "x": 255,
+    "x": 767,
     "y": 5821,
     "w": 246,
     "h": 252
@@ -1152,7 +1202,7 @@
   },
   "sprite/plant/Snowdrop": {
    "frame": {
-    "x": 501,
+    "x": 1013,
     "y": 5821,
     "w": 155,
     "h": 250
@@ -1177,7 +1227,7 @@
   },
   "sprite/plant/Daisy": {
    "frame": {
-    "x": 656,
+    "x": 1168,
     "y": 5821,
     "w": 139,
     "h": 243
@@ -1202,7 +1252,7 @@
   },
   "sprite/plant/DragonFruit": {
    "frame": {
-    "x": 795,
+    "x": 1307,
     "y": 5821,
     "w": 188,
     "h": 242
@@ -1227,7 +1277,7 @@
   },
   "sprite/plant/Banana": {
    "frame": {
-    "x": 983,
+    "x": 1495,
     "y": 5821,
     "w": 233,
     "h": 238
@@ -1252,7 +1302,7 @@
   },
   "sprite/plant/Grape": {
    "frame": {
-    "x": 1216,
+    "x": 1728,
     "y": 5821,
     "w": 163,
     "h": 238
@@ -1277,7 +1327,7 @@
   },
   "sprite/plant/ThunderCelestialFruit": {
    "frame": {
-    "x": 1379,
+    "x": 1891,
     "y": 5821,
     "w": 96,
     "h": 238
@@ -1302,8 +1352,8 @@
   },
   "sprite/plant/BabyCarrot": {
    "frame": {
-    "x": 1475,
-    "y": 5821,
+    "x": 0,
+    "y": 6077,
     "w": 191,
     "h": 236
    },
@@ -1327,8 +1377,8 @@
   },
   "sprite/plant/Corn": {
    "frame": {
-    "x": 1666,
-    "y": 5821,
+    "x": 191,
+    "y": 6077,
     "w": 254,
     "h": 235
    },
@@ -1352,8 +1402,8 @@
   },
   "sprite/mutation/Chilled": {
    "frame": {
-    "x": 0,
-    "y": 6074,
+    "x": 445,
+    "y": 6077,
     "w": 306,
     "h": 235
    },
@@ -1377,8 +1427,8 @@
   },
   "sprite/mutation/ThunderstruckGround": {
    "frame": {
-    "x": 306,
-    "y": 6074,
+    "x": 751,
+    "y": 6077,
     "w": 315,
     "h": 235
    },
@@ -1402,8 +1452,8 @@
   },
   "sprite/plant/Apple": {
    "frame": {
-    "x": 621,
-    "y": 6074,
+    "x": 1066,
+    "y": 6077,
     "w": 221,
     "h": 233
    },
@@ -1427,8 +1477,8 @@
   },
   "sprite/mutation/Frozen": {
    "frame": {
-    "x": 842,
-    "y": 6074,
+    "x": 1287,
+    "y": 6077,
     "w": 287,
     "h": 226
    },
@@ -1452,8 +1502,8 @@
   },
   "sprite/plant/Cabbage": {
    "frame": {
-    "x": 1129,
-    "y": 6074,
+    "x": 1574,
+    "y": 6077,
     "w": 244,
     "h": 222
    },
@@ -1477,8 +1527,8 @@
   },
   "sprite/mutation/Wet": {
    "frame": {
-    "x": 1373,
-    "y": 6074,
+    "x": 0,
+    "y": 6313,
     "w": 287,
     "h": 220
    },
@@ -1502,8 +1552,8 @@
   },
   "sprite/plant/Peach": {
    "frame": {
-    "x": 1660,
-    "y": 6074,
+    "x": 287,
+    "y": 6313,
     "w": 205,
     "h": 219
    },
@@ -1527,8 +1577,8 @@
   },
   "sprite/plant/CloverFourLeaf": {
    "frame": {
-    "x": 1865,
-    "y": 6074,
+    "x": 492,
+    "y": 6313,
     "w": 123,
     "h": 211
    },
@@ -1552,8 +1602,8 @@
   },
   "sprite/plant/ThunderCelestialShroom": {
    "frame": {
-    "x": 0,
-    "y": 6309,
+    "x": 615,
+    "y": 6313,
     "w": 205,
     "h": 208
    },
@@ -1577,8 +1627,8 @@
   },
   "sprite/plant/Eggplant": {
    "frame": {
-    "x": 205,
-    "y": 6309,
+    "x": 820,
+    "y": 6313,
     "w": 104,
     "h": 206
    },
@@ -1602,8 +1652,8 @@
   },
   "sprite/plant/Poinsettia": {
    "frame": {
-    "x": 309,
-    "y": 6309,
+    "x": 924,
+    "y": 6313,
     "w": 217,
     "h": 205
    },
@@ -1627,8 +1677,8 @@
   },
   "sprite/plant/Cacao": {
    "frame": {
-    "x": 526,
-    "y": 6309,
+    "x": 1141,
+    "y": 6313,
     "w": 126,
     "h": 203
    },
@@ -1652,8 +1702,8 @@
   },
   "sprite/plant/BurrosTail": {
    "frame": {
-    "x": 652,
-    "y": 6309,
+    "x": 1267,
+    "y": 6313,
     "w": 124,
     "h": 197
    },
@@ -1677,8 +1727,8 @@
   },
   "sprite/plant/MoonCelestialCrop": {
    "frame": {
-    "x": 776,
-    "y": 6309,
+    "x": 1391,
+    "y": 6313,
     "w": 175,
     "h": 197
    },
@@ -1702,8 +1752,8 @@
   },
   "sprite/plant/Squash": {
    "frame": {
-    "x": 951,
-    "y": 6309,
+    "x": 1566,
+    "y": 6313,
     "w": 124,
     "h": 194
    },
@@ -1727,8 +1777,8 @@
   },
   "sprite/plant/DawnCelestialCrop": {
    "frame": {
-    "x": 1075,
-    "y": 6309,
+    "x": 1690,
+    "y": 6313,
     "w": 174,
     "h": 194
    },
@@ -1752,8 +1802,8 @@
   },
   "sprite/plant/Lemon": {
    "frame": {
-    "x": 1249,
-    "y": 6309,
+    "x": 1864,
+    "y": 6313,
     "w": 117,
     "h": 193
    },
@@ -1777,8 +1827,8 @@
   },
   "sprite/plant/Pepper": {
    "frame": {
-    "x": 1366,
-    "y": 6309,
+    "x": 0,
+    "y": 6533,
     "w": 89,
     "h": 186
    },
@@ -1802,8 +1852,8 @@
   },
   "sprite/plant/PassionFruit": {
    "frame": {
-    "x": 1455,
-    "y": 6309,
+    "x": 89,
+    "y": 6533,
     "w": 136,
     "h": 186
    },
@@ -1827,8 +1877,8 @@
   },
   "sprite/plant/Coconut": {
    "frame": {
-    "x": 1591,
-    "y": 6309,
+    "x": 225,
+    "y": 6533,
     "w": 162,
     "h": 174
    },
@@ -1852,8 +1902,8 @@
   },
   "sprite/plant/CloverThreeLeaf": {
    "frame": {
-    "x": 1753,
-    "y": 6309,
+    "x": 387,
+    "y": 6533,
     "w": 113,
     "h": 169
    },
@@ -1877,8 +1927,8 @@
   },
   "sprite/plant/MarigoldCrop": {
    "frame": {
-    "x": 1866,
-    "y": 6309,
+    "x": 500,
+    "y": 6533,
     "w": 181,
     "h": 169
    },
@@ -1902,8 +1952,8 @@
   },
   "sprite/plant/Persimmon": {
    "frame": {
-    "x": 0,
-    "y": 6517,
+    "x": 681,
+    "y": 6533,
     "w": 173,
     "h": 158
    },
@@ -1927,8 +1977,8 @@
   },
   "sprite/plant/HabaneroPepper": {
    "frame": {
-    "x": 173,
-    "y": 6517,
+    "x": 854,
+    "y": 6533,
     "w": 107,
     "h": 153
    },
@@ -1952,8 +2002,8 @@
   },
   "sprite/plant/Tomato": {
    "frame": {
-    "x": 280,
-    "y": 6517,
+    "x": 961,
+    "y": 6533,
     "w": 169,
     "h": 152
    },
@@ -1977,8 +2027,8 @@
   },
   "sprite/plant/Strawberry": {
    "frame": {
-    "x": 449,
-    "y": 6517,
+    "x": 1130,
+    "y": 6533,
     "w": 110,
     "h": 142
    },
@@ -2002,8 +2052,8 @@
   },
   "sprite/plant/FavaBean": {
    "frame": {
-    "x": 559,
-    "y": 6517,
+    "x": 1240,
+    "y": 6533,
     "w": 56,
     "h": 140
    },
@@ -2027,8 +2077,8 @@
   },
   "sprite/plant/Date": {
    "frame": {
-    "x": 615,
-    "y": 6517,
+    "x": 1296,
+    "y": 6533,
     "w": 71,
     "h": 136
    },
@@ -2052,8 +2102,8 @@
   },
   "sprite/plant/Camellia": {
    "frame": {
-    "x": 686,
-    "y": 6517,
+    "x": 1367,
+    "y": 6533,
     "w": 160,
     "h": 130
    },
@@ -2077,8 +2127,8 @@
   },
   "sprite/plant/Lychee": {
    "frame": {
-    "x": 846,
-    "y": 6517,
+    "x": 1527,
+    "y": 6533,
     "w": 79,
     "h": 110
    },
@@ -2102,8 +2152,8 @@
   },
   "sprite/plant/Chrysanthemum": {
    "frame": {
-    "x": 925,
-    "y": 6517,
+    "x": 1606,
+    "y": 6533,
     "w": 131,
     "h": 104
    },
@@ -2127,8 +2177,8 @@
   },
   "sprite/plant/Blueberry": {
    "frame": {
-    "x": 1056,
-    "y": 6517,
+    "x": 1737,
+    "y": 6533,
     "w": 94,
     "h": 101
    },
@@ -2152,8 +2202,8 @@
   },
   "sprite/plant/PricklyPear": {
    "frame": {
-    "x": 1150,
-    "y": 6517,
+    "x": 1831,
+    "y": 6533,
     "w": 82,
     "h": 83
    },
@@ -2181,8 +2231,8 @@
  "meta": {
   "image": "sprites-composed.png",
   "size": {
-   "w": 2047,
-   "h": 6675
+   "w": 1987,
+   "h": 6719
   },
   "scale": 1
  }

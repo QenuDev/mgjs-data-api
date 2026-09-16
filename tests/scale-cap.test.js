@@ -148,15 +148,19 @@ describe("the scale cap is the game's, and so is the size it is taken against", 
     // frame by the game's own default.
     const held = Object.entries(ATLAS.frames);
     assert.ok(held.length > 69, "the fixture holds no mutation frames");
-    assert.equal(held.length, 87, "the composition fixture's frame count changed");
+    assert.equal(held.length, 89, "the composition fixture's frame count changed");
     assert.equal(
       held.filter(([, frame]) => frame.sourcePixelRatio === 2).length,
       86,
       "the fixture's 2x frames changed — was it regenerated with a drifted atlas?",
     );
+    // Three frames state no ratio, for two different reasons: `PricklyPearPlant` is a 1x frame the
+    // game exports as such, and the two ground tiles come from the tiles atlas, which states the
+    // field on none of its frames — a tile therefore takes the game's own default, exactly as a 1x
+    // frame does. The fixture carries the field faithfully either way, which is what this checks.
     assert.deepEqual(
       held.filter(([, frame]) => frame.sourcePixelRatio !== 2).map(([key]) => key),
-      ["sprite/plant/PricklyPearPlant"],
+      ["sprite/plant/PricklyPearPlant", "tile/Dirt_A", "tile/Grass_C"],
       "a frame in the composition fixture states no pixel ratio",
     );
   });

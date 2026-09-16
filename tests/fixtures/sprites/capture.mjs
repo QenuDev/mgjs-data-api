@@ -47,7 +47,13 @@ for (const [name, rec] of Object.entries(plants)) {
 // flag. It is a frame the live atlas has and a caller can ask the composed endpoint for by key.
 const EXTRA_PLANT_ARTS = ["sprite/plant/PricklyPearPlant"];
 
-const keys = [...new Set([...species.map((s) => s.artKey), ...MUTATION_KEYS, ...EXTRA_PLANT_ARTS])];
+// Two ground tiles, because a composed *scene* has a tiled background and the background is drawn
+// from the same atlas a scene composes into: a spec that says `ground: "Dirt_A"` resolves to
+// `tile/Dirt_A`, and that frame has to be in the picture or the background is a hole. They come
+// from the tiles atlas, which `initSprites()` loads from the manifest like any other.
+const TILE_KEYS = ["tile/Dirt_A", "tile/Grass_C"];
+
+const keys = [...new Set([...species.map((s) => s.artKey), ...MUTATION_KEYS, ...EXTRA_PLANT_ARTS, ...TILE_KEYS])];
 const frames = {};
 const blocks = [];
 
@@ -127,6 +133,7 @@ const rows = species.map(({ species: name, artKey }) => {
   const h = m.sourceSize?.h ?? (m.rotated ? m.frame.w : m.frame.h);
   return `  ${/^[A-Za-z_$][\w$]*$/.test(name) ? name : JSON.stringify(name)}: [${JSON.stringify(artKey)}, ${w}, ${h}],`;
 });
-console.log(`captured ${blocks.length} frames (${species.length} species arts + ${blocks.length - species.length} mutation frames)`);
+const cut = blocks.length - species.length - TILE_KEYS.length;
+console.log(`captured ${blocks.length} frames (${species.length} species arts + ${cut} mutation/extra arts + ${TILE_KEYS.length} ground tiles)`);
 console.log(`atlas ${packW}x${packH}, png ${png.length} bytes`);
 console.log("\n// expected-crop-art table for tests/sprites-composed-box.test.js:\n" + rows.join("\n"));
