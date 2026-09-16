@@ -28,10 +28,25 @@ Polling of the game's own `/platform/v1` endpoints for dynamic data:
 - **Sprites included**: URLs and direct sprite downloads
 - **Smart cache**: Optimal performance
 
+## Fork, upstream and licence
+
+This repository is a fork of [Magic-garden-API](https://github.com/Ariedam64/Magic-garden-API), by
+[@Ariedam64](https://github.com/Ariedam64), published as
+[QenuDev/mgjs-data-api](https://github.com/QenuDev/mgjs-data-api).
+
+Upstream is ISC-licensed (`package.json` and the licence section of its README), and this fork keeps
+that licence: [`NOTICE`](NOTICE) records the origin, the copyright and what the fork changes. The
+bundle extraction is upstream's work; what this fork adds is a contract a client can check before it
+trusts a URL — the contract version in the OpenAPI document, `GET /schema.json` serving the same
+facts flat, and `GET /data/version` for the version the served data was built from.
+
 ## Hosted API
 
-Production base URL: `https://mg-api.ariedam.fr`  
-Documentation: `https://mg-api.ariedam.fr/docs`
+Upstream runs its own deployment at `https://mg-api.ariedam.fr`, and the examples in this README use
+it because the API is the same one. This fork is a separate instance: the host a client calls is the
+one that instance's operator configured, and `GET /schema.json` on that host reports the contract
+version, the capabilities and the game version the data was built from, so a client can check what
+it is talking to rather than assume it.
 
 ## Quick Start
 
@@ -445,9 +460,12 @@ Set `CORS_ENABLED=false` or `RATE_LIMIT_ENABLED=false` to disable those features
 
 ## License
 
-ISC
+ISC, as upstream. [`NOTICE`](NOTICE) records the origin of this fork and the copyright:
+[Magic-garden-API](https://github.com/Ariedam64/Magic-garden-API), by
+[@Ariedam64](https://github.com/Ariedam64).
 
 ---
 
-**Developed by:** [@Ariedam64](https://github.com/Ariedam64)
+**Upstream project:** [Magic-garden-API](https://github.com/Ariedam64/Magic-garden-API) by [@Ariedam64](https://github.com/Ariedam64) — ISC
+**This fork:** [QenuDev/mgjs-data-api](https://github.com/QenuDev/mgjs-data-api) — see [`NOTICE`](NOTICE)
 **Game:** [Magic Garden](https://magicgarden.gg) / [Magic Circle](https://magiccircle.gg)

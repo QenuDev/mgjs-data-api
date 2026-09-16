@@ -1,0 +1,41 @@
+Magic Garden API — NOTICE
+=========================
+
+This repository, QenuDev/mgjs-data-api, is a fork of the Magic Garden API:
+
+    Upstream:  https://github.com/Ariedam64/Magic-garden-API
+    Author:    @Ariedam64 (https://github.com/Ariedam64), "Ariedam" in package.json
+    Licence:   ISC
+
+The upstream history is kept in full. This fork branches from its current head,
+commit 87d56e9 ("fix(data): survive a category the game moved"); every commit
+below that one is the upstream author's work, and the fork's own changes sit on
+top of it.
+
+Upstream declares the ISC licence in `package.json` and in the licence section
+of its README. It never committed a separate LICENSE file, and neither does this
+fork; nothing here is relicensed, so the ISC terms apply to the whole
+repository, upstream work and fork changes alike.
+
+What the fork adds
+------------------
+
+This fork exists to be an instance we host, and a URL our clients can point at
+instead of somebody else's deployment — not to rewrite the extraction. On top of
+upstream it adds:
+
+  * a declared public contract. The OpenAPI document's `info.version` is the
+    contract version (which a client compares against what it supports) and
+    `x-mg-contract` names the capabilities, the data categories and the runtime
+    facts. `GET /schema.json` serves the same facts flat, from the same
+    `openapi.yaml`, so the document and the route cannot disagree, and a test
+    fails if a documented path is not mounted or a capability is claimed without
+    a path behind it.
+  * `GET /data/version` — the path mg.js already asks for and upstream answers
+    404 — reporting the game version the served data and sprites were built
+    from, without a fresh fetch of the game's version endpoint.
+  * this NOTICE, and the matching README section.
+
+The bundle extraction, the platform-API polling, the sprite/atlas/Rive export,
+the weather station and the history recorder are upstream's work. They are
+unchanged here except where a commit in this repository says otherwise.
