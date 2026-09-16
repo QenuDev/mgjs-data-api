@@ -154,7 +154,7 @@ export async function getBuildInfo() {
 
 /**
  * Le document avec les faits de l'instance. Copie superficielle : seuls le bloc
- * de contrat et son contenu changent, pas les 39 chemins.
+ * de contrat et son contenu changent, pas la liste des chemins.
  */
 export async function withRuntimeContract(spec) {
   const { gameVersion, artVersion, generatedAt } = await getBuildInfo();

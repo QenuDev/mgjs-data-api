@@ -196,9 +196,11 @@ tags:
       Every `/data/*` and `/live/*` endpoint is available as CSV or TSV by appending `.csv` or `.tsv` to the URL.
       Nested fields are flattened with dot notation. Ideal for Excel, Google Sheets (`=IMPORTDATA(...)`), or any spreadsheet tool.
 
-      Each export carries `X-Game-Version` like every other `/data` response, and
-      deliberately no `_meta`: the format is a table, so a metadata key would add an
-      empty column to every entity and one empty row.
+      Each `/data/*` export carries `X-Game-Version` like every other `/data`
+      response; the `/live/*` exports carry no version header, because live data is
+      polled from the game's platform API rather than built from the bundle. None
+      carries `_meta`: the format is a table, so a metadata key would add an empty
+      column to every entity and one empty row.
 
   - name: Health
     description: |
@@ -210,6 +212,31 @@ tags:
       - `/health`: Comprehensive health status
       - `/health/ready`: Readiness probe (checks if data is loaded)
       - `/health/live`: Liveness probe (checks if server is running)
+
+  - name: Weather Station
+    description: |
+      Deterministic weather forecast for Magic Garden, modelled locally.
+
+      The station stitches three sources into one view: recorded history (the
+      SQLite recorder) for the past, the live poller for the present, and a
+      deterministic replay of the game's own weather scheduler for the future.
+      Responses say whether they came from the engine (`modeled`), and where the
+      engine and the recorded history disagree the difference is reported rather
+      than hidden — that gap is the signal that the game changed its scheduler.
+
+      `tz` selects the civil day used by the day view; `engine` pins a specific
+      era of the scheduler instead of the one covering *now*. Ranges are capped
+      (see each endpoint), and a window already in the past caches for a day while
+      a future one revalidates within minutes.
+
+  - name: Documentation
+    description: |
+      The API's own documentation surface.
+
+      `/docs` is the interactive explorer, `/docs/openapi.json` is the document
+      that drives it. These are the only paths here that exist to describe the
+      rest of the API rather than to serve game data, and both are served by this
+      deployment.
 
 paths:
   /:
@@ -340,6 +367,48 @@ paths:
                     gameVersion: "1191"
                     artVersion: "1191"
                     generatedAt: "2026-09-16T05:00:00.000Z"
+
+  /docs:
+    get:
+      tags:
+        - Documentation
+      summary: Interactive documentation page
+      description: |
+        The single-page explorer (HTML) for this API: it lists every path of this
+        document and lets a reader call them from the browser. Served with
+        `Cache-Control: no-store`, so a deployment never shows a stale explorer
+        behind a CDN.
+      responses:
+        '200':
+          description: The explorer page
+          content:
+            text/html:
+              schema:
+                type: string
+
+  /docs/openapi.json:
+    get:
+      tags:
+        - Documentation
+      summary: This OpenAPI document as JSON
+      description: |
+        The document the explorer reads: this `openapi.yaml`, plus the facts of
+        the instance serving it (`x-mg-contract.gameVersion`, `artVersion`,
+        `generatedAt`) and a `servers` list built from this deployment's own
+        configuration instead of a hard-coded host. The `shop` parameter enum is
+        refreshed from the running instance, so it does not go stale when the game
+        adds a shop.
+
+        `Cache-Control: no-store`, and the same source as `/schema.json` — the two
+        cannot announce different contract versions.
+      responses:
+        '200':
+          description: The OpenAPI document
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
 
   /health:
     get:
@@ -637,6 +706,54 @@ paths:
                     abilities: {}
                     weathers: {}
                     weatherGroups: {}
+
+  /data.csv:
+    get:
+      tags:
+        - CSV / TSV Export
+      summary: Comma-separated export of every `/data` category
+      description: |
+        `/data` as one table: one row per entity, with a `category` column naming
+        where the row came from and the entity key in `id`. Nested fields are
+        flattened with dot notation, arrays stay JSON strings inside a cell, and
+        the columns are the union of every row's fields.
+
+        A category the running bundle cannot build is omitted, exactly as in the
+        JSON aggregate — a broken category removes rows, not the file. `plants`
+        rows carry `purchasable`, computed from the shops like the JSON route.
+
+        Carries `X-Game-Version` and no `_meta`: a metadata key would add an empty
+        column to every row and one row with no data.
+      responses:
+        '200':
+          description: CSV file
+          headers:
+            X-Game-Version:
+              $ref: '#/components/headers/GameVersion'
+          content:
+            text/csv:
+              schema:
+                type: string
+
+  /data.tsv:
+    get:
+      tags:
+        - CSV / TSV Export
+      summary: Tab-separated export of every `/data` category
+      description: |
+        The same table as `/data.csv`, with tabs as the delimiter: one row per
+        entity, `category` and `id` columns, nested fields flattened with dot
+        notation. Carries `X-Game-Version` and no `_meta`.
+      responses:
+        '200':
+          description: TSV file
+          headers:
+            X-Game-Version:
+              $ref: '#/components/headers/GameVersion'
+          content:
+            text/tab-separated-values:
+              schema:
+                type: string
 
   /data/plants:
     get:
@@ -1397,9 +1514,11 @@ paths:
         Arrays are serialized as JSON strings within cells.
         The combined `/data.csv` includes a `category` column.
 
-        Every export carries `X-Game-Version`, and none carries `_meta`:
-        `jsonToDelimited` turns each top-level key into a table row, so a metadata
-        key would add an empty column to every entity and one row with no data.
+        Every `/data/*` export carries `X-Game-Version` (`/live/*` exports do not:
+        live data is polled, not extracted from the bundle), and none carries
+        `_meta`: `jsonToDelimited` turns each top-level key into a table row, so a
+        metadata key would add an empty column to every entity and one row with no
+        data.
 
         **Google Sheets:** `=IMPORTDATA("/data/plants.csv")`
 
@@ -1418,6 +1537,434 @@ paths:
                 id,seed.name,seed.coinPrice,plant.harvestType,crop.baseSellPrice
                 Carrot,Carrot Seed,10,Single,20
                 Cabbage,Cabbage Seed,30,Multiple,42
+
+  /data/plants.tsv:
+    get:
+      tags:
+        - CSV / TSV Export
+      summary: Tab-separated export of `/data/plants`
+      description: |
+        The `/data/plants` payload as TSV: one plant per row with its whole
+        seed → plant → crop lifecycle flattened, and `purchasable` included as on
+        the JSON route. Nested fields use dot notation, arrays stay JSON strings
+        inside a cell. Carries `X-Game-Version` and no `_meta`.
+      responses:
+        '200':
+          description: TSV file
+          headers:
+            X-Game-Version:
+              $ref: '#/components/headers/GameVersion'
+          content:
+            text/tab-separated-values:
+              schema:
+                type: string
+
+  /data/pets.csv:
+    get:
+      tags:
+        - CSV / TSV Export
+      summary: Comma-separated export of `/data/pets`
+      description: |
+        The `/data/pets` payload as CSV: one pet per row, nested fields flattened
+        with dot notation and arrays kept as JSON strings inside a cell. Carries
+        `X-Game-Version` and no `_meta`.
+      responses:
+        '200':
+          description: CSV file
+          headers:
+            X-Game-Version:
+              $ref: '#/components/headers/GameVersion'
+          content:
+            text/csv:
+              schema:
+                type: string
+
+  /data/pets.tsv:
+    get:
+      tags:
+        - CSV / TSV Export
+      summary: Tab-separated export of `/data/pets`
+      description: |
+        The same rows as `/data/pets.csv`, with tabs as the delimiter. Carries
+        `X-Game-Version` and no `_meta`.
+      responses:
+        '200':
+          description: TSV file
+          headers:
+            X-Game-Version:
+              $ref: '#/components/headers/GameVersion'
+          content:
+            text/tab-separated-values:
+              schema:
+                type: string
+
+  /data/items.csv:
+    get:
+      tags:
+        - CSV / TSV Export
+      summary: Comma-separated export of `/data/items`
+      description: |
+        The `/data/items` payload as CSV: one item per row, nested fields
+        flattened with dot notation and arrays kept as JSON strings inside a cell.
+        Carries `X-Game-Version` and no `_meta`.
+      responses:
+        '200':
+          description: CSV file
+          headers:
+            X-Game-Version:
+              $ref: '#/components/headers/GameVersion'
+          content:
+            text/csv:
+              schema:
+                type: string
+
+  /data/items.tsv:
+    get:
+      tags:
+        - CSV / TSV Export
+      summary: Tab-separated export of `/data/items`
+      description: |
+        The same rows as `/data/items.csv`, with tabs as the delimiter. Carries
+        `X-Game-Version` and no `_meta`.
+      responses:
+        '200':
+          description: TSV file
+          headers:
+            X-Game-Version:
+              $ref: '#/components/headers/GameVersion'
+          content:
+            text/tab-separated-values:
+              schema:
+                type: string
+
+  /data/decors.csv:
+    get:
+      tags:
+        - CSV / TSV Export
+      summary: Comma-separated export of `/data/decors`
+      description: |
+        The `/data/decors` payload as CSV: one decor per row, nested fields
+        flattened with dot notation and arrays kept as JSON strings inside a cell.
+        Carries `X-Game-Version` and no `_meta`.
+      responses:
+        '200':
+          description: CSV file
+          headers:
+            X-Game-Version:
+              $ref: '#/components/headers/GameVersion'
+          content:
+            text/csv:
+              schema:
+                type: string
+
+  /data/decors.tsv:
+    get:
+      tags:
+        - CSV / TSV Export
+      summary: Tab-separated export of `/data/decors`
+      description: |
+        The same rows as `/data/decors.csv`, with tabs as the delimiter. Carries
+        `X-Game-Version` and no `_meta`.
+      responses:
+        '200':
+          description: TSV file
+          headers:
+            X-Game-Version:
+              $ref: '#/components/headers/GameVersion'
+          content:
+            text/tab-separated-values:
+              schema:
+                type: string
+
+  /data/eggs.csv:
+    get:
+      tags:
+        - CSV / TSV Export
+      summary: Comma-separated export of `/data/eggs`
+      description: |
+        The `/data/eggs` payload as CSV: one egg per row, nested fields flattened
+        with dot notation and arrays kept as JSON strings inside a cell. Carries
+        `X-Game-Version` and no `_meta`.
+      responses:
+        '200':
+          description: CSV file
+          headers:
+            X-Game-Version:
+              $ref: '#/components/headers/GameVersion'
+          content:
+            text/csv:
+              schema:
+                type: string
+
+  /data/eggs.tsv:
+    get:
+      tags:
+        - CSV / TSV Export
+      summary: Tab-separated export of `/data/eggs`
+      description: |
+        The same rows as `/data/eggs.csv`, with tabs as the delimiter. Carries
+        `X-Game-Version` and no `_meta`.
+      responses:
+        '200':
+          description: TSV file
+          headers:
+            X-Game-Version:
+              $ref: '#/components/headers/GameVersion'
+          content:
+            text/tab-separated-values:
+              schema:
+                type: string
+
+  /data/abilities.csv:
+    get:
+      tags:
+        - CSV / TSV Export
+      summary: Comma-separated export of `/data/abilities`
+      description: |
+        The `/data/abilities` payload as CSV: one ability per row, nested fields
+        flattened with dot notation and arrays kept as JSON strings inside a cell.
+        Carries `X-Game-Version` and no `_meta`.
+      responses:
+        '200':
+          description: CSV file
+          headers:
+            X-Game-Version:
+              $ref: '#/components/headers/GameVersion'
+          content:
+            text/csv:
+              schema:
+                type: string
+
+  /data/abilities.tsv:
+    get:
+      tags:
+        - CSV / TSV Export
+      summary: Tab-separated export of `/data/abilities`
+      description: |
+        The same rows as `/data/abilities.csv`, with tabs as the delimiter.
+        Carries `X-Game-Version` and no `_meta`.
+      responses:
+        '200':
+          description: TSV file
+          headers:
+            X-Game-Version:
+              $ref: '#/components/headers/GameVersion'
+          content:
+            text/tab-separated-values:
+              schema:
+                type: string
+
+  /data/mutations.csv:
+    get:
+      tags:
+        - CSV / TSV Export
+      summary: Comma-separated export of `/data/mutations`
+      description: |
+        The `/data/mutations` payload as CSV: one mutation per row, nested fields
+        flattened with dot notation and arrays kept as JSON strings inside a cell.
+        Carries `X-Game-Version` and no `_meta`.
+      responses:
+        '200':
+          description: CSV file
+          headers:
+            X-Game-Version:
+              $ref: '#/components/headers/GameVersion'
+          content:
+            text/csv:
+              schema:
+                type: string
+
+  /data/mutations.tsv:
+    get:
+      tags:
+        - CSV / TSV Export
+      summary: Tab-separated export of `/data/mutations`
+      description: |
+        The same rows as `/data/mutations.csv`, with tabs as the delimiter.
+        Carries `X-Game-Version` and no `_meta`.
+      responses:
+        '200':
+          description: TSV file
+          headers:
+            X-Game-Version:
+              $ref: '#/components/headers/GameVersion'
+          content:
+            text/tab-separated-values:
+              schema:
+                type: string
+
+  /data/weathers.csv:
+    get:
+      tags:
+        - CSV / TSV Export
+      summary: Comma-separated export of `/data/weathers`
+      description: |
+        The `/data/weathers` payload as CSV: one weather per row, nested fields
+        flattened with dot notation and arrays kept as JSON strings inside a cell.
+        Carries `X-Game-Version` and no `_meta`.
+      responses:
+        '200':
+          description: CSV file
+          headers:
+            X-Game-Version:
+              $ref: '#/components/headers/GameVersion'
+          content:
+            text/csv:
+              schema:
+                type: string
+
+  /data/weathers.tsv:
+    get:
+      tags:
+        - CSV / TSV Export
+      summary: Tab-separated export of `/data/weathers`
+      description: |
+        The same rows as `/data/weathers.csv`, with tabs as the delimiter.
+        Carries `X-Game-Version` and no `_meta`.
+      responses:
+        '200':
+          description: TSV file
+          headers:
+            X-Game-Version:
+              $ref: '#/components/headers/GameVersion'
+          content:
+            text/tab-separated-values:
+              schema:
+                type: string
+
+  /data/weather-groups.csv:
+    get:
+      tags:
+        - CSV / TSV Export
+      summary: Comma-separated export of `/data/weather-groups`
+      description: |
+        The `/data/weather-groups` payload as CSV: one weather group per row,
+        nested fields flattened with dot notation and arrays kept as JSON strings
+        inside a cell. Carries `X-Game-Version` and no `_meta`.
+      responses:
+        '200':
+          description: CSV file
+          headers:
+            X-Game-Version:
+              $ref: '#/components/headers/GameVersion'
+          content:
+            text/csv:
+              schema:
+                type: string
+
+  /data/weather-groups.tsv:
+    get:
+      tags:
+        - CSV / TSV Export
+      summary: Tab-separated export of `/data/weather-groups`
+      description: |
+        The same rows as `/data/weather-groups.csv`, with tabs as the delimiter.
+        Carries `X-Game-Version` and no `_meta`.
+      responses:
+        '200':
+          description: TSV file
+          headers:
+            X-Game-Version:
+              $ref: '#/components/headers/GameVersion'
+          content:
+            text/tab-separated-values:
+              schema:
+                type: string
+
+  /data/enums.csv:
+    get:
+      tags:
+        - CSV / TSV Export
+      summary: Comma-separated export of `/data/enums`
+      description: |
+        The `/data/enums` payload as CSV: one enum per row, nested fields flattened
+        with dot notation and arrays kept as JSON strings inside a cell. Carries
+        `X-Game-Version` and no `_meta`.
+      responses:
+        '200':
+          description: CSV file
+          headers:
+            X-Game-Version:
+              $ref: '#/components/headers/GameVersion'
+          content:
+            text/csv:
+              schema:
+                type: string
+
+  /data/enums.tsv:
+    get:
+      tags:
+        - CSV / TSV Export
+      summary: Tab-separated export of `/data/enums`
+      description: |
+        The same rows as `/data/enums.csv`, with tabs as the delimiter. Carries
+        `X-Game-Version` and no `_meta`.
+      responses:
+        '200':
+          description: TSV file
+          headers:
+            X-Game-Version:
+              $ref: '#/components/headers/GameVersion'
+          content:
+            text/tab-separated-values:
+              schema:
+                type: string
+
+  /assets/proxy:
+    get:
+      tags:
+        - Assets
+      summary: Fetch an upstream asset through this host, with CORS
+      description: |
+        Streams a whitelisted upstream asset — a `https://magicgarden.gg/…` URL, or
+        a `/assets/sprites/…` URL of the upstream fork's sprite host — back to the
+        caller with `Access-Control-Allow-Origin: *`. Upstream sets no such header,
+        so a browser cannot read those pixels directly; this proxy is the path that
+        makes them readable cross-origin.
+
+        **Not a general open proxy:** a URL outside the whitelist is rejected with
+        `BAD_REQUEST` and never fetched. The response is cached
+        `public, max-age=86400, immutable`, because the URL names a versioned asset.
+        An upstream that accepts the connection but never answers becomes a named
+        `504 UPSTREAM_TIMEOUT` instead of an open socket.
+      parameters:
+        - name: url
+          in: query
+          required: true
+          description: Absolute upstream URL to fetch. Only whitelisted hosts are accepted.
+          schema:
+            type: string
+            format: uri
+      responses:
+        '200':
+          description: The upstream body, with the upstream `Content-Type`
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Missing `url`, or a URL outside the whitelist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Upstream answered a non-2xx status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '504':
+          description: Upstream did not respond within the platform timeout
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /assets/sprite-data:
     get:
@@ -2613,6 +3160,109 @@ paths:
                       secondsUntilRestock: 0
                       items: []
 
+  /live.csv:
+    get:
+      tags:
+        - CSV / TSV Export
+      summary: Comma-separated export of `/live`
+      description: |
+        `/live` as a table: one row per top-level key of the snapshot — `weather`
+        plus one row per shop. Nested fields are flattened with dot notation and
+        arrays stay JSON strings inside a cell.
+
+        No `X-Game-Version`: live data is polled from the game's platform API, not
+        extracted from the versioned bundle.
+      responses:
+        '200':
+          description: CSV file
+          content:
+            text/csv:
+              schema:
+                type: string
+
+  /live.tsv:
+    get:
+      tags:
+        - CSV / TSV Export
+      summary: Tab-separated export of `/live`
+      description: |
+        The same table as `/live.csv`, with tabs as the delimiter: one row per
+        top-level key of the snapshot (`weather`, then one per shop). No
+        `X-Game-Version`.
+      responses:
+        '200':
+          description: TSV file
+          content:
+            text/tab-separated-values:
+              schema:
+                type: string
+
+  /live/weather.csv:
+    get:
+      tags:
+        - CSV / TSV Export
+      summary: Comma-separated export of the current weather
+      description: |
+        The `/live/weather` snapshot flattened: one row per top-level field, the
+        field name in the `id` column. Same data as the JSON route, and no
+        `X-Game-Version` — the weather comes from the poller, not from a bundle.
+      responses:
+        '200':
+          description: CSV file
+          content:
+            text/csv:
+              schema:
+                type: string
+
+  /live/weather.tsv:
+    get:
+      tags:
+        - CSV / TSV Export
+      summary: Tab-separated export of the current weather
+      description: |
+        The same snapshot as `/live/weather.csv`, with tabs as the delimiter. No
+        `X-Game-Version`.
+      responses:
+        '200':
+          description: TSV file
+          content:
+            text/tab-separated-values:
+              schema:
+                type: string
+
+  /live/shops.csv:
+    get:
+      tags:
+        - CSV / TSV Export
+      summary: Comma-separated export of the shop snapshots
+      description: |
+        One row per shop, the shop name in the `id` column and its fields
+        flattened with dot notation; an inventory is a JSON string inside its
+        cell. Same data as `/live/shops`, and no `X-Game-Version`.
+      responses:
+        '200':
+          description: CSV file
+          content:
+            text/csv:
+              schema:
+                type: string
+
+  /live/shops.tsv:
+    get:
+      tags:
+        - CSV / TSV Export
+      summary: Tab-separated export of the shop snapshots
+      description: |
+        The same table as `/live/shops.csv`, with tabs as the delimiter: one row
+        per shop. No `X-Game-Version`.
+      responses:
+        '200':
+          description: TSV file
+          content:
+            text/tab-separated-values:
+              schema:
+                type: string
+
   /live/stream:
     get:
       tags:
@@ -3488,6 +4138,484 @@ paths:
                               stock:
                                 type: integer
                                 example: 8
+
+  /weather-station:
+    get:
+      tags:
+        - Weather Station
+      summary: Weather station dashboard
+      description: |
+        One request for the whole station: the engine in force now, the current
+        event, the next events, the current civil day, and how the engine compares
+        with the recorded history over the last 24 hours.
+
+        `Cache-Control: no-store`, because the present moves.
+      parameters:
+        - name: tz
+          in: query
+          description: IANA time zone used for the "today" section (default `UTC`).
+          schema:
+            type: string
+            example: Europe/Paris
+        - name: engine
+          in: query
+          description: Era id to replay with, instead of the era covering now. An unknown id is a `BAD_REQUEST` that lists the known ones.
+          schema:
+            type: string
+        - name: upcoming
+          in: query
+          description: How many upcoming events to include (default 5, capped at 50).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 5
+        - name: enrich
+          in: query
+          description: Set to `0` to drop per-weather metadata (group, sprite, mutation chance) from the events.
+          schema:
+            type: string
+            enum: ['0']
+      responses:
+        '200':
+          description: The station dashboard
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  generated_at:
+                    type: integer
+                    description: Epoch ms this view was computed
+                  generated_at_iso:
+                    type: string
+                    format: date-time
+                  engine:
+                    type: object
+                    description: Era in force (id, label, window) and its drift check against recorded history
+                    additionalProperties: true
+                  now:
+                    type: object
+                    description: Current event, or the next one when nothing is active
+                    additionalProperties: true
+                  next:
+                    type: array
+                    description: Upcoming events, soonest first
+                    items:
+                      type: object
+                      additionalProperties: true
+                  today:
+                    type: object
+                    description: Current civil day for `tz` (counts and minutes per weather)
+                    additionalProperties: true
+                  accuracy_24h:
+                    type: object
+                    description: Engine vs recorded history over the last 24 hours
+                    additionalProperties: true
+
+  /weather-station/now:
+    get:
+      tags:
+        - Weather Station
+      summary: Current weather and the next event
+      description: |
+        The light endpoint for polling: the current event with how long it has
+        left, and the next one with how long until it starts. `no-store`.
+
+        Live observation wins over the engine while an event is happening; when
+        the two disagree, `now.agrees_with_engine` says so rather than one of them
+        being picked silently.
+      parameters:
+        - name: engine
+          in: query
+          description: Era id to replay with instead of the era covering now.
+          schema:
+            type: string
+        - name: enrich
+          in: query
+          description: Set to `0` to drop per-weather metadata.
+          schema:
+            type: string
+            enum: ['0']
+      responses:
+        '200':
+          description: Current and next event
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  generated_at:
+                    type: integer
+                  generated_at_iso:
+                    type: string
+                    format: date-time
+                  modeled:
+                    type: boolean
+                    description: True when the answer comes from the deterministic engine rather than observation
+                  now:
+                    type: object
+                    description: Current event, plus `status`, `starts_in_ms`/`ends_in_ms`, `source` and `agrees_with_engine`
+                    additionalProperties: true
+                  next:
+                    type: object
+                    description: Next event; absent when the scan finds none
+                    additionalProperties: true
+
+  /weather-station/next:
+    get:
+      tags:
+        - Weather Station
+      summary: Upcoming occurrences of specific weathers
+      description: |
+        Scans forward from `from` and returns the next `count` events, optionally
+        restricted to the weathers named in `ids`. `complete` says whether the
+        requested count was reached before the scan gave up, and `scanned_days`
+        reports how far it looked.
+
+        `no-store`.
+      parameters:
+        - name: ids
+          in: query
+          description: Comma-separated weather ids or public labels to keep. An unknown name is a `BAD_REQUEST` that names it.
+          schema:
+            type: string
+        - name: count
+          in: query
+          description: How many events to return (default 5, capped at 50).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 5
+        - name: from
+          in: query
+          description: Scan start (epoch ms or ISO 8601). Default now.
+          schema:
+            type: string
+        - name: engine
+          in: query
+          description: Era id to replay with instead of the era covering `from`.
+          schema:
+            type: string
+        - name: enrich
+          in: query
+          description: Set to `0` to drop per-weather metadata.
+          schema:
+            type: string
+            enum: ['0']
+      responses:
+        '200':
+          description: The next events
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  from:
+                    type: integer
+                  count:
+                    type: integer
+                    description: Number of events actually returned
+                  requested:
+                    type: integer
+                  complete:
+                    type: boolean
+                  scanned_days:
+                    type: integer
+                  ids:
+                    type: array
+                    description: Echoed only when `ids` was given
+                    items:
+                      type: string
+                  events:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+
+  /weather-station/forecast:
+    get:
+      tags:
+        - Weather Station
+      summary: Weather events over a time window
+      description: |
+        Every event between `from` and `to`, soonest first, capped at `limit`
+        (`truncated` says whether the cap bit). The window defaults to the next
+        24 hours — a weather station talks about the future by default, unlike
+        `/stats`.
+
+        With `include_clear=1` the whole slot-by-slot timeline is returned instead
+        of events only, so the clear stretches are visible too. The ETag is
+        computed on the *resolved* window, so a request without `from` re-resolves
+        as the clock moves rather than serving one forecast forever.
+      parameters:
+        - name: from
+          in: query
+          description: Window start (epoch ms or ISO 8601). Default now.
+          schema:
+            type: string
+        - name: to
+          in: query
+          description: Window end. Default `from` + 24 h. The window is capped at 400 days.
+          schema:
+            type: string
+        - name: ids
+          in: query
+          description: Comma-separated weather ids or public labels to keep.
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: Maximum events returned (default 500, capped at 5000).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 5000
+            default: 500
+        - name: include_clear
+          in: query
+          description: Set to `1` to return the full timeline, clear skies included, instead of events only.
+          schema:
+            type: string
+            enum: ['1']
+        - name: engine
+          in: query
+          description: Era id to replay with instead of the era covering the window.
+          schema:
+            type: string
+        - name: enrich
+          in: query
+          description: Set to `0` to drop per-weather metadata.
+          schema:
+            type: string
+            enum: ['0']
+      responses:
+        '200':
+          description: The forecast
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  from:
+                    type: integer
+                  to:
+                    type: integer
+                  engine:
+                    type: string
+                    nullable: true
+                  eras:
+                    type: array
+                    items:
+                      type: string
+                  modeled:
+                    type: boolean
+                  modeled_from:
+                    type: string
+                  count:
+                    type: integer
+                  limit:
+                    type: integer
+                  truncated:
+                    type: boolean
+                  events:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+
+  /weather-station/forecast.csv:
+    get:
+      tags:
+        - Weather Station
+      summary: Comma-separated export of the forecast
+      description: |
+        `/weather-station/forecast` as a table, with the same query parameters.
+        Each event is one row, keyed by its start instant (`started_at_iso`),
+        because two events cannot start at the same time; the weather id keeps its
+        own `weather_id` column. The download filename states the resolved window
+        in days.
+
+        No `X-Game-Version`: this is a local model, not data from the game bundle.
+      responses:
+        '200':
+          description: CSV file
+          content:
+            text/csv:
+              schema:
+                type: string
+
+  /weather-station/forecast.tsv:
+    get:
+      tags:
+        - Weather Station
+      summary: Tab-separated export of the forecast
+      description: |
+        The same rows as `/weather-station/forecast.csv`, with tabs as the
+        delimiter. No `X-Game-Version`.
+      responses:
+        '200':
+          description: TSV file
+          content:
+            text/tab-separated-values:
+              schema:
+                type: string
+
+  /weather-station/day/{date}:
+    get:
+      tags:
+        - Weather Station
+      summary: One civil day of weather
+      description: |
+        The whole civil day named by `{date}` (`YYYY-MM-DD`) in `tz`: `counts` and
+        `minutes` per weather, plus the event timeline clipped to that day. The
+        time zone offset is resolved at midday of *that* day, so a DST boundary
+        uses the offset in force on the day asked about, not today's.
+
+        An invalid day or an unknown time zone is a `BAD_REQUEST`. A day already
+        over caches for 24 hours, a future one revalidates within minutes.
+      parameters:
+        - name: date
+          in: path
+          required: true
+          description: Civil day, `YYYY-MM-DD`.
+          schema:
+            type: string
+        - name: tz
+          in: query
+          description: IANA time zone (default `UTC`).
+          schema:
+            type: string
+        - name: engine
+          in: query
+          description: Era id to replay with.
+          schema:
+            type: string
+        - name: enrich
+          in: query
+          description: Set to `0` to drop per-weather metadata.
+          schema:
+            type: string
+            enum: ['0']
+      responses:
+        '200':
+          description: The day, minute by minute
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  day:
+                    type: string
+                  tz:
+                    type: string
+                  tz_offset_min:
+                    type: integer
+                  from:
+                    type: integer
+                  to:
+                    type: integer
+                  engine:
+                    type: string
+                    nullable: true
+                  eras:
+                    type: array
+                    items:
+                      type: string
+                  modeled:
+                    type: boolean
+                  modeled_from:
+                    type: string
+                  counts:
+                    type: object
+                    description: Events per weather over the day
+                    additionalProperties:
+                      type: integer
+                  minutes:
+                    type: object
+                    description: Minutes per weather over the day
+                    additionalProperties:
+                      type: integer
+                  timeline:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+
+  /weather-station/engine:
+    get:
+      tags:
+        - Weather Station
+      summary: The era registry and the drift check
+      description: |
+        The deterministic engine describing itself: the era in force, every era it
+        knows with its window and the groups each one deals, the signature that
+        changes when the registry changes and that the ETags are built on, and
+        `drift` — whether the model still reproduces the recorded history, with a
+        reason when it no longer does.
+
+        Public on purpose: it is the record of what the model is, and the drift
+        check is the warning that the game changed its scheduler.
+      responses:
+        '200':
+          description: The era registry and its drift check
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /weather-station/accuracy:
+    get:
+      tags:
+        - Weather Station
+      summary: Engine vs recorded history over a window
+      description: |
+        Compares the modeled timeline with the weather events recorded in SQLite
+        between `from` and `to`, slot by slot: `covered` (slots history can judge),
+        `matched`, `pct` (null until something is covered) and the mismatches
+        themselves.
+
+        The window defaults to the last 24 hours and is capped at 31 days. Cached
+        for 60 seconds.
+      parameters:
+        - name: from
+          in: query
+          description: Window start (epoch ms or ISO 8601). Default `to` − 24 h.
+          schema:
+            type: string
+        - name: to
+          in: query
+          description: Window end (epoch ms or ISO 8601). Default now.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Accuracy over the window
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  from:
+                    type: integer
+                  to:
+                    type: integer
+                  slot_ms:
+                    type: integer
+                  covered:
+                    type: integer
+                  matched:
+                    type: integer
+                  pct:
+                    type: number
+                    nullable: true
+                  mismatches:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
 
 components:
   schemas:

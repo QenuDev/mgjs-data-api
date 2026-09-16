@@ -19,9 +19,20 @@ process.env.RATE_LIMIT_ENABLED = "false";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { startTestApp } from "./helpers/httpApp.js";
+import { captureMountedPaths } from "./helpers/routeCensus.js";
 
 /** Un chemin documenté comme `/assets/sprites/{category}/{name}` devient concret. */
 const concrete = (path) => path.replace(/\{[^}]+\}/g, "x");
+
+/**
+ * Ce que l'app monte vraiment, recensé une fois pour tout le fichier.
+ *
+ * Au niveau du module et pas dans un `test()` : les modules de routes
+ * enregistrent leurs chemins à l'import, donc l'instrumentation de
+ * `helpers/routeCensus.js` doit être en place avant que le `startTestApp()` du
+ * premier test n'importe `src/api/server.js`.
+ */
+const mountedPaths = await captureMountedPaths();
 
 /**
  * Les routes posées directement sur l'app (`/`, `/data.csv`, `/live.tsv`…),
@@ -106,6 +117,27 @@ test("chaque chemin du contrat est réellement monté", async (t) => {
     assert.equal(res.status, 200, `${path} est déclaré mais pas monté`);
     assert.match(res.headers.get("allow") ?? "", /GET/, `${path} n'accepte pas GET`);
   }
+});
+
+test("aucun chemin monté n'est absent du document", async (t) => {
+  const api = await startTestApp();
+  t.after(() => api.close());
+
+  const doc = await (await api.get("/docs/openapi.json")).json();
+  const documented = new Set(Object.keys(doc.paths));
+
+  // Le sens inverse du test précédent : lui vérifie que le document ne promet
+  // rien que le serveur ne monte pas, celui-ci qu'il ne tait rien de ce que le
+  // serveur monte. Un document qui tait un chemin n'est pas faux, il est
+  // incomplet — et un client qui génère son code depuis lui ne verra jamais la
+  // route. Les deux listes sont dans la même forme (`:date` du routeur devient
+  // `{date}`, comme dans le document), donc comparables telles quelles.
+  const missing = mountedPaths.filter((path) => !documented.has(path));
+  assert.deepEqual(
+    missing,
+    [],
+    `chemins montés mais absents du document :\n${missing.join("\n")}`
+  );
 });
 
 test("le contrat ne réclame que des capacités que le serveur a", async (t) => {
