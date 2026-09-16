@@ -167,6 +167,20 @@ export const config = {
     baseUrl: (process.env.SPRITES_BASE_URL || "").replace(/\/+$/, ""),
   },
 
+  // Le bake des cultures, `BAKE=1`. Éteint par défaut : allumé, la synchro de
+  // version rend chaque *type de culture* portant chacun de ses 90 ensembles de
+  // mutations atteignables dans un fichier (6 210 fichiers, 100 à 250 Mo
+  // mesurés) et publie un manifeste de ce qui existe. Éteint, rien n'est écrit
+  // et le chemin à froid compose les images déjà exportées — le disque ne
+  // grandit que du cache de scènes. Jamais une plante entière : l'espace d'une
+  // plante est 90^slots, pas 90 (docs/mgjs-community-api-plan.md §3.1).
+  bake: {
+    enabled: process.env.BAKE === "1",
+    // Racine des fichiers rendus. Vide => `<SPRITES_EXPORT_DIR>/baked`, pour
+    // qu'un opérateur n'ait qu'un volume à persister.
+    dir: (process.env.BAKE_DIR || "").trim() || null,
+  },
+
   // Animations de pets (boucles WebP/GIF rendues depuis rive/pets.riv).
   // Ces fichiers pèsent ~1 Mo par espèce et coûtent quelques minutes de CPU à
   // (re)générer : c'est un travail de fond, déclenché quand le .riv change.

@@ -5,6 +5,8 @@ import { initSprites, lookupSprite, lookupSpriteByAliases } from "./sprites.js";
 import { decodeKTX2, isKTX2 } from "../ktx2Decoder.js";
 import { gameDataService } from "../../services/gameData.js";
 import { getRiveFrames, clearRiveFramesCache, riveSpritePath } from "./riveFrames.js";
+import { cropBox, cropArtSize } from "./cropBox.js";
+import { isBakeEnabled, lookupBaked, persistComposed } from "./cropBake.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -172,8 +174,8 @@ async function extractSprite(meta) {
     buffer = await piece.png().toBuffer();
   }
 
-  const w = sourceSize?.w ?? (rotated ? frame.h : frame.w);
-  const h = sourceSize?.h ?? (rotated ? frame.w : frame.h);
+  // The art's own dimensions, derived in the one place that states them (`./cropBox.js`).
+  const { width: w, height: h } = cropArtSize({ sourceSize, frame, rotated });
   const { tallSpriteNames } = await getPlantMeta();
 
   return {
@@ -493,6 +495,10 @@ export async function composeSprite(baseKey, mutationIds = []) {
  * shape serves both paths, and a picture that later carries padding or a shadow states
  * it here instead of silently changing size under a caller.
  *
+ * The box and the canvas come from `cropBox()` (`./cropBox.js`), which is the one place
+ * that states that convention and records that it is contested. Read it before changing
+ * either.
+ *
  * Returns null if the base sprite key does not exist.
  */
 export async function composeSpriteWithBox(baseKey, mutationIds = []) {
@@ -539,24 +545,21 @@ export async function composeSpriteWithBox(baseKey, mutationIds = []) {
   );
   const icons = resolvedIcons.filter(Boolean);
 
-  // ── The picture is the crop's own box, and the box is stated ─────────────
+  // ── The picture's box, from the one place that states it ─────────────────
   //
-  // A caller places the picture by the crop's own art, so the canvas is the art's own
-  // box: `extractSprite` restores the trim, so `baseW`×`baseH` is exactly the art the
-  // game draws for this key. Sizing the canvas to the union of every layer's bounding
-  // box instead was what made a composed clover come back 116×190 against its own
-  // 116×169 — a picture nobody can place on a tile, because the crop inside it has been
-  // fitted to a size that is not the crop's.
-  const canvasW = baseW;
-  const canvasH = baseH;
+  // The canvas and the box a caller places the picture by are the same decision, so both
+  // come from `cropBox()` (`./cropBox.js`) — the clamp-to-the-crop's-own-art convention,
+  // which plan item 3 chose and which is measured as contested against `@mg.js/art`'s union
+  // box. Read that file before changing either: it is the single place to flip, and the
+  // comment there records what is and is not settled.
+  const box = cropBox(baseW, baseH);
+  const canvasW = box.width;
+  const canvasH = box.height;
 
   // Where the crop's own art sits inside the picture, in picture pixels. Every other
   // layer is placed against it.
-  const baseLeft = 0;
-  const baseTop  = 0;
-
-  // The crop's own box: the whole picture, and the thing a caller needs to place it.
-  const box = { x: baseLeft, y: baseTop, width: baseW, height: baseH };
+  const baseLeft = box.x;
+  const baseTop  = box.y;
 
   // Helper: composite a batch of ops onto the current canvas
   async function composite(canvas, ops) {
@@ -658,4 +661,44 @@ export async function composeSpriteWithBox(baseKey, mutationIds = []) {
   composedCache.set(cacheKey, composed);
 
   return composed;
+}
+
+/**
+ * A crop wearing mutations, preferring the opt-in bake and composing when it misses.
+ *
+ * This is the one entry point a request uses, and it is what makes the bake an optimisation
+ * rather than a dependency:
+ *
+ *   - `BAKE=1` and the set was baked → the picture is one file read, `source: "baked"`;
+ *   - `BAKE=1` and the set was not, or the file the manifest names is gone → compose, keep
+ *     the result under the bake's own naming scheme and add it to the manifest, so the next
+ *     request is a file read (`source: "composed"`);
+ *   - `BAKE=1` unset → nothing above runs. `isBakeEnabled()` is a sync config read, so the
+ *     flag-off path is the composer and nothing else, byte for byte what it always was.
+ *
+ * The box always comes from `composeSpriteWithBox`, never from the bake: the bake's manifest
+ * records no geometry, because the convention is under correction (item 24, `./cropBox.js`)
+ * and a manifest written under it would state the degenerate `0,0,width,height` for every
+ * picture. The composer caches its result per (key, set), so the box costs one composition
+ * per process per set and a request after that is one file read plus a cache lookup.
+ *
+ * Returns null when the base key is not in the atlas, exactly like `composeSpriteWithBox`.
+ */
+export async function resolveComposedSprite(baseKey, mutationIds = []) {
+  if (isBakeEnabled()) {
+    const baked = await lookupBaked(baseKey, mutationIds);
+    if (baked) {
+      const composed = await composeSpriteWithBox(baseKey, mutationIds);
+      if (composed) {
+        return { buffer: await fs.readFile(baked.file), box: composed.box, source: "baked" };
+      }
+    }
+  }
+
+  const composed = await composeSpriteWithBox(baseKey, mutationIds);
+  if (!composed) return null;
+
+  if (isBakeEnabled()) await persistComposed(baseKey, mutationIds, composed);
+
+  return { ...composed, source: "composed" };
 }

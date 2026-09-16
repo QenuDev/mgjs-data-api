@@ -441,6 +441,10 @@ LOG_PRETTY=false                   # pino-pretty is a devDependency; opt in, nev
 SPRITES_EXPORT_DIR=./sprites_dump
 SPRITES_BASE_URL=http://localhost:3000
 
+# The opt-in crop bake
+BAKE=0                             # 1 renders every crop type over its reachable mutation sets
+BAKE_DIR=                          # default: <SPRITES_EXPORT_DIR>/baked
+
 # Pet animations (looping WebP/GIF rendered from the game's Rive file)
 PET_ANIMATIONS_ENABLED=true
 PET_ANIMATIONS_FORMATS=webp        # add ",gif" to also generate GIFs (doubles disk usage)
@@ -450,6 +454,16 @@ PET_ANIMATIONS_CLIPS=idle,walk,eat,sleep
 ```
 
 Animations are rendered at 30 fps, near-lossless, in a background child process when the game's pet file changes (~100 MB and ~50 minutes for the full set). `PET_ANIMATIONS_QUALITY` is a near-lossless level, not a lossy quality - lossy is a poor fit for this flat vector art, see `doc-rive.md` §7. Run it by hand with `npm run export:animations -- --force`.
+
+### The crop bake (`BAKE=1`)
+
+Off by default. With the flag off, a request for a crop wearing mutations composites the PNGs the sprite export already wrote, in memory, and nothing is written to disk: the only growth is the capped scene cache. With `BAKE=1` the version watcher also renders every *crop type* wearing each of its reachable mutation sets to a file and publishes a manifest of what exists — the product of (mutation category size + 1) over the game's categories, which the mutation table's own `group` field defines. It is a pre-warming option for a host that serves the same sets at high volume, not a prerequisite for a cheap request: a host with the flag off and a host with it on answer the same URLs, and only the first request differs.
+
+It bakes crops, never whole plants. A crop wearing mutations is a bounded set; a plant picture is the pot, the platform, the body, its crops and the celestial layers, so its space is that set to the power of the plant's crop-slot count — which is why a plant is not on disk.
+
+The layout is `<BAKE_DIR>/<layout>/<game-version>/crops/<species>/<set>.png` with the published manifest at `<BAKE_DIR>/manifest.json`, swapped in with a `rename` only once the last picture is on disk, so a half-baked version is never advertised and the previous one keeps serving until the swap. The `<layout>` segment names the shape of the pictures (`v1` today); a change to how a picture is composed bumps it, so a tree baked under the old shape is neither served nor resumed. A run killed partway through resumes: every picture already written and decodable is reused. A set the bake did not produce is composed on demand and persisted under the same scheme, so a gap is one slow request rather than a 404.
+
+The manifest names each picture's file and byte count and states **no box**. The box convention is under correction — the game draws a crop's mutation art into the union of the art and its layers rather than clipping it to the crop's own frame (`src/assets/sprites/cropBox.js` records the evidence, plan item 24 owns the fix) — and a box baked under today's clamped composer would state the degenerate `0,0,width,height` for all of them. A request's box therefore comes from the composer, which owns the convention.
 
 Set `CORS_ENABLED=false` or `RATE_LIMIT_ENABLED=false` to disable those features. SSE streams use a separate limiter (defaults to `RATE_LIMIT_MAX / 10` per window).
 

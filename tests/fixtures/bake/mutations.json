@@ -1,0 +1,125 @@
+{
+ "Gold": {
+  "name": "Gold",
+  "baseChance": 0.01,
+  "coinMultiplier": 25,
+  "group": "Growth",
+  "color": "rgb(235, 200, 0)"
+ },
+ "Rainbow": {
+  "name": "Rainbow",
+  "baseChance": 0.001,
+  "coinMultiplier": 50,
+  "group": "Growth",
+  "color": "#D02128",
+  "gradient": {
+   "angleDegrees": 135,
+   "colorStops": [
+    {
+     "color": "#D02128",
+     "offset": 0
+    },
+    {
+     "color": "#D94C52",
+     "offset": 0.14285714285714285
+    },
+    {
+     "color": "#FC6D30",
+     "offset": 0.2857142857142857
+    },
+    {
+     "color": "#E9B52F",
+     "offset": 0.42857142857142855
+    },
+    {
+     "color": "#5EAC46",
+     "offset": 0.5714285714285714
+    },
+    {
+     "color": "#48ADF4",
+     "offset": 0.7142857142857143
+    },
+    {
+     "color": "#6D1CF0",
+     "offset": 0.8571428571428571
+    },
+    {
+     "color": "#AE53B0",
+     "offset": 1
+    }
+   ]
+  }
+ },
+ "Wet": {
+  "name": "Wet",
+  "baseChance": 0,
+  "coinMultiplier": 2,
+  "group": "Hydro",
+  "sprite": "sprite/mutation/Wet",
+  "color": "rgba(95, 255, 255, 1)"
+ },
+ "Chilled": {
+  "name": "Chilled",
+  "baseChance": 0,
+  "coinMultiplier": 2,
+  "group": "Hydro",
+  "sprite": "sprite/mutation/Chilled",
+  "color": "rgba(180, 230, 255, 1)"
+ },
+ "Frozen": {
+  "name": "Frozen",
+  "baseChance": 0,
+  "coinMultiplier": 6,
+  "group": "Hydro",
+  "sprite": "sprite/mutation/Frozen",
+  "color": "rgb(185, 200, 255)"
+ },
+ "Thunderstruck": {
+  "name": "Thunderstruck",
+  "baseChance": 0,
+  "coinMultiplier": 5,
+  "group": "Hydro",
+  "sprite": "sprite/mutation/Thunderstruck",
+  "color": "rgb(255, 247, 0)"
+ },
+ "Dawnlit": {
+  "name": "Dawnlit",
+  "baseChance": 0,
+  "coinMultiplier": 4,
+  "group": "Lunar",
+  "sprite": "sprite/mutation/Dawnlit",
+  "color": "rgb(245, 155, 225)"
+ },
+ "Ambershine": {
+  "name": "Amberlit",
+  "baseChance": 0,
+  "coinMultiplier": 6,
+  "group": "Lunar",
+  "sprite": "sprite/mutation/Amberlit",
+  "color": "rgb(255, 180, 120)"
+ },
+ "Dawncharged": {
+  "name": "Dawnbound",
+  "baseChance": 0,
+  "coinMultiplier": 7,
+  "group": "Lunar",
+  "sprite": "sprite/mutation/Dawncharged",
+  "color": "rgb(200, 150, 255)"
+ },
+ "Ambercharged": {
+  "name": "Amberbound",
+  "baseChance": 0,
+  "coinMultiplier": 10,
+  "group": "Lunar",
+  "sprite": "sprite/mutation/Ambercharged",
+  "color": "rgb(250, 140, 75)"
+ },
+ "Thundercharged": {
+  "name": "Thundercharged",
+  "baseChance": 0,
+  "coinMultiplier": 7,
+  "group": "Hydro",
+  "sprite": "sprite/mutation/Thundercharged",
+  "color": "rgb(112, 246, 203)"
+ }
+}

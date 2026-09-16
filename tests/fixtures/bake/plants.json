@@ -1,0 +1,3027 @@
+{
+ "Carrot": {
+  "seed": {
+   "sprite": "sprite/seed/Carrot",
+   "name": "Carrot Seed",
+   "eligibleShops": [
+    "Seed"
+   ],
+   "coinPrice": 10,
+   "creditPrice": 7,
+   "rarity": "Common"
+  },
+  "plant": {
+   "sprite": "sprite/plant/BabyCarrot",
+   "name": "Carrot Plant",
+   "harvestType": "Single",
+   "baseTileScale": 0.7
+  },
+  "crop": {
+   "sprite": "sprite/plant/Carrot",
+   "name": "Carrot",
+   "baseSellPrice": 20,
+   "baseWeight": 0.1,
+   "baseTileScale": 0.6,
+   "maxSizeMultiplier": 3
+  }
+ },
+ "Cabbage": {
+  "seed": {
+   "sprite": "sprite/seed/Cabbage",
+   "name": "Cabbage Seed",
+   "eligibleShops": [
+    "Seed"
+   ],
+   "coinPrice": 30,
+   "creditPrice": 12,
+   "rarity": "Common"
+  },
+  "plant": {
+   "sprite": "sprite/plant/CabbagePlant",
+   "name": "Cabbage Plant",
+   "harvestType": "Multiple",
+   "slotOffsets": [
+    {
+     "x": 0,
+     "y": -0.05,
+     "rotation": 0
+    }
+   ],
+   "secondsToMature": 45,
+   "baseTileScale": 1,
+   "rotateSlotOffsetsRandomly": false
+  },
+  "crop": {
+   "sprite": "sprite/plant/Cabbage",
+   "name": "Cabbage",
+   "baseSellPrice": 42,
+   "baseWeight": 1,
+   "baseTileScale": 0.8,
+   "maxSizeMultiplier": 3
+  }
+ },
+ "Strawberry": {
+  "seed": {
+   "sprite": "sprite/seed/Strawberry",
+   "name": "Strawberry Seed",
+   "eligibleShops": [
+    "Seed"
+   ],
+   "coinPrice": 50,
+   "creditPrice": 16,
+   "rarity": "Common"
+  },
+  "plant": {
+   "sprite": "sprite/plant/SproutFruit",
+   "name": "Strawberry Plant",
+   "harvestType": "Multiple",
+   "slotOffsets": [
+    {
+     "x": -0.2,
+     "y": -0.2,
+     "rotation": 4.25
+    },
+    {
+     "x": 0.2,
+     "y": -0.25,
+     "rotation": 4.25
+    },
+    {
+     "x": -0.18,
+     "y": 0.12,
+     "rotation": 4.25
+    },
+    {
+     "x": 0.2,
+     "y": 0.05,
+     "rotation": 4.25
+    },
+    {
+     "x": 0.01,
+     "y": -0.1,
+     "rotation": 4.25
+    }
+   ],
+   "secondsToMature": 70,
+   "baseTileScale": 1,
+   "rotateSlotOffsetsRandomly": true
+  },
+  "crop": {
+   "sprite": "sprite/plant/Strawberry",
+   "name": "Strawberry",
+   "baseSellPrice": 14,
+   "baseWeight": 0.05,
+   "baseTileScale": 0.25,
+   "maxSizeMultiplier": 2,
+   "plantTransform": {
+    "offsetXPixels": 10.111,
+    "offsetYPixels": 86.959
+   }
+  }
+ },
+ "Aloe": {
+  "seed": {
+   "sprite": "sprite/seed/Aloe",
+   "name": "Aloe Seed",
+   "eligibleShops": [
+    "Seed"
+   ],
+   "coinPrice": 135,
+   "creditPrice": 18,
+   "rarity": "Common"
+  },
+  "plant": {
+   "sprite": "sprite/plant/Aloe",
+   "name": "Aloe Plant",
+   "harvestType": "Single",
+   "baseTileScale": 0.9
+  },
+  "crop": {
+   "sprite": "sprite/plant/Aloe",
+   "name": "Aloe",
+   "baseSellPrice": 310,
+   "baseWeight": 1.5,
+   "baseTileScale": 0.7,
+   "maxSizeMultiplier": 2.5
+  }
+ },
+ "Beet": {
+  "seed": {
+   "sprite": "sprite/seed/Beet",
+   "name": "Beet Seed",
+   "eligibleShops": [
+    "Seed"
+   ],
+   "coinPrice": 210,
+   "creditPrice": 25,
+   "rarity": "Common"
+  },
+  "plant": {
+   "sprite": "sprite/plant/BabyBeet",
+   "name": "Beet Plant",
+   "harvestType": "Single",
+   "baseTileScale": 0.7
+  },
+  "crop": {
+   "sprite": "sprite/plant/Beet",
+   "name": "Beet",
+   "baseSellPrice": 350,
+   "baseWeight": 0.3,
+   "baseTileScale": 0.2,
+   "maxSizeMultiplier": 3
+  }
+ },
+ "Daisy": {
+  "seed": {
+   "sprite": "sprite/seed/Daisy",
+   "name": "Daisy Seed",
+   "eligibleShops": [
+    "Dawn"
+   ],
+   "coinPrice": 100,
+   "creditPrice": 17,
+   "rarity": "Uncommon"
+  },
+  "plant": {
+   "sprite": "sprite/plant/Daisy",
+   "name": "Daisy Patch",
+   "harvestType": "Single",
+   "slotCountMin": 2,
+   "slotCountMax": 3,
+   "slotCapacity": 9,
+   "baseTileScale": 0.7
+  },
+  "crop": {
+   "sprite": "sprite/plant/Daisy",
+   "name": "Daisy",
+   "baseSellPrice": 130,
+   "baseWeight": 0.01,
+   "baseTileScale": 0.45,
+   "maxSizeMultiplier": 2.5
+  }
+ },
+ "PurpleDaisy": {
+  "seed": {
+   "sprite": "sprite/seed/Daisy",
+   "name": "Purple Daisy Seed",
+   "eligibleShops": [],
+   "coinPrice": 0,
+   "creditPrice": 0,
+   "rarity": "Legendary"
+  },
+  "plant": {
+   "sprite": "sprite/plant/DaisyPurple",
+   "name": "Purple Daisy",
+   "harvestType": "Single",
+   "baseTileScale": 0.7
+  },
+  "crop": {
+   "sprite": "sprite/plant/DaisyPurple",
+   "name": "Purple Daisy",
+   "baseSellPrice": 9999,
+   "baseWeight": 0.01,
+   "baseTileScale": 0.45,
+   "maxSizeMultiplier": 2.5
+  }
+ },
+ "Clover": {
+  "seed": {
+   "sprite": "sprite/seed/Clover",
+   "name": "Clover Seed",
+   "eligibleShops": [
+    "Rain"
+   ],
+   "coinPrice": 170,
+   "creditPrice": 26,
+   "rarity": "Uncommon"
+  },
+  "plant": {
+   "sprite": "sprite/plant/CloverThreeLeaf",
+   "name": "Clover Patch",
+   "harvestType": "Single",
+   "slotCountMin": 7,
+   "slotCountMax": 11,
+   "slotCapacity": 15
+  },
+  "crop": {
+   "sprite": "sprite/plant/CloverThreeLeaf",
+   "name": "Clover",
+   "baseSellPrice": 30,
+   "baseWeight": 0.01,
+   "maxSizeMultiplier": 3
+  }
+ },
+ "FourLeafClover": {
+  "seed": {
+   "sprite": "sprite/seed/Clover",
+   "name": "Four-Leaf Clover Seed",
+   "eligibleShops": [],
+   "coinPrice": 170,
+   "creditPrice": 21,
+   "rarity": "Legendary"
+  },
+  "plant": {
+   "sprite": "sprite/plant/CloverFourLeaf",
+   "name": "Four-Leaf Clover",
+   "harvestType": "Single"
+  },
+  "crop": {
+   "sprite": "sprite/plant/CloverFourLeaf",
+   "name": "Four-Leaf Clover",
+   "baseSellPrice": 7777,
+   "baseWeight": 0.01,
+   "maxSizeMultiplier": 3
+  }
+ },
+ "Rose": {
+  "seed": {
+   "sprite": "sprite/seed/Rose",
+   "name": "Rose Seed",
+   "eligibleShops": [
+    "Seed"
+   ],
+   "coinPrice": 229,
+   "creditPrice": 27,
+   "rarity": "Uncommon",
+   "expiryDate": "2026-02-23T01:00:00.000Z"
+  },
+  "plant": {
+   "sprite": "sprite/plant/RoseRed",
+   "name": "Rose Plant",
+   "harvestType": "Single",
+   "baseTileScale": 1
+  },
+  "crop": {
+   "sprite": "sprite/plant/RoseRed",
+   "name": "Rose",
+   "baseSellPrice": 300,
+   "baseWeight": 0.01,
+   "baseTileScale": 1,
+   "maxSizeMultiplier": 4
+  }
+ },
+ "FavaBean": {
+  "seed": {
+   "sprite": "sprite/seed/FavaBean",
+   "name": "Fava Bean",
+   "eligibleShops": [
+    "Seed"
+   ],
+   "coinPrice": 250,
+   "creditPrice": 30,
+   "rarity": "Uncommon"
+  },
+  "plant": {
+   "sprite": "sprite/plant/SproutFlower",
+   "name": "Fava Bean Plant",
+   "harvestType": "Multiple",
+   "slotOffsets": [
+    {
+     "x": -0.1,
+     "y": 0.06,
+     "rotation": -35
+    },
+    {
+     "x": -0.23,
+     "y": 0.13,
+     "rotation": -35
+    },
+    {
+     "x": 0.05,
+     "y": 0.21,
+     "rotation": -35
+    },
+    {
+     "x": 0.18,
+     "y": 0.16,
+     "rotation": -35
+    },
+    {
+     "x": 0.22,
+     "y": -0.11,
+     "rotation": -35
+    },
+    {
+     "x": 0.1,
+     "y": -0.24,
+     "rotation": -35
+    },
+    {
+     "x": -0.1,
+     "y": -0.26,
+     "rotation": -35
+    },
+    {
+     "x": -0.25,
+     "y": -0.2,
+     "rotation": -35
+    }
+   ],
+   "secondsToMature": 900,
+   "baseTileScale": 1.1,
+   "rotateSlotOffsetsRandomly": true
+  },
+  "crop": {
+   "sprite": "sprite/plant/FavaBean",
+   "name": "Fava Bean Pod",
+   "baseSellPrice": 30,
+   "baseWeight": 0.03,
+   "baseTileScale": 0.3,
+   "maxSizeMultiplier": 3,
+   "plantTransform": {
+    "offsetXPixels": 0,
+    "offsetYPixels": 121.501
+   }
+  }
+ },
+ "Delphinium": {
+  "seed": {
+   "sprite": "sprite/seed/Delphinium",
+   "name": "Delphinium Seed",
+   "eligibleShops": [
+    "Rain"
+   ],
+   "coinPrice": 300,
+   "creditPrice": 30,
+   "rarity": "Uncommon"
+  },
+  "plant": {
+   "sprite": "sprite/plant/Delphinium",
+   "name": "Delphinium Plant",
+   "harvestType": "Single",
+   "baseTileScale": 0.8,
+   "tileTransformOrigin": "bottom"
+  },
+  "crop": {
+   "sprite": "sprite/plant/Delphinium",
+   "name": "Delphinium",
+   "baseSellPrice": 530,
+   "baseWeight": 0.02,
+   "baseTileScale": 0.8,
+   "maxSizeMultiplier": 3
+  }
+ },
+ "Snowdrop": {
+  "seed": {
+   "sprite": "sprite/seed/Snowdrop",
+   "name": "Snowdrop Seed",
+   "eligibleShops": [
+    "Snow"
+   ],
+   "coinPrice": 300,
+   "creditPrice": 40,
+   "rarity": "Uncommon"
+  },
+  "plant": {
+   "sprite": "sprite/plant/Snowdrop",
+   "name": "Snowdrop Patch",
+   "harvestType": "Single",
+   "slotCountMin": 4,
+   "slotCountMax": 6,
+   "slotCapacity": 12,
+   "growStaggerMultiplier": 0.5,
+   "flipChance": 0.3333333333333333
+  },
+  "crop": {
+   "sprite": "sprite/plant/Snowdrop",
+   "name": "Snowdrop",
+   "baseSellPrice": 250,
+   "baseWeight": 0.01,
+   "maxSizeMultiplier": 1.85
+  }
+ },
+ "SnowdropDouble": {
+  "seed": {
+   "sprite": "sprite/seed/Snowdrop",
+   "name": "Double Snowdrop Seed",
+   "eligibleShops": [],
+   "coinPrice": 0,
+   "creditPrice": 0,
+   "rarity": "Legendary"
+  },
+  "plant": {
+   "sprite": "sprite/plant/SnowdropDouble",
+   "name": "Double Snowdrop",
+   "harvestType": "Single",
+   "flipChance": 0.3333333333333333
+  },
+  "crop": {
+   "sprite": "sprite/plant/SnowdropDouble",
+   "name": "Double Snowdrop",
+   "baseSellPrice": 8888,
+   "baseWeight": 0.01,
+   "maxSizeMultiplier": 1.85
+  }
+ },
+ "Blueberry": {
+  "seed": {
+   "sprite": "sprite/seed/Blueberry",
+   "name": "Blueberry Seed",
+   "eligibleShops": [
+    "Seed"
+   ],
+   "coinPrice": 400,
+   "creditPrice": 49,
+   "rarity": "Uncommon"
+  },
+  "plant": {
+   "sprite": "sprite/plant/SproutFruit",
+   "name": "Blueberry Plant",
+   "harvestType": "Multiple",
+   "slotOffsets": [
+    {
+     "x": -0.2,
+     "y": -0.2,
+     "rotation": -0.25
+    },
+    {
+     "x": 0.175,
+     "y": -0.23,
+     "rotation": -0.25
+    },
+    {
+     "x": -0.19,
+     "y": 0.12,
+     "rotation": -0.25
+    },
+    {
+     "x": 0.21,
+     "y": 0.15,
+     "rotation": -0.25
+    },
+    {
+     "x": 0.01,
+     "y": 0,
+     "rotation": -0.25
+    }
+   ],
+   "secondsToMature": 105,
+   "baseTileScale": 1,
+   "rotateSlotOffsetsRandomly": true
+  },
+  "crop": {
+   "sprite": "sprite/plant/Blueberry",
+   "name": "Blueberry",
+   "baseSellPrice": 23,
+   "baseWeight": 0.01,
+   "baseTileScale": 0.25,
+   "maxSizeMultiplier": 2,
+   "plantTransform": {
+    "offsetXPixels": -0.194,
+    "offsetYPixels": 48.815
+   }
+  }
+ },
+ "Apple": {
+  "seed": {
+   "sprite": "sprite/seed/Apple",
+   "name": "Apple Seed",
+   "eligibleShops": [
+    "Seed"
+   ],
+   "coinPrice": 500,
+   "creditPrice": 67,
+   "rarity": "Uncommon",
+   "unavailableSurfaces": [
+    "discord"
+   ]
+  },
+  "plant": {
+   "sprite": "sprite/plant/Tree",
+   "name": "Apple Tree",
+   "harvestType": "Multiple",
+   "slotOffsets": [
+    {
+     "x": -0.35,
+     "y": -1.2,
+     "rotation": 10
+    },
+    {
+     "x": -0.5,
+     "y": -0.8,
+     "rotation": 10
+    },
+    {
+     "x": 0.1,
+     "y": -1,
+     "rotation": 10
+    },
+    {
+     "x": -0.2,
+     "y": -0.45,
+     "rotation": 10
+    },
+    {
+     "x": 0.55,
+     "y": -0.7,
+     "rotation": 10
+    },
+    {
+     "x": 0.3,
+     "y": -0.5,
+     "rotation": 10
+    },
+    {
+     "x": 0.4,
+     "y": 1.3,
+     "rotation": 10
+    }
+   ],
+   "secondsToMature": 79200,
+   "baseTileScale": 3,
+   "rotateSlotOffsetsRandomly": true,
+   "tileTransformOrigin": "bottom"
+  },
+  "crop": {
+   "sprite": "sprite/plant/Apple",
+   "name": "Apple",
+   "baseSellPrice": 800,
+   "baseWeight": 0.18,
+   "baseTileScale": 0.5,
+   "maxSizeMultiplier": 2,
+   "plantTransform": {
+    "offsetXPixels": 5.116,
+    "offsetYPixels": 142.331
+   }
+  }
+ },
+ "OrangeTulip": {
+  "seed": {
+   "sprite": "sprite/seed/Tulip",
+   "name": "Tulip Seed",
+   "eligibleShops": [
+    "Seed"
+   ],
+   "coinPrice": 600,
+   "creditPrice": 40,
+   "rarity": "Uncommon"
+  },
+  "plant": {
+   "sprite": "sprite/plant/Tulip",
+   "name": "Tulip Plant",
+   "harvestType": "Single",
+   "baseTileScale": 0.5
+  },
+  "crop": {
+   "sprite": "sprite/plant/Tulip",
+   "name": "Tulip",
+   "baseSellPrice": 767,
+   "baseWeight": 0.01,
+   "baseTileScale": 0.5,
+   "maxSizeMultiplier": 3
+  }
+ },
+ "Tomato": {
+  "seed": {
+   "sprite": "sprite/seed/Tomato",
+   "name": "Tomato Seed",
+   "eligibleShops": [
+    "Seed"
+   ],
+   "coinPrice": 800,
+   "creditPrice": 79,
+   "rarity": "Uncommon"
+  },
+  "plant": {
+   "sprite": "sprite/plant/SproutVine",
+   "name": "Tomato Plant",
+   "harvestType": "Multiple",
+   "slotOffsets": [
+    {
+     "x": -0.14,
+     "y": -0.336,
+     "rotation": 0
+    },
+    {
+     "x": 0.459,
+     "y": 0.192,
+     "rotation": 0
+    }
+   ],
+   "secondsToMature": 1100,
+   "baseTileScale": 1,
+   "rotateSlotOffsetsRandomly": true
+  },
+  "crop": {
+   "sprite": "sprite/plant/Tomato",
+   "name": "Tomato",
+   "baseSellPrice": 27,
+   "baseWeight": 0.3,
+   "baseTileScale": 0.33,
+   "maxSizeMultiplier": 2,
+   "plantTransform": {
+    "offsetXPixels": -33.661,
+    "offsetYPixels": 131.033
+   }
+  }
+ },
+ "Daffodil": {
+  "seed": {
+   "sprite": "sprite/seed/Daffodil",
+   "name": "Daffodil Seed",
+   "eligibleShops": [
+    "Seed"
+   ],
+   "coinPrice": 1000,
+   "creditPrice": 50,
+   "rarity": "Rare"
+  },
+  "plant": {
+   "sprite": "sprite/plant/Daffodil",
+   "name": "Daffodil Plant",
+   "harvestType": "Single",
+   "baseTileScale": 0.5
+  },
+  "crop": {
+   "sprite": "sprite/plant/Daffodil",
+   "name": "Daffodil",
+   "baseSellPrice": 1090,
+   "baseWeight": 0.01,
+   "baseTileScale": 0.5,
+   "maxSizeMultiplier": 3
+  }
+ },
+ "Corn": {
+  "seed": {
+   "sprite": "sprite/seed/Corn",
+   "name": "Corn Kernel",
+   "eligibleShops": [
+    "Seed"
+   ],
+   "coinPrice": 1300,
+   "creditPrice": 135,
+   "rarity": "Rare"
+  },
+  "plant": {
+   "sprite": "sprite/plant/StemFlower",
+   "name": "Corn Plant",
+   "harvestType": "Multiple",
+   "slotOffsets": [
+    {
+     "x": -0.0055,
+     "y": -0.25,
+     "rotation": 0
+    }
+   ],
+   "secondsToMature": 130,
+   "baseTileScale": 1,
+   "rotateSlotOffsetsRandomly": false
+  },
+  "crop": {
+   "sprite": "sprite/plant/Corn",
+   "name": "Corn",
+   "baseSellPrice": 36,
+   "baseWeight": 1.2,
+   "baseTileScale": 0.7,
+   "maxSizeMultiplier": 2
+  }
+ },
+ "Watermelon": {
+  "seed": {
+   "sprite": "sprite/seed/Watermelon",
+   "name": "Watermelon Seed",
+   "eligibleShops": [
+    "Seed"
+   ],
+   "coinPrice": 2500,
+   "creditPrice": 60,
+   "rarity": "Rare"
+  },
+  "plant": {
+   "sprite": "sprite/plant/Watermelon",
+   "name": "Watermelon Plant",
+   "harvestType": "Single",
+   "baseTileScale": 0.8
+  },
+  "crop": {
+   "sprite": "sprite/plant/Watermelon",
+   "name": "Watermelon",
+   "baseSellPrice": 2708,
+   "baseWeight": 4.5,
+   "baseTileScale": 0.8,
+   "maxSizeMultiplier": 3
+  }
+ },
+ "Echeveria": {
+  "seed": {
+   "sprite": "sprite/seed/Echeveria",
+   "name": "Echeveria Cutting",
+   "eligibleShops": [
+    "Seed"
+   ],
+   "coinPrice": 2500,
+   "creditPrice": 75,
+   "rarity": "Rare"
+  },
+  "plant": {
+   "sprite": "sprite/plant/Echeveria",
+   "name": "Echeveria Plant",
+   "harvestType": "Single",
+   "baseTileScale": 0.8
+  },
+  "crop": {
+   "sprite": "sprite/plant/Echeveria",
+   "name": "Echeveria",
+   "baseSellPrice": 3200,
+   "baseWeight": 0.8,
+   "baseTileScale": 0.8,
+   "maxSizeMultiplier": 2.75
+  }
+ },
+ "Pumpkin": {
+  "seed": {
+   "sprite": "sprite/seed/Pumpkin",
+   "name": "Pumpkin Seed",
+   "eligibleShops": [
+    "Seed"
+   ],
+   "coinPrice": 3000,
+   "creditPrice": 65,
+   "rarity": "Rare"
+  },
+  "plant": {
+   "sprite": "sprite/plant/Pumpkin",
+   "name": "Pumpkin Plant",
+   "harvestType": "Single",
+   "baseTileScale": 0.8
+  },
+  "crop": {
+   "sprite": "sprite/plant/Pumpkin",
+   "name": "Pumpkin",
+   "baseSellPrice": 3700,
+   "baseWeight": 6,
+   "baseTileScale": 0.8,
+   "maxSizeMultiplier": 3
+  }
+ },
+ "Cattail": {
+  "seed": {
+   "sprite": "sprite/seed/Cattail",
+   "name": "Cattail Seed",
+   "eligibleShops": [
+    "Thunder"
+   ],
+   "coinPrice": 4000,
+   "creditPrice": 29,
+   "rarity": "Rare"
+  },
+  "plant": {
+   "sprite": "sprite/plant/Cattail",
+   "name": "Cattail Patch",
+   "harvestType": "Single",
+   "slotCountMin": 6,
+   "slotCountMax": 10,
+   "slotCapacity": 14,
+   "baseTileScale": 0.7
+  },
+  "crop": {
+   "sprite": "sprite/plant/Cattail",
+   "name": "Cattail",
+   "baseSellPrice": 1800,
+   "baseWeight": 0.03,
+   "baseTileScale": 0.5,
+   "maxSizeMultiplier": 2.5
+  }
+ },
+ "VariegatedCattail": {
+  "seed": {
+   "sprite": "sprite/seed/Cattail",
+   "name": "Variegated Cattail Seed",
+   "eligibleShops": [],
+   "coinPrice": 0,
+   "creditPrice": 0,
+   "rarity": "Legendary"
+  },
+  "plant": {
+   "sprite": "sprite/plant/VariegatedCattail",
+   "name": "Variegated Cattail",
+   "harvestType": "Single",
+   "baseTileScale": 0.7
+  },
+  "crop": {
+   "sprite": "sprite/plant/VariegatedCattail",
+   "name": "Variegated Cattail",
+   "baseSellPrice": 11111,
+   "baseWeight": 0.03,
+   "baseTileScale": 0.5,
+   "maxSizeMultiplier": 2.5
+  }
+ },
+ "Pear": {
+  "seed": {
+   "sprite": "sprite/seed/Pear",
+   "name": "Pear Seed",
+   "eligibleShops": [
+    "Seed"
+   ],
+   "coinPrice": 6000,
+   "creditPrice": 150,
+   "rarity": "Rare"
+  },
+  "plant": {
+   "sprite": "sprite/plant/Tree",
+   "name": "Pear Tree",
+   "harvestType": "Multiple",
+   "slotOffsets": [
+    {
+     "x": -0.5,
+     "y": -1,
+     "rotation": 2.75
+    },
+    {
+     "x": -0.35,
+     "y": -0.4,
+     "rotation": 2.75
+    },
+    {
+     "x": 0.1,
+     "y": -0.45,
+     "rotation": 2.75
+    },
+    {
+     "x": 0,
+     "y": -0.9,
+     "rotation": 2.75
+    },
+    {
+     "x": 0.4,
+     "y": -0.7,
+     "rotation": 2.75
+    },
+    {
+     "x": 0.5,
+     "y": -1.1,
+     "rotation": 2.75
+    },
+    {
+     "x": -0.3,
+     "y": 1.2,
+     "rotation": 2.75
+    }
+   ],
+   "secondsToMature": 79200,
+   "baseTileScale": 3,
+   "rotateSlotOffsetsRandomly": true,
+   "tileTransformOrigin": "bottom"
+  },
+  "crop": {
+   "sprite": "sprite/plant/Pear",
+   "name": "Pear",
+   "baseSellPrice": 3000,
+   "baseWeight": 0.17,
+   "baseTileScale": 0.5,
+   "maxSizeMultiplier": 2,
+   "plantTransform": {
+    "offsetXPixels": 25.681,
+    "offsetYPixels": 149.721
+   }
+  }
+ },
+ "Gentian": {
+  "seed": {
+   "sprite": "sprite/seed/Gentian",
+   "name": "Gentian Seed",
+   "eligibleShops": [
+    "Seed"
+   ],
+   "coinPrice": 9000,
+   "creditPrice": 85,
+   "rarity": "Rare"
+  },
+  "plant": {
+   "sprite": "sprite/plant/Gentian",
+   "name": "Gentian Plant",
+   "harvestType": "Single",
+   "baseTileScale": 0.5
+  },
+  "crop": {
+   "sprite": "sprite/plant/Gentian",
+   "name": "Gentian",
+   "baseSellPrice": 10000,
+   "baseWeight": 0.02,
+   "baseTileScale": 0.5,
+   "maxSizeMultiplier": 3
+  }
+ },
+ "Lavender": {
+  "seed": {
+   "sprite": "sprite/seed/Lavender",
+   "name": "Lavender Seed",
+   "eligibleShops": [
+    "Dawn"
+   ],
+   "coinPrice": 10000,
+   "creditPrice": 29,
+   "rarity": "Rare"
+  },
+  "plant": {
+   "sprite": "sprite/plant/Lavender",
+   "name": "Lavender Plant",
+   "harvestType": "Single",
+   "baseTileScale": 0.75
+  },
+  "crop": {
+   "sprite": "sprite/plant/Lavender",
+   "name": "Lavender",
+   "baseSellPrice": 20000,
+   "baseWeight": 0.02,
+   "baseTileScale": 0.5,
+   "maxSizeMultiplier": 3
+  }
+ },
+ "Coconut": {
+  "seed": {
+   "sprite": "sprite/seed/Coconut",
+   "name": "Coconut Seed",
+   "eligibleShops": [
+    "Seed"
+   ],
+   "coinPrice": 10000,
+   "creditPrice": 235,
+   "rarity": "Legendary"
+  },
+  "plant": {
+   "sprite": "sprite/plant/PalmTree",
+   "name": "Coconut Tree",
+   "harvestType": "Multiple",
+   "slotOffsets": [
+    {
+     "x": -0.2,
+     "y": -1.25,
+     "rotation": 2
+    },
+    {
+     "x": -0.3,
+     "y": -1.05,
+     "rotation": 2
+    },
+    {
+     "x": 0.2,
+     "y": -1.15,
+     "rotation": 2
+    },
+    {
+     "x": -0.25,
+     "y": -0.75,
+     "rotation": 2
+    },
+    {
+     "x": 0,
+     "y": -0.95,
+     "rotation": 2
+    },
+    {
+     "x": 0.3,
+     "y": -0.85,
+     "rotation": 2
+    },
+    {
+     "x": 0.05,
+     "y": -0.65,
+     "rotation": 2
+    }
+   ],
+   "secondsToMature": 79200,
+   "baseTileScale": 3,
+   "rotateSlotOffsetsRandomly": true,
+   "tileTransformOrigin": "bottom"
+  },
+  "crop": {
+   "sprite": "sprite/plant/Coconut",
+   "name": "Coconut",
+   "baseSellPrice": 12000,
+   "baseWeight": 5,
+   "baseTileScale": 0.25,
+   "maxSizeMultiplier": 3,
+   "plantTransform": {
+    "offsetXPixels": -3.231,
+    "offsetYPixels": 79.05
+   }
+  }
+ },
+ "PineTree": {
+  "seed": {
+   "sprite": "sprite/seed/Pinecone",
+   "name": "Pinecone",
+   "eligibleShops": [
+    "Snow"
+   ],
+   "coinPrice": 12000,
+   "creditPrice": 90,
+   "rarity": "Legendary"
+  },
+  "plant": {
+   "sprite": "sprite/plant/PineTree",
+   "name": "Pine Tree",
+   "harvestType": "Single",
+   "baseTileScale": 1.5
+  },
+  "crop": {
+   "sprite": "sprite/plant/PineTree",
+   "name": "Pine Tree",
+   "baseSellPrice": 75000,
+   "baseWeight": 1000,
+   "maxSizeMultiplier": 3.5
+  }
+ },
+ "Banana": {
+  "seed": {
+   "sprite": "sprite/seed/Banana",
+   "name": "Banana Seed",
+   "eligibleShops": [
+    "Seed"
+   ],
+   "coinPrice": 15000,
+   "creditPrice": 250,
+   "rarity": "Legendary",
+   "unavailableSurfaces": [
+    "web"
+   ]
+  },
+  "plant": {
+   "sprite": "sprite/plant/PalmTree",
+   "name": "Banana Plant",
+   "harvestType": "Multiple",
+   "slotOffsets": [
+    {
+     "x": -0.2,
+     "y": -0.75,
+     "rotation": 16.25
+    },
+    {
+     "x": -0.1,
+     "y": -0.75,
+     "rotation": -3.75
+    },
+    {
+     "x": 0,
+     "y": -0.75,
+     "rotation": -23.75
+    },
+    {
+     "x": 0.1,
+     "y": -0.75,
+     "rotation": -43.75
+    },
+    {
+     "x": 0.2,
+     "y": -0.75,
+     "rotation": -63.75
+    }
+   ],
+   "secondsToMature": 79200,
+   "baseTileScale": 2.5,
+   "rotateSlotOffsetsRandomly": false,
+   "tileTransformOrigin": "bottom"
+  },
+  "crop": {
+   "sprite": "sprite/plant/Banana",
+   "name": "Banana",
+   "baseSellPrice": 1750,
+   "baseWeight": 0.12,
+   "baseTileScale": 0.5,
+   "maxSizeMultiplier": 1.7,
+   "plantTransform": {
+    "offsetXPixels": -30.336,
+    "offsetYPixels": 72.291
+   }
+  }
+ },
+ "Leek": {
+  "seed": {
+   "sprite": "sprite/seed/Leek",
+   "name": "Leek Seed",
+   "eligibleShops": [
+    "Snow"
+   ],
+   "coinPrice": 15000,
+   "creditPrice": 99,
+   "rarity": "Legendary"
+  },
+  "plant": {
+   "sprite": "sprite/plant/BabyLeek",
+   "name": "Leek Plant",
+   "harvestType": "Single",
+   "baseTileScale": 0.7
+  },
+  "crop": {
+   "sprite": "sprite/plant/Leek",
+   "name": "Leek",
+   "baseSellPrice": 35000,
+   "baseWeight": 0.4,
+   "baseTileScale": 0.6,
+   "maxSizeMultiplier": 3
+  }
+ },
+ "Lily": {
+  "seed": {
+   "sprite": "sprite/seed/Lily",
+   "name": "Lily Seed",
+   "eligibleShops": [
+    "Seed"
+   ],
+   "coinPrice": 20000,
+   "creditPrice": 99,
+   "rarity": "Legendary"
+  },
+  "plant": {
+   "sprite": "sprite/plant/Lily",
+   "name": "Lily Plant",
+   "harvestType": "Single",
+   "baseTileScale": 0.75
+  },
+  "crop": {
+   "sprite": "sprite/plant/Lily",
+   "name": "Lily",
+   "baseSellPrice": 20123,
+   "baseWeight": 0.02,
+   "baseTileScale": 0.5,
+   "maxSizeMultiplier": 2.75
+  }
+ },
+ "Saffron": {
+  "seed": {
+   "sprite": "sprite/seed/Saffron",
+   "name": "Saffron Seed",
+   "eligibleShops": [
+    "Dawn"
+   ],
+   "coinPrice": 30000,
+   "creditPrice": 49,
+   "rarity": "Legendary"
+  },
+  "plant": {
+   "sprite": "sprite/plant/Saffron",
+   "name": "Saffron Plant",
+   "harvestType": "Single",
+   "baseTileScale": 0.75
+  },
+  "crop": {
+   "sprite": "sprite/plant/Saffron",
+   "name": "Saffron",
+   "baseSellPrice": 50000,
+   "baseWeight": 0.03,
+   "baseTileScale": 0.5,
+   "maxSizeMultiplier": 3
+  }
+ },
+ "Cardoon": {
+  "seed": {
+   "sprite": "sprite/seed/Cardoon",
+   "name": "Cardoon Seed",
+   "eligibleShops": [
+    "Thunder"
+   ],
+   "coinPrice": 30000,
+   "creditPrice": 49,
+   "rarity": "Legendary"
+  },
+  "plant": {
+   "sprite": "sprite/plant/Cardoon",
+   "name": "Cardoon Plant",
+   "harvestType": "Single"
+  },
+  "crop": {
+   "sprite": "sprite/plant/Cardoon",
+   "name": "Cardoon",
+   "baseSellPrice": 50000,
+   "baseWeight": 0.6,
+   "maxSizeMultiplier": 3
+  }
+ },
+ "Camellia": {
+  "seed": {
+   "sprite": "sprite/seed/Camellia",
+   "name": "Camellia Seed",
+   "eligibleShops": [
+    "Seed"
+   ],
+   "coinPrice": 55000,
+   "creditPrice": 289,
+   "rarity": "Legendary"
+  },
+  "plant": {
+   "sprite": "sprite/plant/Hedge",
+   "name": "Camellia Hedge",
+   "harvestType": "Multiple",
+   "slotOffsets": [
+    {
+     "x": 0,
+     "y": -0.5,
+     "rotation": -35
+    },
+    {
+     "x": -0.28,
+     "y": -0.2,
+     "rotation": -35
+    },
+    {
+     "x": 0.28,
+     "y": -0.2,
+     "rotation": -35
+    },
+    {
+     "x": -0.35,
+     "y": 0.2,
+     "rotation": -35
+    },
+    {
+     "x": 0.32,
+     "y": 0.2,
+     "rotation": -35
+    },
+    {
+     "x": -0.3,
+     "y": 0.65,
+     "rotation": -35
+    },
+    {
+     "x": 0.28,
+     "y": 0.65,
+     "rotation": -35
+    },
+    {
+     "x": 0,
+     "y": 0.4,
+     "rotation": -35
+    }
+   ],
+   "secondsToMature": 79200,
+   "baseTileScale": 2,
+   "tileTransformOrigin": "bottom",
+   "rotateSlotOffsetsRandomly": true
+  },
+  "crop": {
+   "sprite": "sprite/plant/Camellia",
+   "name": "Camellia",
+   "baseSellPrice": 4875,
+   "baseWeight": 0.3,
+   "baseTileScale": 0.4,
+   "maxSizeMultiplier": 2.5
+  }
+ },
+ "Squash": {
+  "seed": {
+   "sprite": "sprite/seed/Squash",
+   "name": "Squash Seed",
+   "eligibleShops": [
+    "Snow"
+   ],
+   "coinPrice": 55000,
+   "creditPrice": 290,
+   "rarity": "Legendary"
+  },
+  "plant": {
+   "sprite": "sprite/plant/SproutFlower",
+   "name": "Squash Plant",
+   "harvestType": "Multiple",
+   "slotOffsets": [
+    {
+     "x": -0.08,
+     "y": 0.05,
+     "rotation": -35
+    },
+    {
+     "x": 0.2,
+     "y": -0.08,
+     "rotation": -35
+    },
+    {
+     "x": -0.25,
+     "y": -0.22,
+     "rotation": -35
+    }
+   ],
+   "secondsToMature": 1500,
+   "baseTileScale": 1.2,
+   "rotateSlotOffsetsRandomly": true
+  },
+  "crop": {
+   "sprite": "sprite/plant/Squash",
+   "name": "Squash",
+   "baseSellPrice": 7000,
+   "baseWeight": 0.3,
+   "baseTileScale": 0.4,
+   "maxSizeMultiplier": 2.5,
+   "plantTransform": {
+    "offsetXPixels": 2,
+    "offsetYPixels": 162
+   }
+  }
+ },
+ "Peach": {
+  "seed": {
+   "sprite": "sprite/seed/Peach",
+   "name": "Peach Seed",
+   "eligibleShops": [
+    "Seed"
+   ],
+   "coinPrice": 85000,
+   "creditPrice": 299,
+   "rarity": "Legendary"
+  },
+  "plant": {
+   "sprite": "sprite/plant/Tree",
+   "name": "Peach Tree",
+   "harvestType": "Multiple",
+   "slotOffsets": [
+    {
+     "x": -0.66,
+     "y": -0.34,
+     "rotation": 6
+    },
+    {
+     "x": -0.2,
+     "y": -0.1,
+     "rotation": 6
+    },
+    {
+     "x": 0.35,
+     "y": -0.25,
+     "rotation": 6
+    },
+    {
+     "x": 0.76,
+     "y": -0.56,
+     "rotation": 6
+    },
+    {
+     "x": -0.08,
+     "y": -0.69,
+     "rotation": 6
+    },
+    {
+     "x": 0.36,
+     "y": -1.03,
+     "rotation": 6
+    },
+    {
+     "x": -0.54,
+     "y": -0.97,
+     "rotation": 6
+    }
+   ],
+   "secondsToMature": 79200,
+   "rotateSlotOffsetsRandomly": true,
+   "baseTileScale": 3
+  },
+  "crop": {
+   "sprite": "sprite/plant/Peach",
+   "name": "Peach",
+   "baseSellPrice": 9000,
+   "baseWeight": 0.18,
+   "baseTileScale": 0.5,
+   "maxSizeMultiplier": 3,
+   "plantTransform": {
+    "offsetXPixels": 16.557,
+    "offsetYPixels": 138.126
+   }
+  }
+ },
+ "BurrosTail": {
+  "seed": {
+   "sprite": "sprite/seed/BurrosTail",
+   "name": "Burro's Tail Cutting",
+   "eligibleShops": [
+    "Seed"
+   ],
+   "coinPrice": 93000,
+   "creditPrice": 338,
+   "rarity": "Legendary"
+  },
+  "plant": {
+   "sprite": "sprite/plant/Trellis",
+   "name": "Burro's Tail Plant",
+   "harvestType": "Multiple",
+   "slotOffsets": [
+    {
+     "x": -0.13,
+     "y": -0.22,
+     "rotation": 0
+    },
+    {
+     "x": 0.17,
+     "y": 0.01,
+     "rotation": 0
+    }
+   ],
+   "secondsToMature": 1800,
+   "baseTileScale": 0.8,
+   "rotateSlotOffsetsRandomly": false
+  },
+  "crop": {
+   "sprite": "sprite/plant/BurrosTail",
+   "name": "Burro's Tail",
+   "baseSellPrice": 6000,
+   "baseWeight": 0.4,
+   "baseTileScale": 0.4,
+   "maxSizeMultiplier": 2.5
+  }
+ },
+ "Persimmon": {
+  "seed": {
+   "sprite": "sprite/seed/Persimmon",
+   "name": "Persimmon Seed",
+   "eligibleShops": [
+    "Amber"
+   ],
+   "coinPrice": 120000,
+   "creditPrice": 329,
+   "rarity": "Legendary"
+  },
+  "plant": {
+   "sprite": "sprite/plant/LeafyTree",
+   "name": "Persimmon Tree",
+   "harvestType": "Multiple",
+   "slotOffsets": [
+    {
+     "x": 0.354,
+     "y": -0.362,
+     "rotation": 6
+    },
+    {
+     "x": -0.408,
+     "y": -0.27,
+     "rotation": 6
+    },
+    {
+     "x": -0.027,
+     "y": -0.558,
+     "rotation": 6
+    },
+    {
+     "x": 0.42,
+     "y": -0.836,
+     "rotation": 6
+    },
+    {
+     "x": -0.508,
+     "y": -0.817,
+     "rotation": 6
+    },
+    {
+     "x": -0.005,
+     "y": -0.046,
+     "rotation": 6
+    }
+   ],
+   "secondsToMature": 79200,
+   "rotateSlotOffsetsRandomly": true,
+   "baseTileScale": 2.8,
+   "tileTransformOrigin": "bottom"
+  },
+  "crop": {
+   "sprite": "sprite/plant/Persimmon",
+   "name": "Persimmon",
+   "baseSellPrice": 25000,
+   "baseWeight": 0.25,
+   "baseTileScale": 0.5,
+   "maxSizeMultiplier": 2.5,
+   "plantTransform": {
+    "offsetXPixels": 0,
+    "offsetYPixels": 95
+   }
+  }
+ },
+ "Mushroom": {
+  "seed": {
+   "sprite": "sprite/seed/Mushroom",
+   "name": "Mushroom Spore",
+   "eligibleShops": [
+    "Rain"
+   ],
+   "coinPrice": 150000,
+   "creditPrice": 249,
+   "rarity": "Mythic"
+  },
+  "plant": {
+   "sprite": "sprite/plant/Mushroom",
+   "name": "Mushroom Plant",
+   "harvestType": "Single",
+   "baseTileScale": 0.65
+  },
+  "crop": {
+   "sprite": "sprite/plant/Mushroom",
+   "name": "Mushroom",
+   "baseSellPrice": 160000,
+   "baseWeight": 2.5,
+   "baseTileScale": 0.65,
+   "maxSizeMultiplier": 3.5
+  }
+ },
+ "Cactus": {
+  "seed": {
+   "sprite": "sprite/seed/Cactus",
+   "name": "Cactus Seed",
+   "eligibleShops": [
+    "Seed"
+   ],
+   "coinPrice": 200000,
+   "creditPrice": 250,
+   "rarity": "Mythic"
+  },
+  "plant": {
+   "sprite": "sprite/plant/Cactus",
+   "name": "Cactus Plant",
+   "harvestType": "Single",
+   "baseTileScale": 2.5,
+   "tileTransformOrigin": "bottom"
+  },
+  "crop": {
+   "sprite": "sprite/plant/Cactus",
+   "name": "Cactus",
+   "baseSellPrice": 220000,
+   "baseWeight": 1500,
+   "baseTileScale": 2.5,
+   "maxSizeMultiplier": 1.8
+  }
+ },
+ "Bamboo": {
+  "seed": {
+   "sprite": "sprite/seed/Bamboo",
+   "name": "Bamboo Seed",
+   "eligibleShops": [
+    "Seed"
+   ],
+   "coinPrice": 400000,
+   "creditPrice": 300,
+   "rarity": "Mythic"
+  },
+  "plant": {
+   "sprite": "sprite/plant/Bamboo",
+   "name": "Bamboo Plant",
+   "harvestType": "Single",
+   "baseTileScale": 2.5,
+   "tileTransformOrigin": "bottom"
+  },
+  "crop": {
+   "sprite": "sprite/plant/Bamboo",
+   "name": "Bamboo Shoot",
+   "baseSellPrice": 500000,
+   "baseWeight": 1,
+   "baseTileScale": 2.5,
+   "maxSizeMultiplier": 2
+  }
+ },
+ "Eggplant": {
+  "seed": {
+   "sprite": "sprite/seed/Eggplant",
+   "name": "Eggplant Seed",
+   "eligibleShops": [
+    "Dawn"
+   ],
+   "coinPrice": 500000,
+   "creditPrice": 299,
+   "rarity": "Mythic"
+  },
+  "plant": {
+   "sprite": "sprite/plant/ShrubBush",
+   "name": "Eggplant Plant",
+   "harvestType": "Multiple",
+   "slotOffsets": [
+    {
+     "x": -0.12,
+     "y": -0.28,
+     "rotation": -5.25
+    },
+    {
+     "x": -0.2,
+     "y": 0.18,
+     "rotation": -5.25
+    },
+    {
+     "x": 0.15,
+     "y": -0.05,
+     "rotation": -5.25
+    }
+   ],
+   "secondsToMature": 79200,
+   "baseTileScale": 1,
+   "rotateSlotOffsetsRandomly": true
+  },
+  "crop": {
+   "sprite": "sprite/plant/Eggplant",
+   "name": "Eggplant",
+   "baseSellPrice": 100000,
+   "baseWeight": 0.5,
+   "baseTileScale": 0.45,
+   "maxSizeMultiplier": 2.5,
+   "plantTransform": {
+    "offsetXPixels": 33.312,
+    "offsetYPixels": 153.975
+   }
+  }
+ },
+ "PricklyPear": {
+  "seed": {
+   "sprite": "sprite/seed/PricklyPear",
+   "name": "Prickly Pear Seed",
+   "eligibleShops": [
+    "Thunder"
+   ],
+   "coinPrice": 700000,
+   "creditPrice": 299,
+   "rarity": "Mythic"
+  },
+  "plant": {
+   "sprite": "sprite/plant/PricklyPearPlant",
+   "name": "Prickly Pear Cactus",
+   "harvestType": "Multiple",
+   "slotOffsets": [
+    {
+     "x": -0.35,
+     "y": -0.14,
+     "rotation": -50
+    },
+    {
+     "x": 0.49,
+     "y": -0.12,
+     "rotation": -10
+    },
+    {
+     "x": 0.35,
+     "y": -0.12,
+     "rotation": -40
+    },
+    {
+     "x": 0.16,
+     "y": -0.21,
+     "rotation": 0
+    },
+    {
+     "x": -0.07,
+     "y": -0.8,
+     "rotation": -50
+    }
+   ],
+   "secondsToMature": 79200,
+   "rotateSlotOffsetsRandomly": false,
+   "tileTransformOrigin": "bottom"
+  },
+  "crop": {
+   "sprite": "sprite/plant/PricklyPear",
+   "name": "Prickly Pear",
+   "baseSellPrice": 75000,
+   "baseWeight": 0.15,
+   "maxSizeMultiplier": 2.5
+  }
+ },
+ "VioletCort": {
+  "seed": {
+   "sprite": "sprite/seed/VioletCort",
+   "name": "Violet Cort Spore",
+   "eligibleShops": [
+    "Rain"
+   ],
+   "coinPrice": 520000,
+   "creditPrice": 530,
+   "rarity": "Mythic"
+  },
+  "plant": {
+   "sprite": "sprite/plant/VioletCort",
+   "name": "Violet Cort Plant",
+   "harvestType": "Single",
+   "baseTileScale": 0.65
+  },
+  "crop": {
+   "sprite": "sprite/plant/VioletCort",
+   "name": "Violet Cort",
+   "baseSellPrice": 600000,
+   "baseWeight": 2,
+   "baseTileScale": 0.65,
+   "maxSizeMultiplier": 3.5
+  }
+ },
+ "Chrysanthemum": {
+  "seed": {
+   "sprite": "sprite/seed/Chrysanthemum",
+   "name": "Chrysanthemum Seed",
+   "eligibleShops": [
+    "Seed"
+   ],
+   "coinPrice": 670000,
+   "creditPrice": 567,
+   "rarity": "Mythic"
+  },
+  "plant": {
+   "sprite": "sprite/plant/FlowerBush",
+   "name": "Chrysanthemum Bush",
+   "harvestType": "Multiple",
+   "slotOffsets": [
+    {
+     "x": 0,
+     "y": 0,
+     "rotation": 0
+    },
+    {
+     "x": -0.28,
+     "y": 0.22,
+     "rotation": 0
+    },
+    {
+     "x": 0.28,
+     "y": 0.22,
+     "rotation": 0
+    },
+    {
+     "x": 0,
+     "y": 0.33,
+     "rotation": 0
+    },
+    {
+     "x": -0.25,
+     "y": -0.2,
+     "rotation": 0
+    },
+    {
+     "x": 0.25,
+     "y": -0.2,
+     "rotation": 0
+    },
+    {
+     "x": 0,
+     "y": -0.28,
+     "rotation": 0
+    }
+   ],
+   "secondsToMature": 79200,
+   "baseTileScale": 1,
+   "rotateSlotOffsetsRandomly": false
+  },
+  "crop": {
+   "sprite": "sprite/plant/Chrysanthemum",
+   "name": "Chrysanthemum",
+   "baseSellPrice": 18000,
+   "baseWeight": 0.01,
+   "baseTileScale": 0.3,
+   "maxSizeMultiplier": 2.75
+  }
+ },
+ "Date": {
+  "seed": {
+   "sprite": "sprite/seed/Date",
+   "name": "Date Seed",
+   "eligibleShops": [
+    "Seed"
+   ],
+   "coinPrice": 750000,
+   "creditPrice": 580,
+   "rarity": "Mythic",
+   "expiryDate": "2026-03-22T01:00:00.000Z"
+  },
+  "plant": {
+   "sprite": "sprite/plant/DatePalm",
+   "name": "Date Palm",
+   "harvestType": "Multiple",
+   "slotOffsets": [
+    {
+     "x": -0.2,
+     "y": -0.55,
+     "rotation": 35
+    },
+    {
+     "x": -0.19,
+     "y": -0.7,
+     "rotation": 55
+    },
+    {
+     "x": 0.1,
+     "y": -0.52,
+     "rotation": -11
+    },
+    {
+     "x": 0.15,
+     "y": -0.63,
+     "rotation": -31
+    },
+    {
+     "x": 0.26,
+     "y": -0.64,
+     "rotation": -51
+    },
+    {
+     "x": -0.11,
+     "y": -0.42,
+     "rotation": 24
+    },
+    {
+     "x": -0.09,
+     "y": -0.62,
+     "rotation": 29
+    },
+    {
+     "x": 0.24,
+     "y": -0.47,
+     "rotation": -11
+    },
+    {
+     "x": -0.33,
+     "y": -0.54,
+     "rotation": 29
+    },
+    {
+     "x": -0.23,
+     "y": -0.38,
+     "rotation": 29
+    },
+    {
+     "x": 0.19,
+     "y": -0.37,
+     "rotation": -11
+    }
+   ],
+   "secondsToMature": 79200,
+   "baseTileScale": 2.8,
+   "rotateSlotOffsetsRandomly": false,
+   "tileTransformOrigin": "bottom"
+  },
+  "crop": {
+   "sprite": "sprite/plant/Date",
+   "name": "Date",
+   "baseSellPrice": 15000,
+   "baseWeight": 0.02,
+   "baseTileScale": 0.25,
+   "maxSizeMultiplier": 2,
+   "plantTransform": {
+    "offsetXPixels": 10.044,
+    "offsetYPixels": 82.333
+   }
+  }
+ },
+ "Grape": {
+  "seed": {
+   "sprite": "sprite/seed/Grape",
+   "name": "Grape Seed",
+   "eligibleShops": [
+    "Seed"
+   ],
+   "coinPrice": 850000,
+   "creditPrice": 549,
+   "rarity": "Mythic",
+   "unavailableSurfaces": [
+    "web"
+   ]
+  },
+  "plant": {
+   "sprite": "sprite/plant/SproutVine",
+   "name": "Grape Plant",
+   "harvestType": "Multiple",
+   "slotOffsets": [
+    {
+     "x": 0,
+     "y": -0.1,
+     "rotation": 9.5
+    }
+   ],
+   "secondsToMature": 79200,
+   "baseTileScale": 1,
+   "rotateSlotOffsetsRandomly": true
+  },
+  "crop": {
+   "sprite": "sprite/plant/Grape",
+   "name": "Grape",
+   "baseSellPrice": 50000,
+   "baseWeight": 3,
+   "baseTileScale": 0.5,
+   "maxSizeMultiplier": 2,
+   "plantTransform": {
+    "offsetXPixels": 14.034,
+    "offsetYPixels": 149.933
+   }
+  }
+ },
+ "Poinsettia": {
+  "seed": {
+   "sprite": "sprite/seed/Poinsettia",
+   "name": "Poinsettia Seed",
+   "eligibleShops": [
+    "Snow"
+   ],
+   "coinPrice": 900000,
+   "creditPrice": 599,
+   "rarity": "Mythic"
+  },
+  "plant": {
+   "sprite": "sprite/plant/Shrub",
+   "name": "Poinsettia Bush",
+   "harvestType": "Multiple",
+   "slotOffsets": [
+    {
+     "x": 0.05,
+     "y": -0.4,
+     "rotation": -35
+    },
+    {
+     "x": -0.3,
+     "y": -0.15,
+     "rotation": -35
+    },
+    {
+     "x": 0.3,
+     "y": -0.1,
+     "rotation": -35
+    },
+    {
+     "x": -0.02,
+     "y": 0.17,
+     "rotation": -35
+    }
+   ],
+   "secondsToMature": 79200,
+   "baseTileScale": 1,
+   "rotateSlotOffsetsRandomly": true
+  },
+  "crop": {
+   "sprite": "sprite/plant/Poinsettia",
+   "name": "Poinsettia",
+   "baseSellPrice": 20000,
+   "baseWeight": 0.02,
+   "baseTileScale": 0.3,
+   "maxSizeMultiplier": 2
+  }
+ },
+ "Habanero": {
+  "seed": {
+   "sprite": "sprite/seed/Habanero",
+   "name": "Habanero Seed",
+   "eligibleShops": [
+    "Amber"
+   ],
+   "coinPrice": 700000,
+   "creditPrice": 599,
+   "rarity": "Mythic"
+  },
+  "plant": {
+   "sprite": "sprite/plant/ShrubBush",
+   "name": "Habanero Plant",
+   "harvestType": "Multiple",
+   "slotOffsets": [
+    {
+     "x": -0.287,
+     "y": -0.378,
+     "rotation": -8
+    },
+    {
+     "x": -0.053,
+     "y": -0.55,
+     "rotation": 5
+    },
+    {
+     "x": 0.185,
+     "y": -0.373,
+     "rotation": -4
+    },
+    {
+     "x": 0.305,
+     "y": -0.1,
+     "rotation": 8
+    },
+    {
+     "x": -0.234,
+     "y": -0.091,
+     "rotation": 4
+    },
+    {
+     "x": 0.008,
+     "y": -0.135,
+     "rotation": 7
+    },
+    {
+     "x": -0.146,
+     "y": 0.173,
+     "rotation": -3
+    },
+    {
+     "x": 0.254,
+     "y": 0.22,
+     "rotation": 5
+    }
+   ],
+   "secondsToMature": 79200,
+   "baseTileScale": 1,
+   "rotateSlotOffsetsRandomly": true
+  },
+  "crop": {
+   "sprite": "sprite/plant/HabaneroPepper",
+   "name": "Habanero",
+   "baseSellPrice": 15000,
+   "baseWeight": 0.04,
+   "baseTileScale": 0.35,
+   "maxSizeMultiplier": 2.5
+  }
+ },
+ "Pepper": {
+  "seed": {
+   "sprite": "sprite/seed/Pepper",
+   "name": "Pepper Seed",
+   "eligibleShops": [
+    "Seed"
+   ],
+   "coinPrice": 1000000,
+   "creditPrice": 629,
+   "rarity": "Divine"
+  },
+  "plant": {
+   "sprite": "sprite/plant/SproutVine",
+   "name": "Pepper Plant",
+   "harvestType": "Multiple",
+   "slotOffsets": [
+    {
+     "x": -0.05,
+     "y": 0.219,
+     "rotation": -1.25
+    },
+    {
+     "x": 0.192,
+     "y": 0.122,
+     "rotation": -1.25
+    },
+    {
+     "x": -0.202,
+     "y": 0.137,
+     "rotation": -1.25
+    },
+    {
+     "x": 0.138,
+     "y": -0.045,
+     "rotation": -1.25
+    },
+    {
+     "x": -0.112,
+     "y": -0.047,
+     "rotation": -1.25
+    },
+    {
+     "x": -0.237,
+     "y": -0.2,
+     "rotation": -1.25
+    },
+    {
+     "x": 0.15,
+     "y": -0.23,
+     "rotation": -1.25
+    },
+    {
+     "x": -0.303,
+     "y": -0.25,
+     "rotation": -1.25
+    },
+    {
+     "x": -0.03,
+     "y": -0.35,
+     "rotation": -1.25
+    }
+   ],
+   "secondsToMature": 79200,
+   "baseTileScale": 1,
+   "rotateSlotOffsetsRandomly": true
+  },
+  "crop": {
+   "sprite": "sprite/plant/Pepper",
+   "name": "Pepper",
+   "baseSellPrice": 7000,
+   "baseWeight": 0.5,
+   "baseTileScale": 0.3,
+   "maxSizeMultiplier": 2,
+   "plantTransform": {
+    "offsetXPixels": 36.67,
+    "offsetYPixels": 137.47
+   }
+  }
+ },
+ "Ube": {
+  "seed": {
+   "sprite": "sprite/seed/Ube",
+   "name": "Ube Seed",
+   "eligibleShops": [
+    "Dawn"
+   ],
+   "coinPrice": 1000000,
+   "creditPrice": 329,
+   "rarity": "Divine"
+  },
+  "plant": {
+   "sprite": "sprite/plant/BabyUbe",
+   "name": "Ube Plant",
+   "harvestType": "Single",
+   "baseTileScale": 0.65
+  },
+  "crop": {
+   "sprite": "sprite/plant/Ube",
+   "name": "Ube",
+   "baseSellPrice": 2000000,
+   "baseWeight": 3.5,
+   "baseTileScale": 0.7,
+   "maxSizeMultiplier": 3
+  }
+ },
+ "Milkcap": {
+  "seed": {
+   "sprite": "sprite/seed/Milkcap",
+   "name": "Milkcap Spore",
+   "eligibleShops": [
+    "Thunder"
+   ],
+   "coinPrice": 1000000,
+   "creditPrice": 329,
+   "rarity": "Divine"
+  },
+  "plant": {
+   "sprite": "sprite/plant/Milkcap",
+   "name": "Milkcap Plant",
+   "harvestType": "Single"
+  },
+  "crop": {
+   "sprite": "sprite/plant/Milkcap",
+   "name": "Milkcap",
+   "baseSellPrice": 3000000,
+   "baseWeight": 2,
+   "maxSizeMultiplier": 3
+  }
+ },
+ "Lemon": {
+  "seed": {
+   "sprite": "sprite/seed/Lemon",
+   "name": "Lemon Seed",
+   "eligibleShops": [
+    "Seed"
+   ],
+   "coinPrice": 2000000,
+   "creditPrice": 650,
+   "rarity": "Divine",
+   "unavailableSurfaces": [
+    "web"
+   ]
+  },
+  "plant": {
+   "sprite": "sprite/plant/Tree",
+   "name": "Lemon Tree",
+   "harvestType": "Multiple",
+   "slotOffsets": [
+    {
+     "x": -0.5,
+     "y": -0.7,
+     "rotation": 8.25
+    },
+    {
+     "x": 0.4,
+     "y": -0.8,
+     "rotation": 8.25
+    },
+    {
+     "x": -0.3,
+     "y": -0.38,
+     "rotation": 8.25
+    },
+    {
+     "x": 0.2,
+     "y": -0.4,
+     "rotation": 8.25
+    },
+    {
+     "x": 0.01,
+     "y": -0.7,
+     "rotation": 8.25
+    },
+    {
+     "x": -0.05,
+     "y": -1,
+     "rotation": 8.25
+    }
+   ],
+   "secondsToMature": 79200,
+   "baseTileScale": 2.3,
+   "rotateSlotOffsetsRandomly": true,
+   "tileTransformOrigin": "bottom"
+  },
+  "crop": {
+   "sprite": "sprite/plant/Lemon",
+   "name": "Lemon",
+   "baseSellPrice": 50000,
+   "baseWeight": 0.5,
+   "baseTileScale": 0.25,
+   "maxSizeMultiplier": 3,
+   "plantTransform": {
+    "offsetXPixels": 9.992,
+    "offsetYPixels": 119.322
+   }
+  }
+ },
+ "PassionFruit": {
+  "seed": {
+   "sprite": "sprite/seed/PassionFruit",
+   "name": "Passion Fruit Seed",
+   "eligibleShops": [
+    "Seed"
+   ],
+   "coinPrice": 2750000,
+   "creditPrice": 679,
+   "rarity": "Divine"
+  },
+  "plant": {
+   "sprite": "sprite/plant/SproutVine",
+   "name": "Passion Fruit Plant",
+   "harvestType": "Multiple",
+   "slotOffsets": [
+    {
+     "x": -0.3,
+     "y": -0.24,
+     "rotation": 6.75
+    },
+    {
+     "x": 0.3,
+     "y": 0.36,
+     "rotation": 6.75
+    }
+   ],
+   "secondsToMature": 79200,
+   "baseTileScale": 1.1,
+   "rotateSlotOffsetsRandomly": true
+  },
+  "crop": {
+   "sprite": "sprite/plant/PassionFruit",
+   "name": "Passion Fruit",
+   "baseSellPrice": 200000,
+   "baseWeight": 9.5,
+   "baseTileScale": 0.35,
+   "maxSizeMultiplier": 2,
+   "plantTransform": {
+    "offsetXPixels": 9.171,
+    "offsetYPixels": 108.314
+   }
+  }
+ },
+ "DragonFruit": {
+  "seed": {
+   "sprite": "sprite/seed/DragonFruit",
+   "name": "Dragon Fruit Seed",
+   "eligibleShops": [
+    "Seed"
+   ],
+   "coinPrice": 5000000,
+   "creditPrice": 715,
+   "rarity": "Divine"
+  },
+  "plant": {
+   "sprite": "sprite/plant/DragonFruitTree",
+   "name": "Dragon Fruit Plant",
+   "harvestType": "Multiple",
+   "slotOffsets": [
+    {
+     "x": -0.65,
+     "y": -0.48,
+     "rotation": 4.25
+    },
+    {
+     "x": -0.43,
+     "y": -0.13,
+     "rotation": 4.25
+    },
+    {
+     "x": -0.25,
+     "y": -0.52,
+     "rotation": 4.25
+    },
+    {
+     "x": -0.07,
+     "y": -0.09,
+     "rotation": 4.25
+    },
+    {
+     "x": 0.11,
+     "y": -0.46,
+     "rotation": 4.25
+    },
+    {
+     "x": 0.33,
+     "y": -0.12,
+     "rotation": 4.25
+    },
+    {
+     "x": 0.48,
+     "y": -0.38,
+     "rotation": 4.25
+    }
+   ],
+   "secondsToMature": 79200,
+   "baseTileScale": 1.6,
+   "rotateSlotOffsetsRandomly": true
+  },
+  "crop": {
+   "sprite": "sprite/plant/DragonFruit",
+   "name": "Dragon Fruit",
+   "baseSellPrice": 30000,
+   "baseWeight": 8.4,
+   "baseTileScale": 0.4,
+   "maxSizeMultiplier": 2,
+   "plantTransform": {
+    "offsetXPixels": 27.527,
+    "offsetYPixels": 156.428
+   }
+  }
+ },
+ "Cacao": {
+  "seed": {
+   "sprite": "sprite/seed/Cacao",
+   "name": "Cacao Bean",
+   "eligibleShops": [
+    "Seed"
+   ],
+   "coinPrice": 10000000,
+   "creditPrice": 750,
+   "rarity": "Divine"
+  },
+  "plant": {
+   "sprite": "sprite/plant/LeafyTree",
+   "name": "Cacao Plant",
+   "harvestType": "Multiple",
+   "slotOffsets": [
+    {
+     "x": 0.28,
+     "y": -0.37,
+     "rotation": -35
+    },
+    {
+     "x": -0.3,
+     "y": -0.27,
+     "rotation": -35
+    },
+    {
+     "x": -0.05,
+     "y": -0.62,
+     "rotation": -35
+    },
+    {
+     "x": 0.45,
+     "y": -0.87,
+     "rotation": -35
+    },
+    {
+     "x": -0.5,
+     "y": -0.77,
+     "rotation": -35
+    },
+    {
+     "x": -0.05,
+     "y": -0.07,
+     "rotation": -35
+    }
+   ],
+   "secondsToMature": 79200,
+   "baseTileScale": 2.8,
+   "rotateSlotOffsetsRandomly": true,
+   "tileTransformOrigin": "bottom"
+  },
+  "crop": {
+   "sprite": "sprite/plant/Cacao",
+   "name": "Cacao Fruit",
+   "baseSellPrice": 150000,
+   "baseWeight": 0.5,
+   "baseTileScale": 0.4,
+   "maxSizeMultiplier": 2.5,
+   "plantTransform": {
+    "offsetXPixels": 1,
+    "offsetYPixels": 133
+   }
+  }
+ },
+ "Lychee": {
+  "seed": {
+   "sprite": "sprite/seed/Lychee",
+   "name": "Lychee Pit",
+   "eligibleShops": [
+    "Seed"
+   ],
+   "coinPrice": 25000000,
+   "creditPrice": 819,
+   "rarity": "Divine",
+   "unavailableSurfaces": [
+    "web"
+   ]
+  },
+  "plant": {
+   "sprite": "sprite/plant/BushyTree",
+   "name": "Lychee Plant",
+   "harvestType": "Multiple",
+   "slotOffsets": [
+    {
+     "x": -0.4,
+     "y": -0.12,
+     "rotation": -6.75
+    },
+    {
+     "x": 0.3,
+     "y": -0.18,
+     "rotation": -6.75
+    },
+    {
+     "x": -0.2,
+     "y": 0.24,
+     "rotation": -6.75
+    },
+    {
+     "x": 0.2,
+     "y": 0.22,
+     "rotation": -6.75
+    },
+    {
+     "x": -0.05,
+     "y": -0.07,
+     "rotation": -6.75
+    },
+    {
+     "x": 0.01,
+     "y": -0.35,
+     "rotation": -6.75
+    }
+   ],
+   "secondsToMature": 79200,
+   "baseTileScale": 1.2,
+   "rotateSlotOffsetsRandomly": true
+  },
+  "crop": {
+   "sprite": "sprite/plant/Lychee",
+   "name": "Lychee Fruit",
+   "baseSellPrice": 50000,
+   "baseWeight": 9,
+   "baseTileScale": 0.2,
+   "maxSizeMultiplier": 2,
+   "plantTransform": {
+    "offsetXPixels": 4.267,
+    "offsetYPixels": 62.533
+   }
+  }
+ },
+ "Sunflower": {
+  "seed": {
+   "sprite": "sprite/seed/Sunflower",
+   "name": "Sunflower Seed",
+   "eligibleShops": [
+    "Seed"
+   ],
+   "coinPrice": 100000000,
+   "creditPrice": 900,
+   "rarity": "Divine"
+  },
+  "plant": {
+   "sprite": "sprite/plant/StemFlower",
+   "name": "Sunflower Plant",
+   "harvestType": "Multiple",
+   "slotOffsets": [
+    {
+     "x": -0.01,
+     "y": -0.33,
+     "rotation": 0
+    }
+   ],
+   "secondsToMature": 10800,
+   "rotateSlotOffsetsRandomly": false,
+   "tileTransformOrigin": "bottom",
+   "baseTileScale": 0.8
+  },
+  "crop": {
+   "sprite": "sprite/plant/Sunflower",
+   "name": "Sunflower",
+   "baseSellPrice": 750000,
+   "baseWeight": 10,
+   "baseTileScale": 0.5,
+   "maxSizeMultiplier": 2.5
+  }
+ },
+ "Marigold": {
+  "seed": {
+   "sprite": "sprite/seed/Marigold",
+   "name": "Marigold Seed",
+   "eligibleShops": [
+    "Amber"
+   ],
+   "coinPrice": 250000000,
+   "creditPrice": 929,
+   "rarity": "Divine"
+  },
+  "plant": {
+   "sprite": "sprite/plant/MarigoldPlant",
+   "name": "Marigold Plant",
+   "harvestType": "Multiple",
+   "slotOffsets": [
+    {
+     "x": -0.013,
+     "y": -0.258,
+     "rotation": 0
+    }
+   ],
+   "secondsToMature": 14400,
+   "rotateSlotOffsetsRandomly": false,
+   "tileTransformOrigin": "bottom",
+   "baseTileScale": 0.8
+  },
+  "crop": {
+   "sprite": "sprite/plant/MarigoldCrop",
+   "name": "Marigold",
+   "baseSellPrice": 1000000,
+   "baseWeight": 0.02,
+   "baseTileScale": 0.5,
+   "maxSizeMultiplier": 2.5
+  }
+ },
+ "Dawnbreaker": {
+  "seed": {
+   "sprite": "sprite/seed/Dawnbreaker",
+   "name": "Dawnbreaker Spore",
+   "eligibleShops": [
+    "Dawn"
+   ],
+   "coinPrice": 10000000,
+   "creditPrice": 429,
+   "rarity": "Celestial"
+  },
+  "plant": {
+   "sprite": "sprite/plant/BabyDawnbreaker",
+   "name": "Dawnbreaker Plant",
+   "harvestType": "Single",
+   "baseTileScale": 0.65
+  },
+  "crop": {
+   "sprite": "sprite/plant/Dawnbreaker",
+   "name": "Dawnbreaker",
+   "baseSellPrice": 12000000,
+   "baseWeight": 100,
+   "baseTileScale": 0.7,
+   "maxSizeMultiplier": 3
+  }
+ },
+ "Emberbloom": {
+  "seed": {
+   "sprite": "sprite/seed/Emberbloom",
+   "name": "Emberbloom Pod",
+   "eligibleShops": [
+    "Amber"
+   ],
+   "coinPrice": 25000000,
+   "creditPrice": 499,
+   "rarity": "Celestial"
+  },
+  "plant": {
+   "sprite": "sprite/plant/Emberbloom",
+   "name": "Emberbloom Patch",
+   "harvestType": "Single",
+   "slotCountMin": 5,
+   "slotCountMax": 7,
+   "slotCapacity": 15,
+   "flipChance": 0.5
+  },
+  "crop": {
+   "sprite": "sprite/plant/EmberbloomCrop",
+   "name": "Emberbloom",
+   "baseSellPrice": 5000000,
+   "baseWeight": 1,
+   "maxSizeMultiplier": 2.5
+  }
+ },
+ "Embercrown": {
+  "seed": {
+   "sprite": "sprite/seed/Emberbloom",
+   "name": "Embercrown Pod",
+   "eligibleShops": [],
+   "coinPrice": 0,
+   "creditPrice": 0,
+   "rarity": "Celestial"
+  },
+  "plant": {
+   "sprite": "sprite/plant/Embercrown",
+   "name": "Embercrown",
+   "harvestType": "Single"
+  },
+  "crop": {
+   "sprite": "sprite/plant/EmbercrownCrop",
+   "name": "Embercrown",
+   "baseSellPrice": 15000000,
+   "baseWeight": 1,
+   "maxSizeMultiplier": 2.5
+  }
+ },
+ "Starweaver": {
+  "seed": {
+   "sprite": "sprite/seed/Starweaver",
+   "name": "Starweaver Pod",
+   "eligibleShops": [
+    "Seed"
+   ],
+   "coinPrice": 1000000000,
+   "creditPrice": 1000,
+   "rarity": "Celestial"
+  },
+  "plant": {
+   "sprite": "sprite/plant/StarweaverPlant",
+   "name": "Starweaver Plant",
+   "harvestType": "Multiple",
+   "slotOffsets": [
+    {
+     "x": 0.004,
+     "y": -0.308,
+     "rotation": 0
+    }
+   ],
+   "secondsToMature": 86400,
+   "baseTileScale": 1.5,
+   "rotateSlotOffsetsRandomly": false,
+   "tileTransformOrigin": "bottom",
+   "immatureSprite": "sprite/plant/StarweaverPlatform",
+   "isFixedScale": true
+  },
+  "crop": {
+   "sprite": "sprite/plant/Starweaver",
+   "name": "Starweaver Fruit",
+   "baseSellPrice": 10000000,
+   "baseWeight": 10,
+   "baseTileScale": 0.6,
+   "maxSizeMultiplier": 2
+  }
+ },
+ "ThunderCelestial": {
+  "seed": {
+   "sprite": "sprite/seed/ThunderCelestial",
+   "name": "Thunderspire Pod",
+   "eligibleShops": [
+    "Thunder"
+   ],
+   "coinPrice": 3000000000,
+   "creditPrice": 1080,
+   "rarity": "Celestial"
+  },
+  "plant": {
+   "sprite": "sprite/plant/ThunderCelestialPlant",
+   "name": "Thunderspire",
+   "harvestType": "Multiple",
+   "slotOffsets": [
+    {
+     "x": 0.44,
+     "y": -0.03,
+     "rotation": 0,
+     "requiredWeather": "Thunderstorm",
+     "speciesOverride": "ThunderCelestialShroomPlant"
+    },
+    {
+     "x": 0.55,
+     "y": 0.43,
+     "rotation": 0,
+     "requiredWeather": "Thunderstorm",
+     "speciesOverride": "ThunderCelestialShroomPlant"
+    },
+    {
+     "x": -0.22,
+     "y": 1.1,
+     "rotation": 0,
+     "requiredWeather": "Thunderstorm",
+     "speciesOverride": "ThunderCelestialShroomPlant"
+    },
+    {
+     "x": -0.4,
+     "y": 0.75,
+     "rotation": 0,
+     "requiredWeather": "Thunderstorm",
+     "speciesOverride": "ThunderCelestialShroomPlant"
+    },
+    {
+     "x": -0.63,
+     "y": -1.02,
+     "rotation": 0
+    },
+    {
+     "x": -0.52,
+     "y": -0.99,
+     "rotation": 0
+    },
+    {
+     "x": -0.39,
+     "y": -1.06,
+     "rotation": 0
+    },
+    {
+     "x": 0.09,
+     "y": -0.72,
+     "rotation": 0
+    },
+    {
+     "x": -0.19,
+     "y": -1.16,
+     "rotation": 0
+    },
+    {
+     "x": 0.1,
+     "y": -1.43,
+     "rotation": 0
+    },
+    {
+     "x": 0.21,
+     "y": -1.54,
+     "rotation": 0
+    },
+    {
+     "x": 0.37,
+     "y": -1.47,
+     "rotation": 0
+    },
+    {
+     "x": 0.5,
+     "y": -1.36,
+     "rotation": 0
+    },
+    {
+     "x": -0.26,
+     "y": -1.01,
+     "rotation": 0
+    },
+    {
+     "x": 0.3,
+     "y": -0.93,
+     "rotation": 0
+    },
+    {
+     "x": 0.66,
+     "y": -1.4,
+     "rotation": 0
+    }
+   ],
+   "secondsToMature": 86400,
+   "baseTileScale": 2.3,
+   "rotateSlotOffsetsRandomly": false,
+   "tileTransformOrigin": "bottom",
+   "growStaggerMultiplier": 0.25,
+   "abilities": [
+    "Thunderbloom"
+   ],
+   "activeState": {
+    "sprite": "sprite/plant/ThunderCelestialPlantActive",
+    "weatherRequirement": "Thunderstorm"
+   },
+   "immatureSprite": "sprite/plant/ThunderCelestialPlatform",
+   "isFixedScale": true
+  },
+  "crop": {
+   "sprite": "sprite/plant/ThunderCelestialFruit",
+   "name": "Thunderpeel",
+   "baseSellPrice": 100000,
+   "baseWeight": 1,
+   "baseTileScale": 0.4,
+   "maxSizeMultiplier": 2,
+   "transformOrigin": "bottom"
+  }
+ },
+ "ThunderCelestialShroomPlant": {
+  "seed": {
+   "sprite": "sprite/seed/ThunderCelestial",
+   "name": "Stormcap Pod",
+   "eligibleShops": [],
+   "coinPrice": 3000000000,
+   "creditPrice": 1080,
+   "rarity": "Celestial"
+  },
+  "plant": {
+   "sprite": "sprite/plant/ThunderCelestialPlant",
+   "name": "Thunderspire",
+   "harvestType": "Multiple",
+   "slotOffsets": [
+    {
+     "x": -0.3,
+     "y": -0.45,
+     "rotation": -10
+    },
+    {
+     "x": -0.1,
+     "y": -0.48,
+     "rotation": 0
+    },
+    {
+     "x": 0.1,
+     "y": -0.44,
+     "rotation": 10
+    },
+    {
+     "x": 0.3,
+     "y": -0.47,
+     "rotation": 0
+    },
+    {
+     "x": -0.26,
+     "y": -0.15,
+     "rotation": 0
+    },
+    {
+     "x": -0.06,
+     "y": -0.18,
+     "rotation": -10
+    },
+    {
+     "x": 0.14,
+     "y": -0.14,
+     "rotation": 0
+    },
+    {
+     "x": 0.32,
+     "y": -0.17,
+     "rotation": 10
+    },
+    {
+     "x": -0.3,
+     "y": 0.15,
+     "rotation": 10
+    },
+    {
+     "x": -0.1,
+     "y": 0.12,
+     "rotation": 0
+    },
+    {
+     "x": 0.1,
+     "y": 0.16,
+     "rotation": -10
+    },
+    {
+     "x": 0.3,
+     "y": 0.13,
+     "rotation": 0
+    },
+    {
+     "x": -0.26,
+     "y": 0.45,
+     "rotation": 0
+    },
+    {
+     "x": -0.06,
+     "y": 0.42,
+     "rotation": 10
+    },
+    {
+     "x": 0.14,
+     "y": 0.46,
+     "rotation": 0
+    },
+    {
+     "x": 0.32,
+     "y": 0.43,
+     "rotation": -10
+    }
+   ],
+   "secondsToMature": 86400,
+   "baseTileScale": 2.3,
+   "rotateSlotOffsetsRandomly": false,
+   "tileTransformOrigin": "bottom",
+   "growStaggerMultiplier": 0.25,
+   "immatureSprite": "sprite/plant/ThunderCelestialPlatform",
+   "isFixedScale": true
+  },
+  "crop": {
+   "sprite": "sprite/plant/ThunderCelestialShroom",
+   "name": "Stormcap",
+   "baseSellPrice": 1000000,
+   "baseWeight": 1,
+   "baseTileScale": 0.4,
+   "maxSizeMultiplier": 2,
+   "transformOrigin": "bottom"
+  }
+ },
+ "DawnCelestial": {
+  "seed": {
+   "sprite": "sprite/seed/DawnCelestial",
+   "name": "Dawnbinder Pod",
+   "eligibleShops": [
+    "Dawn"
+   ],
+   "coinPrice": 10000000000,
+   "creditPrice": 1129,
+   "rarity": "Celestial"
+  },
+  "plant": {
+   "sprite": "sprite/plant/DawnCelestialPlant",
+   "name": "Dawnbinder",
+   "harvestType": "Multiple",
+   "secondsToMature": 86400,
+   "slotOffsets": [
+    {
+     "x": -0.015,
+     "y": -0.53,
+     "rotation": 0
+    }
+   ],
+   "baseTileScale": 2.3,
+   "rotateSlotOffsetsRandomly": false,
+   "tileTransformOrigin": "bottom",
+   "abilities": [
+    "DawnKisser"
+   ],
+   "activeState": {
+    "sprite": "sprite/plant/DawnCelestialPlantActive",
+    "weatherRequirement": "Dawn"
+   },
+   "topmostLayerSprite": "sprite/plant/DawnCelestialPlatformTopmostLayer",
+   "immatureSprite": "sprite/plant/DawnCelestialPlatform",
+   "isFixedScale": true
+  },
+  "crop": {
+   "sprite": "sprite/plant/DawnCelestialCrop",
+   "name": "Dawnbinder Bulb",
+   "baseSellPrice": 11000000,
+   "baseWeight": 6,
+   "baseTileScale": 0.4,
+   "maxSizeMultiplier": 2.5,
+   "transformOrigin": "top"
+  }
+ },
+ "MoonCelestial": {
+  "seed": {
+   "sprite": "sprite/seed/MoonCelestial",
+   "name": "Moonbinder Pod",
+   "eligibleShops": [
+    "Amber"
+   ],
+   "coinPrice": 50000000000,
+   "creditPrice": 1249,
+   "rarity": "Celestial"
+  },
+  "plant": {
+   "sprite": "sprite/plant/MoonCelestialPlant",
+   "name": "Moonbinder",
+   "harvestType": "Multiple",
+   "slotOffsets": [
+    {
+     "x": 0.01,
+     "y": -0.38,
+     "rotation": 0
+    },
+    {
+     "x": -0.26,
+     "y": 0.58,
+     "rotation": -30
+    },
+    {
+     "x": 0.23,
+     "y": 0.42,
+     "rotation": 20
+    }
+   ],
+   "secondsToMature": 86400,
+   "baseTileScale": 2.5,
+   "rotateSlotOffsetsRandomly": false,
+   "tileTransformOrigin": "bottom",
+   "abilities": [
+    "MoonKisser"
+   ],
+   "activeState": {
+    "sprite": "sprite/plant/MoonCelestialPlantActive",
+    "weatherRequirement": "AmberMoon"
+   },
+   "immatureSprite": "sprite/plant/MoonCelestialPlatform",
+   "isFixedScale": true
+  },
+  "crop": {
+   "sprite": "sprite/plant/MoonCelestialCrop",
+   "name": "Moonbinder Bulb",
+   "baseSellPrice": 11000000,
+   "baseWeight": 2,
+   "baseTileScale": 0.4,
+   "maxSizeMultiplier": 2,
+   "transformOrigin": "bottom"
+  }
+ }
+}
