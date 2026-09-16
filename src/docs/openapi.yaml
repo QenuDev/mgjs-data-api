@@ -2213,8 +2213,16 @@ paths:
         4. Tall-plant overlays (masked to base silhouette, tall plants only)
         5. Floating icons (Dawnlit, Ambershine, Dawncharged, Ambercharged)
 
-        The output canvas expands to fit all layers, so icons that extend past the base sprite
-        bounds are never clipped.
+        The picture is the crop's own art: the canvas is the base sprite's own box, so the
+        image dimensions are exactly what the game draws for that key, and a mutation's art
+        that lands outside that box is **clipped** to it rather than allowed to grow the
+        picture.
+
+        The box is stated rather than assumed, in two forms of the same fact:
+        `X-MG-Sprite-Box: x,y,width,height` on the response, and `?format=layout` for the
+        same box as a JSON body. The JSON form is the one a cross-origin page can read: the
+        header is deliberately *not* in `Access-Control-Expose-Headers`, so a browser asks
+        for the layout instead of trying to read a header it was never given.
 
         **Mutations supported:** `Gold`, `Rainbow`, `Wet`, `Chilled`, `Frozen`, `Thunderstruck`,
         `Dawnlit`, `Ambershine`, `Dawncharged`, `Ambercharged`
@@ -2242,14 +2250,43 @@ paths:
           schema:
             type: string
           example: "Rainbow,Wet"
+        - name: format
+          in: query
+          required: false
+          description: |
+            `layout` (case-insensitive) answers the box as a JSON body instead of a PNG:
+            the form a cross-origin caller can read, and the one that can be asserted as
+            numbers without decoding an image. Omitted, or any other value, returns the
+            picture.
+          schema:
+            type: string
+            enum: ["layout"]
+          example: "layout"
       responses:
         '200':
-          description: Composed PNG image
+          description: Composed PNG, or the box as JSON with `format=layout`
+          headers:
+            X-MG-Sprite-Box:
+              $ref: '#/components/headers/SpriteBox'
           content:
             image/png:
               schema:
                 type: string
                 format: binary
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpriteLayout'
+              examples:
+                layout:
+                  summary: The box `X-MG-Sprite-Box` states, as a readable body
+                  value:
+                    key: "sprite/plant/Carrot"
+                    mutations: ["Gold"]
+                    box:
+                      x: 0
+                      y: 0
+                      width: 191
+                      height: 238
         '400':
           description: Missing or invalid `key` parameter
           content:
@@ -4201,6 +4238,64 @@ components:
           description: When the build that produced this body completed (ISO 8601), `null` if unknown
           example: "2026-09-16T05:00:00.000Z"
 
+    SpriteBox:
+      type: object
+      description: |
+        Where a composed crop's art sits inside the picture, in picture pixels. `x`
+        and `y` are the crop's corner; today they are `0,0`, because the picture
+        *is* the crop's own box — the shape is stated rather than assumed so that a
+        picture which later carries padding or a shadow says so here instead of
+        silently changing size under a caller. `width` and `height` are the
+        picture's dimensions, which are exactly the base sprite's own art.
+
+        The same fact as `X-MG-Sprite-Box` and as the `?format=layout` body, which
+        carries it under this shape.
+      required:
+        - x
+        - y
+        - width
+        - height
+      properties:
+        x:
+          type: integer
+          example: 0
+        y:
+          type: integer
+          example: 0
+        width:
+          type: integer
+          description: Picture width in pixels, which is the crop art's own width
+          example: 191
+        height:
+          type: integer
+          description: Picture height in pixels, which is the crop art's own height
+          example: 238
+
+    SpriteLayout:
+      type: object
+      description: |
+        The `?format=layout` body: the box `X-MG-Sprite-Box` states, as JSON. A
+        cross-origin page cannot read the header — it is not in
+        `Access-Control-Expose-Headers` — so this is the form it asks for instead.
+        One fact, two representations; a caller that holds no picture wants this one.
+      required:
+        - key
+        - mutations
+        - box
+      properties:
+        key:
+          type: string
+          description: Atlas key of the base sprite, as requested
+          example: "sprite/plant/Carrot"
+        mutations:
+          type: array
+          description: Mutation ids applied, deduplicated and in the order the server sorted them
+          items:
+            type: string
+          example: ["Gold"]
+        box:
+          $ref: '#/components/schemas/SpriteBox'
+
   responses:
     InternalError:
       description: Internal server error
@@ -4232,3 +4327,17 @@ components:
       schema:
         type: string
         example: "1191"
+
+    SpriteBox:
+      description: |
+        Where the composed crop's art sits inside the picture:
+        `x,y,width,height` in picture pixels, one parseable value, no PNG decoding.
+
+        Sent on both representations — the picture and the `?format=layout` body. Not
+        sent on `304`, which states no box. Deliberately **not** in the CORS
+        `Access-Control-Expose-Headers` list: a cross-origin page cannot read it, and
+        does not need to, because `?format=layout` answers the same box in a JSON body
+        it can read.
+      schema:
+        type: string
+        example: "0,0,191,238"

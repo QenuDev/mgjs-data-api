@@ -12,8 +12,14 @@
 // promet. Même habitude que `contract-schema.test.js`, qui confronte les chemins
 // documentés à ce qui est réellement monté.
 //
-// Hors ligne et rapide : le document est lu sur disque et ses `$ref` résolus à
-// la main, aucun serveur n'est démarré.
+// Le même fichier garde aussi la description de `/assets/sprites/composed` : le
+// tableau y est la caisse de la culture et le dit, l'en-tête de boîte et
+// `?format=layout` sont la même vérité sous deux formes. Là où `composed.js`
+// n'exporte aucun nom, le test lit la source de la route et apparie ses
+// littéraux — un renommage casse le test au lieu de dé-documenter en silence.
+//
+// Hors ligne et rapide : les documents sont lus sur disque et leurs `$ref`
+// résolus à la main, aucun serveur n'est démarré.
 
 process.env.LOG_LEVEL = "silent";
 process.env.RATE_LIMIT_ENABLED = "false";
@@ -165,5 +171,132 @@ test("le document dit où le bloc recule si le jeu occupe la clé", () => {
   assert.ok(
     raw.includes(`\`${fallback}\``),
     `le document ne nomme pas la clé de repli \`${fallback}\``
+  );
+});
+
+// =====================
+// /assets/sprites/composed : le tableau est la caisse de la culture, et le dit
+// =====================
+//
+// La composition cadrait son canevas sur l'union des calques, donc l'image ne
+// pouvait pas être posée : rien ne disait où était la culture dedans. Le canevas
+// est maintenant la caisse de la culture, l'art qui déborde est coupé, et la
+// caisse est dite deux fois — `X-MG-Sprite-Box` sur la réponse, `?format=layout`
+// dans un corps JSON. Le test tient les deux contre la route.
+
+const REPO = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
+const COMPOSED_PATH = "/assets/sprites/composed";
+const composedSource = readFileSync(path.join(REPO, "src", "api", "routes", "composed.js"), "utf8");
+const corsSource = readFileSync(path.join(REPO, "src", "api", "middleware", "cors.js"), "utf8");
+
+function sourceLiteral(regex, what) {
+  const match = regex.exec(composedSource);
+  assert.ok(match, `${what} introuvable dans src/api/routes/composed.js`);
+  return match[1];
+}
+
+// `composed.js` n'exporte que le routeur : le nom de l'en-tête et le jeton de
+// format se lisent dans la source, pas dans un export.
+const spriteBoxHeader = sourceLiteral(
+  /res\.set\(\s*"([^"]+)"\s*,\s*boxHeader\(/,
+  "le nom de l'en-tête de boîte"
+);
+const formatParam = sourceLiteral(
+  /req\.query\.([A-Za-z0-9_]+)[^\n]*toLowerCase\(\)\s*===\s*"/,
+  "le paramètre de format"
+);
+const layoutValue = sourceLiteral(
+  /req\.query\.[A-Za-z0-9_]+[^\n]*toLowerCase\(\)\s*===\s*"([^"]+)"/,
+  "la valeur qui demande le layout"
+);
+
+/** Les champs du boîtier, dans l'ordre du `boxHeader()` de la route. */
+const boxFields = [...new Set([...composedSource.matchAll(/\bbox\.([A-Za-z]+)/g)].map((m) => m[1]))];
+
+/** La liste `exposedHeaders` du middleware CORS, telle qu'elle est écrite. */
+const exposedHeaders = (() => {
+  const match = /exposedHeaders:\s*\[([^\]]*)\]/.exec(corsSource);
+  assert.ok(match, "exposedHeaders introuvable dans src/api/middleware/cors.js");
+  return match[1]
+    .split(",")
+    .map((name) => name.trim().replace(/^["']|["']$/g, ""))
+    .filter(Boolean);
+})();
+
+test("le document ne dit plus que le canevas s'élargit pour tenir tous les calques", () => {
+  const description = doc.paths[COMPOSED_PATH]?.get?.description;
+  assert.ok(description, `${COMPOSED_PATH} : pas de description`);
+
+  assert.ok(!/expands to fit/i.test(description), "la description promet encore un canevas qui s'élargit");
+  assert.ok(!/never clipped/i.test(description), "la description promet encore que rien n'est coupé");
+
+  assert.match(description, /crop's own (art|box)/i, "la description ne dit pas que l'image est la caisse de la culture");
+  assert.match(description, /clipped/i, "la description ne dit pas que l'art hors caisse est coupé");
+});
+
+test("l'en-tête de boîte déclaré est celui que la route pose", () => {
+  assert.deepEqual(
+    [...boxFields].sort(),
+    ["height", "width", "x", "y"],
+    `champs lus dans boxHeader() : ${boxFields}`
+  );
+
+  const response = doc.paths[COMPOSED_PATH].get.responses["200"];
+  const header = response.headers?.[spriteBoxHeader];
+  assert.ok(header, `${COMPOSED_PATH} : ${spriteBoxHeader} n'est pas déclaré sur le 200`);
+  assert.match(header.$ref ?? "", /^#\/components\/headers\//, "l'en-tête n'est pas le composant réutilisable");
+  assert.equal(deref(header).schema?.type, "string", `${spriteBoxHeader} n'est pas décrit comme une chaîne`);
+  const boxHeaderDoc = deref(header);
+  assert.match(
+    String(boxHeaderDoc.example ?? boxHeaderDoc.schema?.example ?? ""),
+    /^\d+,\d+,\d+,\d+$/,
+    "l'exemple n'a pas la forme x,y,width,height"
+  );
+
+  // La même réponse a deux représentations : l'en-tête vaut pour les deux.
+  assert.ok(response.content?.["image/png"], "la représentation PNG manque");
+  assert.ok(response.content?.["application/json"], "la représentation JSON manque");
+});
+
+test("le paramètre de layout est celui de la route, et sa caisse est décrite", () => {
+  const parameters = doc.paths[COMPOSED_PATH].get.parameters ?? [];
+  const parameter = parameters.find((p) => p.name === formatParam);
+  assert.ok(parameter, `${COMPOSED_PATH} : le paramètre ${formatParam} n'est pas documenté`);
+  assert.equal(parameter.in, "query", `${formatParam} n'est pas un paramètre de requête`);
+  assert.ok(
+    (parameter.schema?.enum ?? []).includes(layoutValue),
+    `${formatParam} : ${layoutValue} absent de l'enum`
+  );
+
+  const layout = deref(doc.paths[COMPOSED_PATH].get.responses["200"].content?.["application/json"]?.schema);
+  assert.ok(layout, "pas de corps JSON documenté pour le layout");
+  assert.ok((layout.required ?? []).includes("box"), "le corps JSON ne requiert pas box");
+
+  const box = deref(layout.properties?.box);
+  assert.deepEqual(
+    Object.keys(box.properties ?? {}).sort(),
+    [...boxFields].sort(),
+    "les champs du boîtier documenté ne sont pas ceux de boxHeader()"
+  );
+  assert.deepEqual([...(box.required ?? [])].sort(), [...boxFields].sort(), "champs requis du boîtier");
+});
+
+test("l'en-tête de boîte n'est pas exposé en CORS, et le document dit pourquoi", () => {
+  assert.ok(
+    !exposedHeaders.includes(spriteBoxHeader),
+    `${spriteBoxHeader} est exposé en CORS : la raison écrite dans le document serait fausse`
+  );
+
+  const { description } = deref(doc.paths[COMPOSED_PATH].get.responses["200"].headers[spriteBoxHeader]);
+  assert.match(description, /Access-Control-Expose-Headers/, "le document ne dit pas que l'en-tête n'est pas exposé");
+  assert.ok(
+    description.includes(`?${formatParam}=${layoutValue}`),
+    `le document ne nomme pas ?${formatParam}=${layoutValue} comme la forme lisible`
+  );
+
+  // « Pas sur un 304 » : la route pose l'en-tête après le retour anticipé.
+  assert.ok(
+    composedSource.indexOf(`"${spriteBoxHeader}"`) > composedSource.indexOf("status(304)"),
+    `la route pose ${spriteBoxHeader} avant le 304 : le document doit le dire`
   );
 });
