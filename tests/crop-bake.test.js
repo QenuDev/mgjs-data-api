@@ -75,6 +75,7 @@ globalThis.fetch = async (url, init) => {
 const { config } = await import("../src/config/index.js");
 const { gameDataService } = await import("../src/services/gameData.js");
 const { lookupSprite } = await import("../src/assets/sprites/sprites.js");
+const { isTallPlantFor } = await import("../src/assets/sprites/mutationAnchor.js");
 const { composeSpriteWithBox, resolveComposedSprite, clearComposedCache } = await import(
   "../src/assets/sprites/spriteComposer.js"
 );
@@ -425,22 +426,23 @@ describe("the crop bake", () => {
     );
     assert.deepEqual(bare.box, { x: 0, y: 0, width: art.width, height: art.height });
 
-    // A set that grows really does grow: PricklyPear is a tall plant in the captured records,
-    // its art is 103x109, and a tall plant wears its decal twice the size, so Thunderstruck's
-    // ground decal reaches 15 px above the art (`sprite/mutation/ThunderstruckGround`), which
-    // is the same overhang the live atlas gives this pair. Asserted as "at least the art, and
-    // the box's corner moved to match", because which mutation reaches where is the placement
-    // port's business (§3.3), not the bake's.
+    // A set that grows really does grow: PricklyPear's art is 103x109 and Thunderstruck's icon
+    // reaches 15 px above it, so the picture is 103x124 with the art's corner at y = 15 — the
+    // same overhang the live atlas gives this pair. (Before plan item 27 this pair grew for a
+    // different reason: the plant records anchor PricklyPear `bottom`, so the composer drew it
+    // tall and used Thunderstruck's `×2` ground decal. The game's own table states
+    // `isTallPlant: false` for this art, and `tests/tall-plant-flag.test.js` asserts that. The
+    // dimensions coincide, so the exact pin below is what says each layer landed where it did.)
     const tallArt = artSize(artOf(PINNED.multiple));
     const grownSlug = canonicalSet(["Thunderstruck"]);
     const grown = manifest.crops[PINNED.multiple].sets[grownSlug];
     const grownMeta = await sharp(path.join(root, grown.file)).metadata();
+    assert.equal(`${grownMeta.width}x${grownMeta.height}`, `${tallArt.width}x${tallArt.height + 15}`);
     assert.ok(
       grownMeta.width >= tallArt.width && grownMeta.height >= tallArt.height,
       `PricklyPear + Thunderstruck is ${grownMeta.width}x${grownMeta.height}, smaller than its art`,
     );
-    assert.equal(grown.box.width, tallArt.width);
-    assert.equal(grown.box.height, tallArt.height);
+    assert.deepEqual(grown.box, { x: 0, y: 15, width: tallArt.width, height: tallArt.height });
     assert.ok(
       grown.box.x + tallArt.width <= grownMeta.width && grown.box.y + tallArt.height <= grownMeta.height,
       `the box ${JSON.stringify(grown.box)} does not fit the ${grownMeta.width}x${grownMeta.height} picture`,
@@ -823,50 +825,58 @@ describe("the crop bake", () => {
 
 describe("the one layer the composer still clips", () => {
   // The tall-plant overlay (`sprite/mutation-overlay/*TallPlant`) is the layer the game *does*
-  // mask, to the crop body's own texture, and only for a plant flagged `isTallPlant`. A fix
-  // that removed every clamp would have drawn it unclipped, over-drawing; these tests are what
-  // says the composer still cuts exactly that layer and no other.
-  it("clips the overlay to the crop body's own texture, so it cannot grow the picture", async () => {
-    // The captured records flag PricklyPear tall (the game's `tileTransformOrigin: "bottom"`),
-    // and the overlay art the game masks is in the same fixture — and is much bigger than the
-    // art it is masked to.
-    assert.equal(PLANTS.PricklyPear.plant.tileTransformOrigin, "bottom");
+  // mask, to the crop body's own texture, and only for a plant the game's own display table
+  // flags `isTallPlant`. A fix that removed every clamp would have drawn it unclipped,
+  // over-drawing; these tests are what says the composer still cuts exactly that layer and no
+  // other.
+  //
+  // They run on `Bamboo`, which the game's table flags tall (`isTallPlantFor`), and not on
+  // PricklyPear as they used to: the plant records' `tileTransformOrigin` called PricklyPear's
+  // crop art tall and the game does not, so the pair that used to exercise the clip now draws
+  // no overlay at all — an assertion that cannot tell "clipped" from "not drawn" is exactly the
+  // one this change would have left passing for the wrong reason.
+
+  it("clips the overlay to the crop body's own texture, so the overlay's frame is never the picture", async () => {
+    assert.equal(isTallPlantFor("sprite/plant/Bamboo"), true, "the game does not flag Bamboo tall");
     const overlay = lookupSprite("sprite/mutation-overlay/FrozenTallPlant");
     assert.ok(overlay, "the fixture has no Frozen tall-plant overlay to clip");
     assert.deepEqual(overlay.sourceSize, { w: 1024, h: 1024 });
 
-    const art = artSize("sprite/plant/PricklyPear"); // 103x109
-    const composed = await composeSpriteWithBox("sprite/plant/PricklyPear", ["Frozen"]);
+    const art = artSize("sprite/plant/Bamboo"); // 281x1280
+    const composed = await composeSpriteWithBox("sprite/plant/Bamboo", ["Frozen"]);
     const meta = await sharp(composed.buffer).metadata();
 
-    // Frozen hangs its 1024x1024 overlay from the art's top, 460 px to the left of a 103 px
-    // art, so an unclipped overlay would put the union at roughly 1024x1024. Clipped, it is
-    // exactly the art's own rectangle: it cannot move the picture at all.
-    assert.equal(`${meta.width}x${meta.height}`, `${art.width}x${art.height}`);
-    assert.deepEqual(composed.box, { x: 0, y: 0, width: art.width, height: art.height });
+    // Frozen hangs its 1024-wide, 1024-tall overlay from the art's top and 371 px to the left
+    // of a 281 px art (`overlayClip(281, 1280, 1024, 1024, 0.5, false).cropLeft` is 371), so an
+    // unclipped overlay would put the picture at 1024 px wide at least. The picture is 318x1368
+    // — the art plus the icon's own reach — so the overlay's frame is not in it: that width is
+    // the witness this test is for, and removing the clip fails it.
     assert.ok(
-      meta.width < overlay.sourceSize.w && meta.height < overlay.sourceSize.h,
-      "the overlay was not cut to the art: it is as big as its own frame",
+      meta.width < overlay.sourceSize.w,
+      `the overlay's own 1024 px frame set the picture's width (${meta.width}): it was not clipped`,
     );
+    assert.equal(`${meta.width}x${meta.height}`, "318x1368");
+    assert.deepEqual(composed.box, { x: 13, y: 0, width: art.width, height: art.height });
   });
 
   it("keeps clipping the overlay while a decal is still allowed to grow the picture", async () => {
-    // Thunderstruck also states an overlay, and its ground decal (the tall icon) reaches 15 px
-    // above the same art: the decal grows the canvas — no clamp touches it — and the overlay
-    // still cannot.
-    const art = artSize("sprite/plant/PricklyPear");
-    const composed = await composeSpriteWithBox("sprite/plant/PricklyPear", ["Thunderstruck"]);
+    // Thunderstruck also states an overlay, and its ground decal (the tall icon) reaches past
+    // the same art: the decal grows the canvas — no clamp touches it — and the overlay still
+    // cannot, which is the one asymmetry the clip exists for.
+    const art = artSize("sprite/plant/Bamboo");
+    const composed = await composeSpriteWithBox("sprite/plant/Bamboo", ["Thunderstruck"]);
     const meta = await sharp(composed.buffer).metadata();
 
-    assert.equal(meta.width, art.width);
-    assert.equal(meta.height, art.height + 15);
-    assert.deepEqual(composed.box, { x: 0, y: 15, width: art.width, height: art.height });
+    assert.equal(`${meta.width}x${meta.height}`, "378x1363");
+    assert.deepEqual(composed.box, { x: 43, y: 0, width: art.width, height: art.height });
+    assert.ok(meta.height > art.height, "the decal no longer grows the picture, so nothing is proved");
+    assert.ok(meta.width < 1024, `the overlay's own frame set the picture's width (${meta.width})`);
 
     const overlay = lookupSprite("sprite/mutation-overlay/ThunderstruckTallPlant");
     assert.ok(overlay, "the fixture has no Thunderstruck tall-plant overlay to clip");
     assert.ok(
-      meta.height < overlay.sourceSize.h,
-      "the overlay's own frame set the picture's height: it was not clipped to the art",
+      meta.width < overlay.sourceSize.w || meta.height < overlay.sourceSize.h,
+      "the overlay's own frame set the picture: it was not clipped to the art",
     );
   });
 });

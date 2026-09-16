@@ -265,9 +265,15 @@ describe("a composed crop is the union of its art and its layers", () => {
     // reachable set) pictures and 3,780 of them push the art's corner off the origin; the
     // clamped composer answered 0 and 0 on both counts. On this smaller sweep (69 arts × 6
     // sets = 414 pictures, against the committed atlas and the captured plant records) the two
-    // counters are 189 and 155, and they moved with plan item 25: keying the mutation anchors
-    // by species rather than by the art key's last segment puts more mutations inside their
-    // art and fewer outside it, so 202 pictures grew before the fix and 189 do now.
+    // counters are 188 and 150, and they moved twice. Plan item 25 keyed the mutation anchors by
+    // species rather than by the art key's last segment, which puts more mutations inside their
+    // art and fewer outside it: 202 pictures grew before that fix and 189 after it. Plan item 27
+    // keys `isTall` by the game's own display table instead of the plant records'
+    // `tileTransformOrigin`, which draws Delphinium flat — its six sets lose the `×2` tall decal
+    // and the `zIndex = -1` band, so 189 → 188 grew and 155 → 150 put the art's corner off the
+    // origin. Both counts are the *same* measured pin as before, re-measured; the arithmetic of
+    // the move is Delphinium's six sets and nothing else (asserted in
+    // `tests/tall-plant-flag.test.js`).
     const sets = [[], ["Wet"], ["Frozen"], ["Ambercharged"], ["Dawnlit"], HEAVIEST_SET];
     let offOrigin = 0;
     let grew = 0;
@@ -281,8 +287,8 @@ describe("a composed crop is the union of its art and its layers", () => {
         if (composed.box.x > 0 || composed.box.y > 0) offOrigin++;
       }
     }
-    assert.equal(grew, 189, "the number of pictures bigger than their art changed — is the canvas clamped again, or did the anchors move?");
-    assert.equal(offOrigin, 155, "the number of pictures stating an art rectangle off the origin changed");
+    assert.equal(grew, 188, "the number of pictures bigger than their art changed — is the canvas clamped again, or did the anchors move?");
+    assert.equal(offOrigin, 150, "the number of pictures stating an art rectangle off the origin changed");
   });
 
   it("pins the union box and the art's rectangle for CloverThreeLeaf", async () => {

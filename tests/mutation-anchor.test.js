@@ -103,8 +103,9 @@ describe("the mutation anchor table is the game's own", () => {
 
   it("holds the game's own constants rather than copies of them", () => {
     // The numbers the game's placement function states once. `GAME_SCALE_CAP` is the game's
-    // `.75`; the composer still caps at 1.5 (see the module header), which is why the two are
-    // not the same number here.
+    // `.75` and `REFERENCE_TILE_PX` its `256`: the composer *applies* both, through
+    // `tileScaleFor()` (`tests/scale-cap.test.js`), against the art's smaller side divided by
+    // its frame's `sourcePixelRatio` — which is the reading this assertion is the constants of.
     assert.equal(PLACEMENT_ANCHOR_Y, 0.4);
     assert.equal(TALL_ART_ASPECT, 1.5);
     assert.equal(REFERENCE_TILE_PX, 256);

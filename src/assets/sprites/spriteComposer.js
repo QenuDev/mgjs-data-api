@@ -8,7 +8,8 @@ import { getRiveFrames, clearRiveFramesCache, riveSpritePath } from "./riveFrame
 import { cropComposition, cropArtSize, overlayClip } from "./cropBox.js";
 import { isBakeEnabled, lookupBaked, persistComposed } from "./cropBake.js";
 import {
-  REFERENCE_TILE_PX, artIndex, loadMutationTables, mutationAnchorFor,
+  artIndex, isTallPlantFor, loadDisplayFlags, loadMutationTables, mutationAnchorFor,
+  tileScaleFor,
 } from "./mutationAnchor.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -54,13 +55,14 @@ const WARM_MUTATIONS      = new Set(["Ambershine", "Dawnlit", "Dawncharged", "Am
 const WATER_ICE_MUTATIONS = new Set(["Wet", "Chilled", "Frozen", "Thunderstruck", "Thundercharged"]);
 
 // The per-species mutation anchors, the 256-px reference tile, the 0.75 cap they are taken
-// against and the 1.5 aspect test the game's own placement function states live in
-// `./mutationAnchor.js`, keyed by **species** and by the part the art is — the atlas key's
-// last segment is only a species' name by luck (`CloverThreeLeaf`), and keying by it is what
-// plan item 25 fixes. The two scale factors the game hands its renderer stay here, because
-// they are not part of a placement: they are what this composer draws a layer at.
-const BASE_ICON_SCALE       = 0.5; // du=1/2 in game bundle
-const TALL_ICON_SCALE_BOOST = 2;   // tf=2 in game bundle
+// against, the divisor the cap is taken against the art's *drawn* size with, and the 1.5
+// aspect test the game's own placement function states, all live in `./mutationAnchor.js`,
+// keyed by **species** and by the part the art is — the atlas key's last segment is only a
+// species' name by luck (`CloverThreeLeaf`), and keying by it is what plan item 25 fixes.
+// `tileScaleFor()` is the game's `Go` scale factor and `TALL_ICON_SCALE_BOOST` is its `qo = 2`
+// tall decal multiplier; there is no third constant, which is what plan item 26 removed (the
+// `0.5` that used to sit here was a 2x frame's `1/sourcePixelRatio` written down).
+const TALL_ICON_SCALE_BOOST = 2; // qo=2 in game bundle
 
 // Rainbow gradient stops
 const RAINBOW_STOPS = (() => {
@@ -78,22 +80,22 @@ const RAINBOW_STOPS = (() => {
 // ─── Plant meta cache ─────────────────────────────────────────────────────────
 
 // Lazy-loaded from plant data. Keyed by the sprite filename (last path segment, no ext).
-// Built from species where plant.tileTransformOrigin === "bottom" (game's tall-plant marker).
 // harvestTypeMap: species → "Single" | "Multiple" (from plant.harvestType)
 // artIndex: atlas key → { species, part } for that species' plant and crop art, which is what
 // says whose mutation anchors apply to a composed art (`./mutationAnchor.js`).
+//
+// The tall-plant flag is **not** here: the game keys `isTallPlant` by the art's full sprite
+// path, and `isTallPlantFor()` reads that table (`./mutationAnchor.js`). This block used to
+// build a tall set from the plant records' `tileTransformOrigin`, which answers a different
+// question and disagreed with the game's table for 16 of the 23 arts either reading calls tall.
 let plantMetaCache = null;
 
 async function getPlantMeta() {
   if (plantMetaCache) return plantMetaCache;
-  const meta = { tallSpriteNames: new Set(), harvestTypeMap: new Map(), artIndex: new Map() };
+  const meta = { harvestTypeMap: new Map(), artIndex: new Map() };
   try {
     const plants = await gameDataService.getPlants();
     for (const [species, data] of Object.entries(plants)) {
-      if (data.plant?.tileTransformOrigin === "bottom" && data.plant?.sprite) {
-        const name = data.plant.sprite.split("/").pop().replace(/\?.*$/, "").replace(/\.png$/i, "");
-        if (name) meta.tallSpriteNames.add(name);
-      }
       if (data.plant?.harvestType) {
         meta.harvestTypeMap.set(species, data.plant.harvestType);
       }
@@ -179,14 +181,13 @@ async function extractSprite(meta) {
 
   // The art's own dimensions, derived in the one place that states them (`./cropBox.js`).
   const { width: w, height: h } = cropArtSize({ sourceSize, frame, rotated });
-  const { tallSpriteNames } = await getPlantMeta();
 
   return {
     buffer,
     width: w,
     height: h,
     anchor: anchor ?? { x: 0.5, y: 0.5 },
-    isTall: meta.key?.startsWith("sprite/tallplant/") || tallSpriteNames.has(meta.key?.split("/").pop()),
+    isTall: isTallPlantFor(meta.key, await loadDisplayFlags()),
     key: meta.key,
   };
 }
@@ -423,9 +424,9 @@ async function buildOverlayLayer(baseBuf, baseW, baseH, baseAnchor, overlayKey, 
  * Where a sprite is drawn and how big it is, from the atlas metadata alone.
  *
  * Dimensions come from `cropArtSize` (the one derivation of an art's own size), the anchor
- * from the frame, and `isTall` from the two markers the game uses: a `sprite/tallplant/` key,
- * or a species the plant data flags with `tileTransformOrigin: "bottom"`. A key the atlas
- * does not have falls back to the Rive frames (pets), whose metadata carries the same fields.
+ * and the pixel ratio from the frame, and `isTall` from the game's own display table keyed by
+ * this art's full sprite path (`isTallPlantFor` in `./mutationAnchor.js`). A key the atlas does
+ * not have falls back to the Rive frames (pets), whose metadata carries the same fields.
  *
  * Returns null when the key is in neither, which is the one case a caller must skip.
  */
@@ -433,13 +434,15 @@ async function spriteGeometry(key) {
   const meta = lookupSprite(key);
   if (meta?.url && meta.frame) {
     const { width, height } = cropArtSize(meta);
-    const { tallSpriteNames } = await getPlantMeta();
     return {
       key,
       width,
       height,
       anchor: meta.anchor ?? { x: 0.5, y: 0.5 },
-      isTall: key.startsWith("sprite/tallplant/") || tallSpriteNames.has(key.split("/").pop()),
+      isTall: isTallPlantFor(key, await loadDisplayFlags()),
+      // The game's own divisor for this frame (`Go`'s `e.sourcePixelRatio`), defaulting to the
+      // game's own 1 for a frame that states none (`i.prototype.sourcePixelRatio=1`).
+      pixelRatio: meta.sourcePixelRatio ?? 1,
     };
   }
 
@@ -452,19 +455,26 @@ async function spriteGeometry(key) {
     height: rive.sourceSize?.h ?? 0,
     anchor: rive.anchor ?? { x: 0.5, y: 1 },
     isTall: false, // les pets ne sont jamais "tall" (cf. doc-sprite.md §11)
+    pixelRatio: 1, // les frames Rive sont exportées à la taille où le jeu les dessine
   };
 }
 
 /**
  * The icon position for a crop, from the bundle's own placement math (the port §3.3 of the
- * plan keeps honest): the icon is scaled by the crop's smaller dimension against the 256-px
- * reference tile, then placed on the crop's anchor moved to the mutation's target point.
+ * plan keeps honest): the icon is scaled by the crop's smaller dimension — divided by the
+ * frame's own `sourcePixelRatio` — against the 256-px reference tile and the game's own `.75`
+ * cap, then placed on the crop's anchor moved to the mutation's target point.
  *
- * The target point and the species' own scale come from `./mutationAnchor.js`, which holds
- * the game's per-species table and reads it with the species and the part this art is — the
- * reading `planComposition` resolves through the plant records, never from the art key.
+ * The target point, the species' own scale and the cap arithmetic come from
+ * `./mutationAnchor.js` (`mutationAnchorFor`, `tileScaleFor`), which holds the game's
+ * per-species table and reads it with the species and the part this art is — the reading
+ * `planComposition` resolves through the plant records, never from the art key.
+ *
+ * `pixelRatio` is the **base art's** frame ratio, because that is the frame the game's `Go`
+ * divides; each layer is still drawn at its own frame's `sourceSize`, which is what makes the
+ * picture a render at the atlas's resolution rather than at the game's 1x one.
  */
-function iconRect(iconSprite, baseW, baseH, baseAnchor, species, part, isTall, harvestType = "Single", tables) {
+function iconRect(iconSprite, baseW, baseH, baseAnchor, species, part, isTall, pixelRatio, harvestType = "Single", tables) {
   const { width: iconW, height: iconH, anchor: iconAnchor } = iconSprite;
   const anchorX = baseAnchor.x;
   const anchorY = baseAnchor.y;
@@ -478,15 +488,11 @@ function iconRect(iconSprite, baseW, baseH, baseAnchor, species, part, isTall, h
   const offsetX   = (targetX - anchorX) * baseW;
   const offsetY   = (targetY - anchorY) * baseH;
 
-  // The ratio the game sizes a mutation by: the crop's smaller side over the 256-px reference
-  // tile. The game then caps it at `.75` for every species; this renderer has always used 1.5,
-  // which is the same number for any art whose smaller side is at most 384 px — that is, for
-  // all 69 species the 1192 atlas holds — and larger above it. `GAME_SCALE_CAP` in
-  // `./mutationAnchor.js` records the game's own number and what applying it would move; this
-  // commit keys the anchors and does not move a second value.
-  const tileRatio = Math.min(1.5, Math.min(baseW, baseH) / REFERENCE_TILE_PX);
-
-  const iconScale = BASE_ICON_SCALE * tileRatio * scale * (isTall ? TALL_ICON_SCALE_BOOST : 1);
+  // The game's own size factor, `min(Wo, (smaller side / sourcePixelRatio) / 256)`, with the cap
+  // and the tile read from the extraction — `./mutationAnchor.js` states why the divisor is not
+  // optional and what writing the factor without it moved.
+  const iconScale = tileScaleFor(baseW, baseH, pixelRatio, tables) * scale
+    * (isTall ? TALL_ICON_SCALE_BOOST : 1);
 
   const drawW = Math.max(1, Math.round(iconW * iconScale));
   const drawH = Math.max(1, Math.round(iconH * iconScale));
@@ -542,7 +548,7 @@ async function planComposition(baseKey, sorted) {
     if (FLOATING_MUTATIONS.has(mutation)) zIndex = 10;
     else if (base.isTall) zIndex = -1;
 
-    icons.push({ mutation, zIndex, key, ...iconRect(icon, base.width, base.height, base.anchor, species, part, base.isTall, harvestType, anchorTables) });
+    icons.push({ mutation, zIndex, key, ...iconRect(icon, base.width, base.height, base.anchor, species, part, base.isTall, base.pixelRatio, harvestType, anchorTables) });
   }
 
   // The canvas and the box a caller places the picture by are the same decision, so both come

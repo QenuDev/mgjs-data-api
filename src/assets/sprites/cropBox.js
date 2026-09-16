@@ -66,6 +66,18 @@
 //     fix this composer answered 116×169 for the pair, because `anchors.Clover.y = 0.3` was
 //     read with the art key's last segment (`CloverThreeLeaf`) and never applied.
 //
+// **The scale cross-check, re-measured 2026-09-17 for plan item 26** (the viewer was read and
+// run, never edited: `@mg.js/art` 0.1.4, its committed `data/1192.json`, on the game's own 1192
+// atlas packs). The viewer states its box in the art's **drawn** pixels and its art is
+// `sourceSize / sourcePixelRatio`, so for `Sunflower` wearing `Ambercharged` it answers
+// **128×161.066 with the art at (0, 33)** — which is this composer's 256×322 at (0, 66) once
+// that 2x frame's ratio is applied. The two agree *because* the game's `.75` cap over the drawn
+// smaller side is this composer's old `0.5 × min(1.5, …)` over its own pixels, for every frame
+// the atlas exports at 2x; the viewer does **not** answer 256×274. That number is what applying
+// `.75` without dividing by `sourcePixelRatio` produces, and the composer now states the game's
+// factor directly (`tileScaleFor()` in `./mutationAnchor.js`), where the divisor is a frame's
+// own value rather than a `1/2` written into a constant.
+//
 // ## The one clip that stays
 //
 // The **tall-plant overlay** layer (`sprite/mutation-overlay/*TallPlant`, drawn only when the
