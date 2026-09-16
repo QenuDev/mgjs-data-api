@@ -285,10 +285,38 @@ test("la disposition porte l'art du paquet, à sa place dans la boîte", async (
       assert.equal(recipe.layers.find((layer) => layer.kind === "art").width, artFrame.width);
       assert.equal(artLayer.sprite, recipe.art);
     } else {
-      // Une plante : sa boîte est l'union de ses parties, donc au moins la frame de son art.
+      // Une plante. Les deux espèces de cette spec sont des **patchs** (`harvestType: Single`) : le
+      // jeu n'en dessine pas de corps, et le paquet refuse une patch sans culture (`plantPicture`
+      // rend `null`), donc le composeur dessine l'art de l'espèce à sa propre ancre. C'est le même
+      // chemin de code qu'une plante à corps — une entrée `PlantArt` de plus — mais aucune des deux
+      // n'est dans la capture d'atlas de ce dossier, qui ne porte que les 69 arts de culture, donc
+      // c'est la branche que ce test peut exercer hors ligne. Sa boîte doit être le rectangle de cet
+      // art, décalé de sa tuile, et tenir ses pixels (vérifié par le test précédent).
       const plantFrame = frames.get(recipe.art);
-      assert.ok(placed.scene.width >= plantFrame.width - 1, `${item.id} : la boîte tient le plant (${placed.scene.width} ≥ ${plantFrame.width})`);
-      assert.ok(placed.scene.height >= plantFrame.height - 1, `${item.id} : idem en hauteur`);
+      const tile = { x: item.at.column * 256, y: item.at.row * 256 };
+      const box = {
+        left: tile.x - plantFrame.anchorX * plantFrame.width,
+        top: tile.y - plantFrame.anchorY * plantFrame.height,
+        width: plantFrame.width,
+        height: plantFrame.height,
+      };
+      if ((item.crops ?? []).length > 0) {
+        // Une patch qui porte une culture est plus grande que son art : sa boîte est l'union de
+        // l'art et de l'image de la culture à sa place de slot, que le paquet répond aussi.
+        const cropScale = 1 + ((item.crops[0].size - 50) / 50) * (multiplier - 1);
+        const picture = pictureBox(recipe, frames, cropScale, { x: 0, y: 0 });
+        const union = boxOf([
+          box,
+          { left: tile.x + picture.box.left, top: tile.y + picture.box.top, width: picture.box.width, height: picture.box.height },
+        ]);
+        assert.ok(placed.scene.width >= Math.round(union.width) - 1, `${item.id} : la boîte tient l'art et sa culture`);
+        assert.ok(placed.scene.height >= Math.round(union.height) - 1, `${item.id} : idem en hauteur`);
+        continue;
+      }
+      assert.equal(placed.scene.x, Math.round(box.left), `${item.id} : le coin de l'art, décalé de sa tuile (x)`);
+      assert.equal(placed.scene.y, Math.round(box.top), `${item.id} : idem (y)`);
+      assert.equal(placed.scene.width, Math.round(box.width), `${item.id} : la largeur de l'art`);
+      assert.equal(placed.scene.height, Math.round(box.height), `${item.id} : sa hauteur`);
     }
   }
 });
