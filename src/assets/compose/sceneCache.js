@@ -14,8 +14,10 @@
 // ## The two tiers
 //
 //   * a `Map` of parsed layouts, so a hit answers the JSON without touching the disk;
-//   * `<key>.png` and `<key>.json` under `config.compose.dir`, so `GET /compose/<key>.png` is a file
-//     read and a CDN or a client can link the result without posting the spec again.
+//   * `<key>.png` and `<key>.json` under `<config.compose.dir>/<SCENE_LAYOUT>/`, so `GET
+//     /compose/<key>.png` is a file read and a CDN or a client can link the result without posting the
+//     spec again. The layout segment is what makes a code change invalidate the tree; see
+//     `SCENE_LAYOUT`.
 //
 // The disk tier is what the bound is on, because it is the tier that survives a restart. A hit
 // touches the entry (its `atime`, for a tree an operator inspects) and moves it to the front of the
@@ -30,9 +32,34 @@ import path from "node:path";
 
 import { config } from "../../config/index.js";
 
-/** The scene tree's own directory, beside the bake under the sprite export root. */
+/**
+ * The shape of the pictures this cache holds, as a path segment.
+ *
+ * Bumped whenever the placement or the composition changes, for the reason `cropBake.js` states about
+ * `BAKE_LAYOUT`: this cache is addressed by the **spec** alone, so nothing in the key moves when the
+ * code that draws the picture moves, and a tree composed under an older shape would go on answering
+ * with the old picture forever — on a deployed host, long after the fix shipped.
+ *
+ * It was needed, and the reason is worth keeping. The tile-origin fix (`tileOrigin` in
+ * `sceneLayout.js`, v1 -> v2 here) moved every item half a tile, and a host with a warm cache went on
+ * serving the old scene byte for byte: three separate server processes, one of them running the fixed
+ * code, answered with the same 257,999 bytes, and the only way to see the fix was to empty
+ * `sprites_dump/compose` by hand. A cache that cannot be invalidated by the change that invalidates it
+ * is not a cache, it is a lie with a fast path.
+ */
+export const SCENE_LAYOUT = "v2";
+
+/**
+ * The scene tree's own directory, beside the bake under the sprite export root.
+ *
+ * `<root>/<SCENE_LAYOUT>/`, so a tree from an older shape is never read: the files it holds are simply
+ * not where this version looks. An operator who wants the disk back can delete the older segment; the
+ * cache's own bound does not count it, which is stated here because it is the one thing this
+ * namespacing costs.
+ */
 export function cacheDirectory() {
-  return config.compose.dir ?? path.join(config.sprites.exportDir, "compose");
+  const root = config.compose.dir ?? path.join(config.sprites.exportDir, "compose");
+  return path.join(root, SCENE_LAYOUT);
 }
 
 /** A parsed layout, or `null` — the in-memory index, most recently used last. */
