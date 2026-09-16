@@ -118,13 +118,110 @@ export function createApp() {
 }
 
 /**
- * Démarre le serveur API.
+ * L'adresse qu'un `listen` a effectivement obtenue, ou celle qu'il visait.
+ *
+ * `server.address()` vaut `null` quand la liaison a échoué, donc un message
+ * d'échec doit retomber sur la valeur demandée : c'est celle-là que l'opérateur
+ * doit changer.
  */
-export function startApiServer({ port = config.server.port } = {}) {
+function boundAddress(server, fallback) {
+  const bound = server.address();
+  if (bound && typeof bound === "object") {
+    return { address: bound.address, port: bound.port };
+  }
+  return fallback;
+}
+
+/**
+ * Message d'un échec de liaison, avec l'adresse et le port.
+ *
+ * `EADDRINUSE` est la seule erreur de démarrage qu'un opérateur peut corriger
+ * en changeant une variable : le message doit donc la nommer, avec la valeur
+ * exacte à changer, plutôt que de laisser Node imprimer `:::3000` sans dire
+ * quoi en faire.
+ */
+export function listenFailureMessage(err, { address, port }) {
+  if (err?.code === "EADDRINUSE") {
+    return (
+      `Cannot start the API server: address ${address}:${port} is already in use (EADDRINUSE). ` +
+      `Another process is already listening there. Set PORT to a free port, or stop that process.`
+    );
+  }
+  return `Cannot start the API server on ${address}:${port}: ${err?.code ?? "error"} ${err?.message ?? ""}`.trim();
+}
+
+/**
+ * Ce que fait le process quand le serveur ne peut pas se lier.
+ *
+ * Par défaut : une ligne lisible sur stderr puis `process.exit(1)`, parce que
+ * c'est ce qu'un superviseur (docker, pm2) doit voir pour redémarrer ou
+ * signaler. Sans handler `'error'`, exprès : un `'error'` non écouté est fatal
+ * et sort en 1, mais avec un nom de fichier Node et sans nommer le port. Le
+ * handler ci-dessous est posé à la place, jamais en plus.
+ *
+ * `process.exit` est appelé immédiatement, sans `setTimeout` : `console.error`
+ * écrit sur un descripteur de fichier de façon synchrone pour un terminal et
+ * pour un pipe, et attendre ne rendrait la main à la boucle d'événements que
+ * pour laisser partir les lignes que `src/index.js` a déjà journalisées — dont
+ * un « MG API ready » qui n'a jamais été vrai.
+ *
+ * Exporté pour que les tests puissent vérifier le message sans tuer le
+ * process de test.
+ */
+export function exitOnListenFailure(err, context = {}) {
+  const { server, port = config.server.port, host = config.server.host } = context;
+  const fallback = { address: host, port };
+  const where = server ? boundAddress(server, fallback) : fallback;
+
+  console.error(listenFailureMessage(err, where));
+  process.exit(1);
+}
+
+/**
+ * Résout quand le serveur écoute vraiment, rejette s'il n'a pas pu se lier.
+ *
+ * `startApiServer` ne peut rien attendre : `app.listen` rend la main avant que
+ * le socket soit lié, et c'est seulement un tour de boucle plus tard que Node
+ * émet `'listening'` ou `'error'`. Un appelant qui enchaîne sur le retour de
+ * `startApiServer` — le point d'entrée, qui démarre le poller et le watcher —
+ * travaille donc *avant* de savoir si le serveur existe. Cette promesse rend
+ * l'attente possible.
+ */
+export function waitForListening(server) {
+  return new Promise((resolve, reject) => {
+    server.once("listening", resolve);
+    server.once("error", reject);
+  });
+}
+
+/**
+ * Démarre le serveur API.
+ *
+ * `onListenError` est injectable pour les tests : le défaut termine le process,
+ * ce qu'un test ne peut pas observer autrement qu'en le lançant dans un
+ * sous-process.
+ */
+export function startApiServer({ port = config.server.port, onListenError = exitOnListenFailure } = {}) {
   const app = createApp();
 
-  const server = app.listen(port, () => {
-    logger.info({ port }, "API server started");
+  const server = app.listen(port);
+
+  // Les écouteurs sont posés séparément d'`app.listen` : Express 5 passe le
+  // dernier argument à `server.once('error', done)` *et* à `'listening'`, donc
+  // un `app.listen(port, cb)` rapporte « démarré » même quand la liaison a
+  // échoué. Un `'error'` sans handler est fatal : la seule ligne journalisée
+  // avant la sortie serait alors celle qui annonce un démarrage qui n'a pas eu
+  // lieu.
+  //
+  // Le port journalisé est celui que le socket a obtenu, pas celui demandé :
+  // `listen(0)` laisse le système en choisir un, et c'est celui-là qu'un client
+  // doit appeler.
+  server.on("listening", () => {
+    logger.info({ port: server.address()?.port ?? port }, "API server started");
+  });
+
+  server.on("error", (err) => {
+    onListenError(err, { server, port, host: config.server.host });
   });
 
   return { app, server };

@@ -4,7 +4,7 @@ import express from "express";
 import { asyncHandler } from "../middleware/index.js";
 import { gameDataService } from "../../services/index.js";
 import { getCacheStats } from "../../core/game/cache.js";
-import { CONTRACT_VERSION, getBuildInfo } from "../../docs/contract.js";
+import { contractVersion, getBuildInfo } from "../../docs/contract.js";
 import { ENGINE_SIGNATURE, eraAt } from "../../core/weather/index.js";
 import { logger } from "../../logger/index.js";
 import { getTransformedPlants, enrichPlantsWithPurchasable } from "../../services/plantTransformer.js";
@@ -53,7 +53,7 @@ const DATA_CACHE_CONTROL = "public, max-age=300, stale-while-revalidate=60";
  */
 async function getProvenance() {
   const { gameVersion, generatedAt } = await getBuildInfo();
-  return { gameVersion, contract: CONTRACT_VERSION, generatedAt };
+  return { gameVersion, contract: contractVersion(), generatedAt };
 }
 
 /** Le nom du bloc de provenance ajouté aux corps de `/data/*`. */
@@ -316,7 +316,7 @@ dataRouter.get(
     res.json({
       gameVersion,
       artVersion,
-      contract: CONTRACT_VERSION,
+      contract: contractVersion(),
       generatedAt,
     });
   })

@@ -9,40 +9,59 @@
 // données) est statique ; ce que seule l'instance sait (version du jeu dont les
 // données et les sprites ont été construits, date de construction) est rempli
 // à chaque réponse depuis le disque, jamais depuis un appel réseau.
-
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
-import YAML from "yamljs";
+//
+// Le document déclaré est lu *à la demande* (`./load.js`) : un `openapi.yaml`
+// absent ou cassé ne fait plus échouer l'import du module, donc l'app démarre
+// et le défaut est rapporté par la première requête qui lit le contrat.
 
 import { config } from "../config/index.js";
 import { getCacheStats, getCachedBundleVersion } from "../core/game/cache.js";
 import { getStoredVersionInfoCached } from "../core/game/versionStorage.js";
+import { loadOpenApiDocument } from "./load.js";
 
-const docsDir = dirname(fileURLToPath(import.meta.url));
-const OPENAPI_PATH = join(docsDir, "openapi.yaml");
+export { ContractDocumentError, loadOpenApiDocument } from "./load.js";
 
-// Chargé une fois : le document est un fichier du dépôt, pas une donnée de jeu.
-const declared = YAML.load(OPENAPI_PATH);
-const declaredContract = declared?.["x-mg-contract"] ?? {};
+/**
+ * Ce que le document déclare, en un seul accès.
+ *
+ * Version du contrat (nombre, pas la chaîne de l'OpenAPI), capacités et liste
+ * des chemins viennent tous du même fichier ; les lire ensemble garantit qu'ils
+ * ne peuvent pas décrire deux documents différents. Cette fonction est le seul
+ * endroit qui appelle `loadOpenApiDocument()`, donc c'est aussi le seul endroit
+ * où un document cassé se manifeste — par une `ContractDocumentError` nommée,
+ * pas par un `throw` à l'import.
+ */
+export function declaration() {
+  const document = loadOpenApiDocument();
+  const contract = document["x-mg-contract"] ?? {};
 
-if (declared?.info?.version == null || declaredContract.api == null) {
-  throw new Error(
-    "openapi.yaml must declare info.version and x-mg-contract.api: the contract version is what a client checks before it trusts this host"
-  );
+  return {
+    version: Number(document.info.version),
+    api: contract.api,
+    capabilities: [...(contract.capabilities ?? [])],
+    data: [...(contract.data ?? [])],
+    paths: Object.keys(document.paths ?? {}),
+  };
+}
+
+/** Les chemins que le document couvre, dans son ordre. */
+export function declaredPaths() {
+  return declaration().paths;
 }
 
 /**
  * Version du contrat, à ne pas confondre avec la version du jeu.
  *
- * `info.version` est une chaîne (l'OpenAPI 3.0 l'exige) ; les clients
- * comparent un nombre, donc c'est la valeur numérique qui est exportée et
- * servie par `/schema.json` et `/data/version`.
+ * `info.version` est une chaîne dans l'OpenAPI 3.0 ; les clients comparent un
+ * nombre, donc c'est la valeur numérique qui est servie par `/schema.json` et
+ * `/data/version`.
+ *
+ * C'est une fonction et non une constante exportée : une constante serait
+ * calculée à l'import du module, c'est-à-dire exactement le moment où l'on ne
+ * veut plus lire le document.
  */
-export const CONTRACT_VERSION = Number(declared.info.version);
-
-/** Les chemins que le document couvre, dans son ordre. */
-export function declaredPaths() {
-  return Object.keys(declared.paths ?? {});
+export function contractVersion() {
+  return declaration().version;
 }
 
 const SHOP_PARAM_NAME = "shop";
@@ -95,7 +114,7 @@ export function buildServers() {
  * Synchrone : c'est ce que le cache de `/docs/openapi.json` retient.
  */
 export function buildBaseOpenApiDocument({ shopTypes } = {}) {
-  const spec = structuredClone(declared);
+  const spec = structuredClone(loadOpenApiDocument());
   spec.servers = buildServers();
   if (shopTypes?.length) withShopEnum(spec, shopTypes);
   return spec;
@@ -160,16 +179,16 @@ export async function withRuntimeContract(spec) {
  */
 export async function buildRuntimeContract({ unavailable = {} } = {}) {
   const { gameVersion, artVersion, generatedAt } = await getBuildInfo();
-  const declaredData = declaredContract.data ?? [];
+  const declared = declaration();
 
   return {
-    contract: CONTRACT_VERSION,
-    api: declaredContract.api,
-    capabilities: [...(declaredContract.capabilities ?? [])],
-    paths: declaredPaths(),
-    data: declaredData.filter((category) => !(category in unavailable)),
+    contract: contractVersion(),
+    api: declared.api,
+    capabilities: declared.capabilities,
+    paths: declared.paths,
+    data: declared.data.filter((category) => !(category in unavailable)),
     unavailable: Object.fromEntries(
-      declaredData.filter((category) => category in unavailable).map((c) => [c, unavailable[c]])
+      declared.data.filter((category) => category in unavailable).map((c) => [c, unavailable[c]])
     ),
     gameVersion,
     artVersion,

@@ -409,10 +409,16 @@ PLATFORM_FAST_POLL_INTERVAL=5000
 PLATFORM_MAX_BACKOFF=60000
 PLATFORM_TIMEOUT=8000
 
+# Bundle fetch (page -> index.js -> chunks -> data), on the /data/* path
+BUNDLE_TIMEOUT=20000
+
 # Game update detection (sprite resync)
 VERSION_WATCH_ENABLED=true
 VERSION_WATCH_INTERVAL=60000
 VERSION_WATCH_RESTART=true
+
+# Service profile (see "Deployment profiles" below)
+SPRITES_PROFILE=full
 
 # CORS
 CORS_ENABLED=true
@@ -429,6 +435,7 @@ GAME_PAGE_URL=https://magicgarden.gg/r/test
 
 # Logging
 LOG_LEVEL=info
+LOG_PRETTY=false                   # pino-pretty is a devDependency; opt in, never assumed
 
 # Sprites
 SPRITES_EXPORT_DIR=./sprites_dump
@@ -445,6 +452,65 @@ PET_ANIMATIONS_CLIPS=idle,walk,eat,sleep
 Animations are rendered at 30 fps, near-lossless, in a background child process when the game's pet file changes (~100 MB and ~50 minutes for the full set). `PET_ANIMATIONS_QUALITY` is a near-lossless level, not a lossy quality - lossy is a poor fit for this flat vector art, see `doc-rive.md` §7. Run it by hand with `npm run export:animations -- --force`.
 
 Set `CORS_ENABLED=false` or `RATE_LIMIT_ENABLED=false` to disable those features. SSE streams use a separate limiter (defaults to `RATE_LIMIT_MAX / 10` per window).
+
+## Deployment profiles
+
+The server runs in one of two explicit profiles, chosen with `SPRITES_PROFILE`:
+
+| Profile | Starts the sprite and animation export | Answers sprite and animation routes |
+|---|---|---|
+| `full` (default) | yes, via the version watcher | yes, from `SPRITES_EXPORT_DIR` |
+| `data` | no | `503 SPRITES_PROFILE` |
+
+### `SPRITES_PROFILE=data` — a data-only instance
+
+A second instance that only republishes `/data/*`, `/live/*` and `/stats/*` does not need the sprite stack at all. That stack is not cheap: the first boot of a `full` instance runs a full export — the game bundle, every atlas binary, the `.riv` files, then PNG/WebP rendering through `sharp`, `@napi-rs/canvas` and Rive — under a watchdog that calls `process.exit(1)` if a sync overruns 15 minutes (`src/services/spriteSync.js:215`). A bake costs the same. A host that serves data and nothing else should pay for neither, and a small container should not need a renderer it never calls.
+
+```env
+SPRITES_PROFILE=data
+VERSION_WATCH_ENABLED=false
+PET_ANIMATIONS_ENABLED=false
+```
+
+Both switches are required, and the server refuses to start if either is missing: `SPRITES_PROFILE=data` with `VERSION_WATCH_ENABLED=true` throws at startup rather than booting into a state where a version record advances with no pixels to match it.
+
+`VERSION_WATCH_ENABLED=false` is what skips the export: `startVersionWatcher()` is the only caller of `checkSpritesOnStartup()`, so the atlas export, the Rive pet and decor rendering and the animation sync never run. It also means this instance never writes `data/version.json`, the record of the version whose data *and sprites* were built — correct, since it builds no sprites, and the reason the version pin that record drives is not applied on a host nothing updates.
+
+### What a client sees on a sprite route
+
+`GET /assets/sprites`, `/assets/sprites/:category/:name.png`, `/assets/sprites/composed`, `/assets/animations` and `/assets/rive` answer:
+
+```http
+HTTP/1.1 503 Service Unavailable
+Content-Type: application/json
+
+{
+  "error": {
+    "code": "SPRITES_PROFILE",
+    "message": "This instance does not export sprites (SPRITES_PROFILE=data): it serves /data, /live and /stats only. Ask an instance running SPRITES_PROFILE=full for sprite and animation files.",
+    "details": { "profile": "data", "path": "/assets/sprites/plants/Carrot.png" }
+  }
+}
+```
+
+503 rather than 404, because the images exist — just not on this host — and a client that gets a 404 would conclude the sprite is gone and cache that conclusion. The body names the profile so a client can tell "this instance does not do images" apart from "this instance is broken right now".
+
+`/assets/sprite-data`, `/assets/cosmetics` and `/assets/audios` stay served: they are JSON derived from the bundle, not files from a render.
+
+Note that a `data` instance behind the same nginx as its `full` sibling answers 503 only for requests that reach Node. A published `/assets/sprites` directory is served straight off disk by nginx, so proxy rules — not this profile — decide which instance a browser gets an image from.
+
+### Compose
+
+The compose file that runs a data-only service must set, in its `environment:` block:
+
+```yaml
+environment:
+  SPRITES_PROFILE: data
+  VERSION_WATCH_ENABLED: "false"
+  PET_ANIMATIONS_ENABLED: "false"
+```
+
+Without `SPRITES_PROFILE=data` such a container still answers `/assets/*` with `200` and serves whatever the mounted `sprites_dump` contains — including a previous game version's art — which is what the explicit profile exists to prevent.
 
 ## Limitations & Warnings
 

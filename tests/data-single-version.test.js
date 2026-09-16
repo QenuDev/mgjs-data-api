@@ -178,7 +178,9 @@ const JSON_ROUTES = [
 const { META_KEY, GAME_VERSION_HEADER, clearTransformedDataCache } = await import(
   "../src/api/routes/data.js"
 );
-const { CONTRACT_VERSION } = await import("../src/docs/contract.js");
+// Le document OpenAPI n'est plus lu au chargement du module (`src/docs/load.js`), donc la version
+// de contrat est une fonction plutôt qu'une constante calculée à l'import.
+const { contractVersion } = await import("../src/docs/contract.js");
 
 /** Le bloc de provenance, où qu'il soit (il recule si le jeu occupe `_meta`). */
 const provenanceOf = (body) => Object.entries(body).find(([key]) => key.startsWith("_"));
@@ -382,7 +384,7 @@ test("chaque réponse /data/* dit la version en en-tête et dans son corps", asy
     // L'en-tête et le corps disent la même chose — c'est le point du commit.
     assert.equal(meta.gameVersion, res.headers.get(GAME_VERSION_HEADER), route);
     assert.equal(meta.gameVersion, BUILT, route);
-    assert.equal(meta.contract, CONTRACT_VERSION, route);
+    assert.equal(meta.contract, contractVersion(), route);
     assert.equal(meta.generatedAt, reference.generatedAt, route);
 
     // Et la même chose que les `?v=` du corps.
@@ -410,7 +412,7 @@ test("le bloc de provenance n'écrase aucune entrée du jeu", async (t) => {
   assert.equal(versionOf(body.version.seed.sprite), BUILT);
   assert.equal(versionOf(body.gameVersion.seed.sprite), BUILT);
 
-  assert.equal(body[META_KEY].contract, CONTRACT_VERSION);
+  assert.equal(body[META_KEY].contract, contractVersion());
   assert.equal(body[META_KEY].gameVersion, BUILT);
 });
 
