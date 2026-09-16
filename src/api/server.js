@@ -178,6 +178,23 @@ export function exitOnListenFailure(err, context = {}) {
 }
 
 /**
+ * Résout quand le serveur écoute vraiment, rejette s'il n'a pas pu se lier.
+ *
+ * `startApiServer` ne peut rien attendre : `app.listen` rend la main avant que
+ * le socket soit lié, et c'est seulement un tour de boucle plus tard que Node
+ * émet `'listening'` ou `'error'`. Un appelant qui enchaîne sur le retour de
+ * `startApiServer` — le point d'entrée, qui démarre le poller et le watcher —
+ * travaille donc *avant* de savoir si le serveur existe. Cette promesse rend
+ * l'attente possible.
+ */
+export function waitForListening(server) {
+  return new Promise((resolve, reject) => {
+    server.once("listening", resolve);
+    server.once("error", reject);
+  });
+}
+
+/**
  * Démarre le serveur API.
  *
  * `onListenError` est injectable pour les tests : le défaut termine le process,
@@ -189,11 +206,16 @@ export function startApiServer({ port = config.server.port, onListenError = exit
 
   const server = app.listen(port);
 
-  // Le callback est posé séparément d'`app.listen` : Express 5 passe le dernier
-  // argument à `server.once('error', done)` *et* à `'listening'`, donc un
-  // `app.listen(port, cb)` rapporte « démarré » même quand la liaison a échoué.
-  // Un unhandled `'error'` est fatal : la seule ligne journalisée avant la
-  // sortie serait alors celle qui annonce un démarrage qui n'a pas eu lieu.
+  // Les écouteurs sont posés séparément d'`app.listen` : Express 5 passe le
+  // dernier argument à `server.once('error', done)` *et* à `'listening'`, donc
+  // un `app.listen(port, cb)` rapporte « démarré » même quand la liaison a
+  // échoué. Un `'error'` sans handler est fatal : la seule ligne journalisée
+  // avant la sortie serait alors celle qui annonce un démarrage qui n'a pas eu
+  // lieu.
+  //
+  // Le port journalisé est celui que le socket a obtenu, pas celui demandé :
+  // `listen(0)` laisse le système en choisir un, et c'est celui-là qu'un client
+  // doit appeler.
   server.on("listening", () => {
     logger.info({ port: server.address()?.port ?? port }, "API server started");
   });

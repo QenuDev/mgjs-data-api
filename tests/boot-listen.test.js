@@ -21,7 +21,7 @@ import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
-import { startApiServer, listenFailureMessage } from "../src/api/server.js";
+import { startApiServer, waitForListening, listenFailureMessage } from "../src/api/server.js";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -143,11 +143,35 @@ test("un port pris appelle onListenError au lieu d'un 'error' non écouté", asy
   assert.equal(seen.err.code, "EADDRINUSE");
   assert.equal(seen.context.port, taken.port);
   assert.equal(seen.address, null, "la liaison doit avoir échoué, pas abouti ailleurs");
-  assert.equal(
-    seen.listenerCount,
-    1,
-    "un seul handler 'error' : le process ne doit pas finir avec un événement non écouté"
+  assert.ok(
+    seen.listenerCount >= 1,
+    "le serveur doit garder un handler 'error' : sans lui, l'échec serait fatal et non rapporté"
   );
+});
+
+test("waitForListening rejette quand le port est pris et résout quand il écoute", async (t) => {
+  const taken = await occupyPort();
+  t.after(() => taken.close());
+
+  // Ce que le point d'entrée attend avant de démarrer le moindre service de
+  // fond : un rejet nommé, pas une promesse qui ne se règle jamais.
+  const { server: failing } = startApiServer({
+    port: taken.port,
+    onListenError: () => {},
+  });
+  await assert.rejects(
+    () => waitForListening(failing),
+    (err) => {
+      assert.equal(err.code, "EADDRINUSE");
+      return true;
+    }
+  );
+
+  // Et sur un port libre, elle résout avec la promesse que le serveur écoute.
+  const { server: listening } = startApiServer({ port: 0, onListenError: () => {} });
+  await waitForListening(listening);
+  assert.ok(listening.address().port > 0, "un port éphémère doit avoir été obtenu");
+  await new Promise((resolve) => listening.close(resolve));
 });
 
 test("le process sort en 1 avec un message lisible quand le port est pris", async (t) => {
@@ -155,23 +179,31 @@ test("le process sort en 1 avec un message lisible quand le port est pris", asyn
   t.after(() => taken.close());
 
   // Le vrai point d'entrée : ce que fait un conteneur.
-  const { code, stderr } = await runChild("entrypoint", taken.port);
+  const { code, stdout, stderr } = await runChild("entrypoint", taken.port);
+  const output = `${stdout}\n${stderr}`;
 
-  assert.equal(code, 1, `sortie attendue 1, observée ${code}\n${stderr}`);
+  assert.equal(code, 1, `sortie attendue 1, observée ${code}\n${output}`);
   assert.match(stderr, /EADDRINUSE/);
   assert.match(stderr, new RegExp(`:${taken.port}\\b`), "le message doit nommer le port occupé");
   assert.match(stderr, /PORT/);
 
-  // Rien de ce que `src/index.js` journalise après son `startApiServer` ne doit
-  // partir : mesuré avant ce correctif, « MG API ready » sortait à côté du
-  // message d'échec, parce que le logger écrit de façon asynchrone.
+  // Les deux flux : le logger écrit sur stdout et le message d'échec sur
+  // stderr, donc regarder stderr seul laisse passer exactement la ligne qu'on
+  // veut interdire. Mesuré sur ce point d'entrée avant le correctif, avec un
+  // socket qui tient le port :
+  //
+  //   {"level":30,...,"port":39988,"msg":"Version watcher disabled ..."}
+  //   {"level":30,...,"port":39988,"msg":"MG API ready"}
+  //
+  // — les services de fond démarraient et « MG API ready » était journalisé
+  // parce que l'échec de liaison arrive après l'évaluation du module.
   assert.doesNotMatch(
-    stderr,
+    output,
     /MG API ready/,
     "un port pris ne doit pas être suivi d'un « MG API ready »"
   );
   assert.doesNotMatch(
-    stderr,
+    output,
     /Version watcher/,
     "aucun service de fond ne doit démarrer sur un port que personne n'écoute"
   );
