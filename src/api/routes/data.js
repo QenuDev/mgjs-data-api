@@ -15,6 +15,7 @@ import {
   transformWeathersWithSprites,
 } from "../../services/dataTransformer.js";
 import { resolveSpritePathsDeep } from "../../utils/spritePathResolver.js";
+import { getArtData } from "../../core/game/art/index.js";
 import { applyCacheHeaders, buildWeakEtag, isFresh } from "../../utils/httpCache.js";
 import {
   jsonToCsv, combinedJsonToCsv, sendCsv,
@@ -477,6 +478,45 @@ dataRouter.get(
       gameDataService.getEnums()
     );
     setDataCacheHeaders(res, "enums", spriteVersion);
+    res.json(withProvenance(data, provenance));
+  })
+);
+
+/**
+ * GET /data/art
+ *
+ * Les tables d'art du jeu : les ancres de mutation par espèce, les drapeaux
+ * `isTallPlant`/`isNarrowDisplay` keyés par sprite, le plafond d'échelle et sa
+ * tuile de référence, le multiplicateur de décalque haut, l'ensemble des
+ * mutations superposées, l'échelle de z des icônes, et — par mutation — son
+ * sprite d'icône, ses sprites hauts et sa teinte de récolte, ou le matériau de
+ * shader qui la remplace.
+ *
+ * Ces tables vivent dans le contrôleur de dessin du jeu, pas dans le chunk de
+ * données : elles ne sont donc pas dans `/data` ni dans `/data/mutations`, et
+ * elles n'étaient publiées nulle part. Le composeur en a besoin, et deux rendus
+ * qui re-dérivent ces nombres divergent — c'est ce que les publier empêche.
+ * `placement` porte en plus le texte de la fonction de placement du jeu, extrait
+ * verbatim, avec les déclarations locales qu'elle clôt et les externes qu'elle
+ * lit : un client peut l'exécuter au lieu de la re-porter.
+ *
+ * Catégorie déclarée dans `x-mg-contract.data` (comme `version`) mais hors de
+ * l'agrégat `/data` : ce corps n'est pas une table d'entités keyée par nom, donc
+ * un export CSV n'aurait rien à en faire.
+ *
+ * Même cache que le reste de `/data` (ETag + `Cache-Control: public,max-age=300`)
+ * et même bloc de provenance. `X-Game-Version` est la version du bundle dont les
+ * tables ont été lues, c'est-à-dire celle que `source.gameVersion` répète.
+ */
+dataRouter.get(
+  "/art",
+  asyncHandler(async (req, res) => {
+    const provenance = await getProvenance();
+    const spriteVersion = provenance.gameVersion;
+    if (maybeNotModified(req, res, "art", spriteVersion)) return;
+
+    const data = await getOrBuildCached("art", spriteVersion, () => getArtData());
+    setDataCacheHeaders(res, "art", spriteVersion);
     res.json(withProvenance(data, provenance));
   })
 );

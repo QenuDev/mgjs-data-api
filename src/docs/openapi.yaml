@@ -108,6 +108,7 @@ x-mg-contract:
     - weather-groups
     - enums
     - version
+    - art
   # Remplis à chaque réponse depuis l'instance qui sert : `null` dans ce fichier
   # veut dire « pas encore construit » (aucune synchronisation sur cet hôte).
   gameVersion: null
@@ -1478,6 +1479,242 @@ paths:
                     itemType: ["Seed", "Produce", "Plant", "Tool", "Pet", "Egg", "Decor"]
                     weather: ["Rain", "Frost", "Thunderstorm", "Dawn", "AmberMoon"]
                     mutationTierOrder: ["Wet", "Chilled", "Frozen", "Thunderstruck", "Dawnlit", "Ambershine", "Dawncharged", "Ambercharged"]
+        '304':
+          description: Not modified (matched If-None-Match)
+          headers:
+            X-Game-Version:
+              $ref: '#/components/headers/GameVersion'
+
+  /data/art:
+    get:
+      tags:
+        - Data
+      summary: Art tables a mutation is placed and tinted with
+      description: |
+        Returns the game's own art tables for mutations, extracted from the bundle the way every other
+        `/data/*` body is: by shape, never by a minified name.
+
+        These tables are **not** in the data chunk. They live in the drawing controller
+        (`LayoutMotionController`), so they are absent from `/data`, `/data/plants` and `/data/mutations`,
+        and the API published them nowhere before this route. A composer that re-derives them drifts from
+        the game; publishing them is what keeps two renderers from disagreeing.
+
+        **What the body carries**
+
+        - `anchors` — per species, the fraction of the crop's art a mutation centres on (`x`, `y`, `scale`),
+          with per-part overrides (`plant`, `crop`) where the game states them. 22 species in 1176.
+        - `displayFlags` — keyed by **sprite path**, `isTallPlant` / `isNarrowDisplay`. 109 keys in 1176.
+          Every key is a frame the atlas serves.
+        - `scale` — `cap` (the fraction the scale is clamped to), `referenceTilePx` (the divisor), and
+          `tallDecalMultiplier` (the factor a tall plant's decal is drawn at).
+        - `overMutations` — the game's own over-set: these are drawn above the crop rather than stacked.
+        - `zOrder.iconZIndex` — the icon z ladder, read from the `zIndex=` literals the game writes in the
+          function that places mutation icons, with each literal's band read from what guards it.
+          `otherwise` is what a band that writes nothing keeps, which is the container's own order.
+        - `mutationArt` — per mutation: its position in the game's table (`order`, the stacking order), its
+          `tint` (`color` and `alpha`, read from the filter construction itself) or `material: true` when
+          that filter is a shader class that states no colour, and its icon/ground/overlay sprites.
+        - `mutationRecords` — per mutation: its public `name`, its `group`, and its sprite.
+        - `plants` / `harvestTypes` / `spriteNames` — the witnesses: the species table the anchors are checked
+          against, the harvest enum the placement function reads, and the name table every sprite reference
+          resolves through.
+        - `placement` — **the game's own placement function, verbatim**: `source`, the chunk-local
+          `declarations` it closes over, the `externals` it reads with the role the extractor resolved for
+          each, and `constants` (the tall aspect ratio and the default anchor fraction, which live in the
+          function and nowhere else). It is published so a client can **run** it instead of porting it.
+        - `evidence` — per table, the predicate that found it, the chunk and byte range it was read from, and
+          what it measured. A changed count is reviewable next to the range it came from.
+        - `source` — the game version and the chunks the tables were read from. `gameVersion` repeats the
+          value in `_meta` and in `X-Game-Version`, so a client can see what this body is stamped with.
+
+        **When the game moves, this route fails rather than publishing an old number.** Every table is
+        accepted only if its invariant holds against another table (every anchor key is a species, every
+        sprite path is an atlas frame, every mutation resolves to a tint or a material, the cap formula is
+        found exactly once). A build that moves one of those makes the extraction refuse, and the route
+        answers `500` whose body names the predicate that refused and what it saw (`[anchor-table] … vu : …`)
+        rather than serving numbers nothing confirms. `art` is deliberately outside the `/data` aggregate, so
+        that refusal is not folded into `/data`'s partial response or into the coverage list `/health`
+        reports: it is a property of this route, and the message is the report.
+
+        No CSV/TSV variant: this body is not a table of entities keyed by name, so there is nothing for the
+        delimited export to flatten into rows.
+      responses:
+        '200':
+          description: Art tables read from the game bundle
+          headers:
+            X-Game-Version:
+              $ref: '#/components/headers/GameVersion'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  _meta:
+                    $ref: '#/components/schemas/ResponseMeta'
+                  anchors:
+                    type: object
+                    description: 'species -> anchor override: a number, or per-part numbers under x/y/scale/plant/crop'
+                    additionalProperties: true
+                  displayFlags:
+                    type: object
+                    description: 'sprite path -> { isTallPlant, isNarrowDisplay }'
+                    additionalProperties:
+                      type: object
+                      properties:
+                        isTallPlant:
+                          type: boolean
+                        isNarrowDisplay:
+                          type: boolean
+                  scale:
+                    type: object
+                    properties:
+                      cap:
+                        type: number
+                      referenceTilePx:
+                        type: integer
+                      tallDecalMultiplier:
+                        type: number
+                  overMutations:
+                    type: array
+                    items:
+                      type: string
+                  zOrder:
+                    type: object
+                    properties:
+                      iconZIndex:
+                        type: object
+                        properties:
+                          tallPlant:
+                            type: number
+                          over:
+                            type: number
+                          otherwise:
+                            type: number
+                  mutationArt:
+                    type: object
+                    additionalProperties: true
+                  mutationRecords:
+                    type: object
+                    additionalProperties: true
+                  plants:
+                    type: object
+                    additionalProperties: true
+                  harvestTypes:
+                    type: object
+                    additionalProperties:
+                      type: string
+                  spriteNames:
+                    type: object
+                    description: 'category -> name -> sprite path, the game''s own nesting'
+                    additionalProperties: true
+                  placement:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                        nullable: true
+                      source:
+                        type: string
+                        description: the function's own text, byte for byte
+                      declarations:
+                        type: object
+                        additionalProperties:
+                          type: string
+                      externals:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            name:
+                              type: string
+                            role:
+                              type: string
+                              enum: [plants, harvestTypes, host, unresolved]
+                            from:
+                              type: string
+                              nullable: true
+                      constants:
+                        type: object
+                        properties:
+                          tallAspectRatio:
+                            type: number
+                          defaultAnchorYFraction:
+                            type: number
+                      characters:
+                        type: integer
+                  evidence:
+                    type: object
+                    additionalProperties: true
+                  source:
+                    type: object
+                    properties:
+                      gameVersion:
+                        type: string
+                        nullable: true
+                      bundleUrl:
+                        type: string
+                        nullable: true
+                      artChunkUrl:
+                        type: string
+                        nullable: true
+                      chunks:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            file:
+                              type: string
+                            bytes:
+                              type: integer
+              examples:
+                art:
+                  summary: Abbreviated payload
+                  value:
+                    scale:
+                      cap: 0.75
+                      referenceTilePx: 256
+                      tallDecalMultiplier: 2
+                    overMutations: ["Dawnlit", "Ambershine", "Dawncharged", "Ambercharged"]
+                    zOrder:
+                      iconZIndex:
+                        tallPlant: -1
+                        over: 10
+                        otherwise: 0
+                    anchors:
+                      Banana: { x: 0.6, y: 0.68 }
+                      Snowdrop: { x: 0.3, y: 0.23, scale: 0.5 }
+                      Carrot: { x: { crop: 0.5 }, y: { plant: 0.6, crop: 0.42 } }
+                    displayFlags:
+                      "sprite/plant/Cactus": { isTallPlant: true, isNarrowDisplay: false }
+                      "sprite/plant/BabyLeek": { isTallPlant: false, isNarrowDisplay: true }
+                    mutationArt:
+                      Gold: { order: 1, tint: null, material: true, iconSprite: null, groundSprite: null, overlaySprite: null, overlayFromBottom: false }
+                      Wet:
+                        order: 2
+                        tint: { color: "rgb(50, 180, 200)", alpha: 0.25 }
+                        material: false
+                        iconSprite: "sprite/mutation/Wet"
+                        groundSprite: "sprite/mutation/Puddle"
+                        overlaySprite: "sprite/mutation-overlay/WetTallPlant"
+                        overlayFromBottom: false
+                    placement:
+                      name: "Go"
+                      source: "function Go(e,t,n){…}"
+                      declarations:
+                        "Wo": "const Wo = .75;"
+                      externals:
+                        - { name: "U", role: "plants", from: "./quinoaPredictionAtoms-ptrrFeF6.js" }
+                        - { name: "H", role: "harvestTypes", from: "./quinoaPredictionAtoms-ptrrFeF6.js" }
+                        - { name: "Math", role: "host", from: null }
+                      constants:
+                        tallAspectRatio: 1.5
+                        defaultAnchorYFraction: 0.4
+                      characters: 923
+                    source:
+                      gameVersion: "1176"
+                      chunks:
+                        - { file: "quinoaPredictionAtoms-ptrrFeF6.js", bytes: 1014364 }
+                        - { file: "LayoutMotionController-CwhDlPns.js", bytes: 362649 }
         '304':
           description: Not modified (matched If-None-Match)
           headers:

@@ -1,0 +1,150 @@
+{
+  "gameVersion": "1176",
+  "source": "/home/james/Documents/dsh_workspaces/MG/mgafk-pi/json/bundle-1176-0",
+  "cuts": [
+    {
+      "chunk": "quinoaPredictionAtoms-ptrrFeF6.js",
+      "declaration": "E",
+      "what": "sprite-name table",
+      "start": 820107,
+      "end": 843858,
+      "bytes": 23751,
+      "sha256": "4672d9a85963a0d7"
+    },
+    {
+      "chunk": "quinoaPredictionAtoms-ptrrFeF6.js",
+      "declaration": "U",
+      "what": "mutation record table",
+      "start": 937741,
+      "end": 938793,
+      "bytes": 1052,
+      "sha256": "b160bf7f3a62d989"
+    },
+    {
+      "chunk": "quinoaPredictionAtoms-ptrrFeF6.js",
+      "declaration": "V",
+      "what": "plant table",
+      "start": 901973,
+      "end": 936353,
+      "bytes": 34380,
+      "sha256": "da94d7dd34641340"
+    },
+    {
+      "chunk": "quinoaPredictionAtoms-ptrrFeF6.js",
+      "declaration": "ri",
+      "what": "eggs table (signature du chunk de données)",
+      "start": 849511,
+      "end": 852133,
+      "bytes": 2622,
+      "sha256": "5374fd0a7dc8f1a3"
+    },
+    {
+      "chunk": "quinoaPredictionAtoms-ptrrFeF6.js",
+      "declaration": "B",
+      "what": "harvest-type enum",
+      "start": 901614,
+      "end": 901681,
+      "bytes": 67,
+      "sha256": "d31ff6d26402f67b"
+    },
+    {
+      "chunk": "quinoaPredictionAtoms-ptrrFeF6.js",
+      "declaration": "Pa",
+      "what": "harvest-type enum (with Patch)",
+      "start": 901682,
+      "end": 901766,
+      "bytes": 84,
+      "sha256": "91779375067fb700"
+    },
+    {
+      "chunk": "LayoutMotionController-CwhDlPns.js",
+      "declaration": "J",
+      "what": "the all-false display-flag default",
+      "start": 34033,
+      "end": 34074,
+      "bytes": 41,
+      "sha256": "dd3ee78ae847f3f2"
+    },
+    {
+      "chunk": "LayoutMotionController-CwhDlPns.js",
+      "declaration": "mo",
+      "what": "display-flag table",
+      "start": 34075,
+      "end": 37799,
+      "bytes": 3724,
+      "sha256": "f23bf6500015c470"
+    },
+    {
+      "chunk": "LayoutMotionController-CwhDlPns.js",
+      "declaration": "jo",
+      "what": "mutation art table",
+      "start": 41070,
+      "end": 42469,
+      "bytes": 1399,
+      "sha256": "d4798903cb9b7739"
+    },
+    {
+      "chunk": "LayoutMotionController-CwhDlPns.js",
+      "declaration": "Wo",
+      "what": "scale cap",
+      "start": 45115,
+      "end": 45121,
+      "bytes": 6,
+      "sha256": "2af88c722bc74230"
+    },
+    {
+      "chunk": "LayoutMotionController-CwhDlPns.js",
+      "declaration": "qo",
+      "what": "tall-decal multiplier",
+      "start": 45553,
+      "end": 45557,
+      "bytes": 4,
+      "sha256": "94a03de41af4609e"
+    },
+    {
+      "chunk": "LayoutMotionController-CwhDlPns.js",
+      "declaration": "Ko",
+      "what": "mutation over-set",
+      "start": 45483,
+      "end": 45552,
+      "bytes": 69,
+      "sha256": "eec080b429a535a9"
+    },
+    {
+      "chunk": "LayoutMotionController-CwhDlPns.js",
+      "declaration": "Uo",
+      "what": "anchor table",
+      "start": 44639,
+      "end": 45114,
+      "bytes": 475,
+      "sha256": "d804033c486c11ad"
+    },
+    {
+      "chunk": "LayoutMotionController-CwhDlPns.js",
+      "declaration": "Ho",
+      "what": "per-part override picker",
+      "start": 44575,
+      "end": 44639,
+      "bytes": 64,
+      "sha256": "4b6b754e22f4609a"
+    },
+    {
+      "chunk": "LayoutMotionController-CwhDlPns.js",
+      "declaration": "Jo",
+      "what": "the function that places mutation icons",
+      "start": 45558,
+      "end": 46212,
+      "bytes": 654,
+      "sha256": "038926f28d291349"
+    },
+    {
+      "chunk": "LayoutMotionController-CwhDlPns.js",
+      "declaration": "Go",
+      "what": "the placement function",
+      "start": 45122,
+      "end": 45483,
+      "bytes": 361,
+      "sha256": "8f4890908db2160f"
+    }
+  ]
+}
