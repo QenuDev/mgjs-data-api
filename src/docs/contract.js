@@ -14,6 +14,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import YAML from "yamljs";
 
+import { config } from "../config/index.js";
 import { getCacheStats, getCachedBundleVersion } from "../core/game/cache.js";
 import { getStoredVersionInfoCached } from "../core/game/versionStorage.js";
 
@@ -66,11 +67,36 @@ function withShopEnum(spec, shopTypes) {
 }
 
 /**
+ * La liste `servers` du document, dérivée de la configuration.
+ *
+ * Le document ne nomme plus l'hôte d'un déploiement : un fork se déploie sous
+ * son propre nom, et un client qui lit le contrat pour découvrir où appeler
+ * doit trouver l'adresse de *cette* instance. `API_PUBLIC_URL` la donne ;
+ * l'entrée localhost suit le port que le serveur écoute vraiment
+ * (`PORT`, défaut 3000), pas une constante recopiée.
+ */
+export function buildServers() {
+  const servers = [];
+
+  if (config.api.publicUrl) {
+    servers.push({ url: config.api.publicUrl, description: "Configured deployment" });
+  }
+
+  servers.push({
+    url: `http://localhost:${config.server.port}`,
+    description: "Local development server",
+  });
+
+  return servers;
+}
+
+/**
  * Le document tel qu'il est écrit, éventuellement avec l'enum `shop` rafraîchi.
  * Synchrone : c'est ce que le cache de `/docs/openapi.json` retient.
  */
 export function buildBaseOpenApiDocument({ shopTypes } = {}) {
   const spec = structuredClone(declared);
+  spec.servers = buildServers();
   if (shopTypes?.length) withShopEnum(spec, shopTypes);
   return spec;
 }

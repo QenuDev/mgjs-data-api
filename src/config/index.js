@@ -11,6 +11,13 @@ export const config = {
     host: process.env.HOST || "0.0.0.0",
   },
 
+  // URL publique de cette instance, telle qu'un client doit l'appeler. Elle
+  // n'a pas de défaut : le document OpenAPI ne nomme plus l'hôte d'un
+  // déploiement en particulier, il rapporte celui qui est configuré ici.
+  api: {
+    publicUrl: (process.env.API_PUBLIC_URL || "").trim().replace(/\/+$/, ""),
+  },
+
   // Cache
   cache: {
     bundleTTL: Number(process.env.CACHE_BUNDLE_TTL) || 5 * 60 * 1000, // 5 min

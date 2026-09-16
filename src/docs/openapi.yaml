@@ -16,19 +16,24 @@ info:
 
     ## Quick Start
 
+    The examples below are relative on purpose. This document describes the instance
+    that served it, and the base URL is the first entry of `servers` -- a fork is
+    deployed under its own name, so an example that named one deployment would send
+    every reader to that one.
+
     ### Get All Game Data
     ```bash
-    curl https://mg-api.ariedam.fr/data
+    curl "$API/data"
     ```
 
     ### Get Specific Plant
     ```bash
-    curl https://mg-api.ariedam.fr/data/plants | jq '.Carrot'
+    curl "$API/data/plants" | jq '.Carrot'
     ```
 
     ### Stream Live Updates
     ```javascript
-    const eventSource = new EventSource('https://mg-api.ariedam.fr/live/stream');
+    const eventSource = new EventSource(`${API}/live/stream`);
     eventSource.addEventListener('weather', (event) => {
       const data = JSON.parse(event.data);
       console.log('Weather:', data.weather);
@@ -109,11 +114,11 @@ x-mg-contract:
   artVersion: null
   generatedAt: null
 
-servers:
-  - url: https://mg-api.ariedam.fr
-    description: Production server
-  - url: http://localhost:3000
-    description: Local development server
+# Pas de bloc `servers` ici, volontairement : il est construit à chaque réponse
+# par `buildServers()` (`src/docs/contract.js`) depuis `API_PUBLIC_URL` et le
+# port que ce serveur écoute vraiment. Un fork se déploie sous son propre nom,
+# et un document qui nommerait l'hôte d'un déploiement en particulier enverrait
+# ses lecteurs ailleurs.
 
 tags:
   - name: Data
@@ -580,27 +585,27 @@ paths:
                         seed:
                           name: "Carrot Seed"
                           coinPrice: 10
-                          sprite: "https://mg-api.ariedam.fr/assets/sprites/seeds/Carrot.png"
+                          sprite: "/assets/sprites/seeds/Carrot.png"
                         plant:
                           name: "Carrot Plant"
                           harvestType: "Single"
-                          sprite: "https://mg-api.ariedam.fr/assets/sprites/plants/BabyCarrot.png"
+                          sprite: "/assets/sprites/plants/BabyCarrot.png"
                         crop:
                           name: "Carrot"
                           baseSellPrice: 20
-                          sprite: "https://mg-api.ariedam.fr/assets/sprites/plants/Carrot.png"
+                          sprite: "/assets/sprites/plants/Carrot.png"
                     pets:
                       Bunny:
                         name: "Bunny"
                         coinPrice: 500
                         ability: "HarvestBoost"
-                        sprite: "https://mg-api.ariedam.fr/assets/sprites/pets/Bunny.png"
+                        sprite: "/assets/sprites/pets/Bunny.png"
                     items:
                       WateringCan:
                         name: "Watering Can"
                         type: "tool"
                         coinPrice: 100
-                        sprite: "https://mg-api.ariedam.fr/assets/sprites/items/WateringCan.png"
+                        sprite: "/assets/sprites/items/WateringCan.png"
                     mutations: {}
                     eggs: {}
                     decor: {}
@@ -643,28 +648,28 @@ paths:
                       seed:
                         name: "Carrot Seed"
                         coinPrice: 10
-                        sprite: "https://mg-api.ariedam.fr/assets/sprites/seeds/Carrot.png"
+                        sprite: "/assets/sprites/seeds/Carrot.png"
                       plant:
                         name: "Carrot Plant"
                         harvestType: "Single"
-                        sprite: "https://mg-api.ariedam.fr/assets/sprites/plants/BabyCarrot.png"
+                        sprite: "/assets/sprites/plants/BabyCarrot.png"
                       crop:
                         name: "Carrot"
                         baseSellPrice: 20
-                        sprite: "https://mg-api.ariedam.fr/assets/sprites/plants/Carrot.png"
+                        sprite: "/assets/sprites/plants/Carrot.png"
                     Cabbage:
                       seed:
                         name: "Cabbage Seed"
                         coinPrice: 30
-                        sprite: "https://mg-api.ariedam.fr/assets/sprites/seeds/Cabbage.png"
+                        sprite: "/assets/sprites/seeds/Cabbage.png"
                       plant:
                         name: "Cabbage Plant"
                         harvestType: "Multiple"
-                        sprite: "https://mg-api.ariedam.fr/assets/sprites/plants/CabbagePlant.png"
+                        sprite: "/assets/sprites/plants/CabbagePlant.png"
                       crop:
                         name: "Cabbage"
                         baseSellPrice: 42
-                        sprite: "https://mg-api.ariedam.fr/assets/sprites/plants/Cabbage.png"
+                        sprite: "/assets/sprites/plants/Cabbage.png"
         '500':
           $ref: '#/components/responses/InternalError'
 
@@ -713,10 +718,10 @@ paths:
                       name: "Bunny"
                       coinPrice: 500
                       ability: "HarvestBoost"
-                      sprite: "https://mg-api.ariedam.fr/assets/sprites/pets/Bunny.png"
+                      sprite: "/assets/sprites/pets/Bunny.png"
                       animations:
                         idle:
-                          url: "https://mg-api.ariedam.fr/assets/animations/pets/Bunny_idle.webp?v=824"
+                          url: "/assets/animations/pets/Bunny_idle.webp?v=824"
                           format: "webp"
                           width: 198
                           height: 257
@@ -730,19 +735,19 @@ paths:
                       name: "Cat"
                       coinPrice: 750
                       ability: "LuckBoost"
-                      sprite: "https://mg-api.ariedam.fr/assets/sprites/pets/Cat.png"
+                      sprite: "/assets/sprites/pets/Cat.png"
                     Dog:
                       name: "Dog"
                       coinPrice: 600
                       ability: "FindTreasure"
-                      sprite: "https://mg-api.ariedam.fr/assets/sprites/pets/Dog.png"
+                      sprite: "/assets/sprites/pets/Dog.png"
                     Rooster:
                       name: "Rooster"
                       released: false
-                      sprite: "https://mg-api.ariedam.fr/assets/sprites/pets/Rooster.png?v=824"
+                      sprite: "/assets/sprites/pets/Rooster.png?v=824"
                       animations:
                         idle:
-                          url: "https://mg-api.ariedam.fr/assets/animations/pets/Rooster_idle.webp?v=824"
+                          url: "/assets/animations/pets/Rooster_idle.webp?v=824"
                           format: "webp"
                           timeline: "Pet_Idle"
                           width: 253
@@ -751,7 +756,7 @@ paths:
                           fps: 30
                           durationMs: 7000
                       rive:
-                        url: "https://mg-api.ariedam.fr/assets/proxy?url=https%3A%2F%2Fmagicgarden.gg%2Fruntime-assets%2Fpets.bfec8b856f6e2b0e4a83.riv"
+                        url: "/assets/proxy?url=https%3A%2F%2Fmagicgarden.gg%2Fruntime-assets%2Fpets.bfec8b856f6e2b0e4a83.riv"
                         origin: "https://magicgarden.gg/runtime-assets/pets.bfec8b856f6e2b0e4a83.riv"
                         artboard: "Rooster"
                         stateMachine: "Pet State Machine"
@@ -790,17 +795,17 @@ paths:
                       name: "Watering Can"
                       type: "tool"
                       coinPrice: 100
-                      sprite: "https://mg-api.ariedam.fr/assets/sprites/items/WateringCan.png"
+                      sprite: "/assets/sprites/items/WateringCan.png"
                     Fertilizer:
                       name: "Fertilizer"
                       type: "consumable"
                       coinPrice: 50
-                      sprite: "https://mg-api.ariedam.fr/assets/sprites/items/Fertilizer.png"
+                      sprite: "/assets/sprites/items/Fertilizer.png"
                     Pickaxe:
                       name: "Pickaxe"
                       type: "tool"
                       coinPrice: 200
-                      sprite: "https://mg-api.ariedam.fr/assets/sprites/items/Pickaxe.png"
+                      sprite: "/assets/sprites/items/Pickaxe.png"
 
   /data/decors:
     get:
@@ -850,7 +855,7 @@ paths:
                   summary: Example decorations
                   value:
                     SmallRock:
-                      sprite: "https://mg-api.ariedam.fr/assets/sprites/decor/SmallRock.png?v=1019"
+                      sprite: "/assets/sprites/decor/SmallRock.png?v=1019"
                       art: "sprite/decor/SmallRock"
                       name: "Small Garden Rock"
                       eligibleShops: ["Decor"]
@@ -859,14 +864,14 @@ paths:
                       rarity: "Common"
                       isOneTimePurchase: false
                     HayBale:
-                      sprite: "https://mg-api.ariedam.fr/assets/sprites/decor/HayBale.png?v=1019"
+                      sprite: "/assets/sprites/decor/HayBale.png?v=1019"
                       art: "sprite/decor/HayBale"
                       name: "Hay Bale"
                       coinPrice: 6000
                       rarity: "Common"
                       rotationVariants:
                         "90":
-                          sprite: "https://mg-api.ariedam.fr/assets/sprites/decor/HayBaleSideways.png?v=1019"
+                          sprite: "/assets/sprites/decor/HayBaleSideways.png?v=1019"
                           flipH: true
 
   /data/eggs:
@@ -904,12 +909,12 @@ paths:
                       name: "Bunny Egg"
                       coinPrice: 250
                       hatchesInto: "Bunny"
-                      sprite: "https://mg-api.ariedam.fr/assets/sprites/eggs/BunnyEgg.png"
+                      sprite: "/assets/sprites/eggs/BunnyEgg.png"
                     CatEgg:
                       name: "Cat Egg"
                       coinPrice: 375
                       hatchesInto: "Cat"
-                      sprite: "https://mg-api.ariedam.fr/assets/sprites/eggs/CatEgg.png"
+                      sprite: "/assets/sprites/eggs/CatEgg.png"
 
   /data/abilities:
     get:
@@ -1056,7 +1061,7 @@ paths:
                       baseChance: 0.01
                       coinMultiplier: 25
                       color: "rgb(235, 200, 0)"
-                      sprite: "https://mg-api.ariedam.fr/assets/sprites/ui/MutationGold.png"
+                      sprite: "/assets/sprites/ui/MutationGold.png"
                     Rainbow:
                       name: "Rainbow"
                       baseChance: 0.001
@@ -1073,13 +1078,13 @@ paths:
                             offset: 0.7142857142857143
                           - color: "#AE53B0"
                             offset: 1
-                      sprite: "https://mg-api.ariedam.fr/assets/sprites/ui/MutationRainbow.png"
+                      sprite: "/assets/sprites/ui/MutationRainbow.png"
                     Wet:
                       name: "Wet"
                       baseChance: 0
                       coinMultiplier: 2
                       color: "rgba(95, 255, 255, 1)"
-                      sprite: "https://mg-api.ariedam.fr/assets/sprites/mutations/Wet.png"
+                      sprite: "/assets/sprites/mutations/Wet.png"
 
   /data/weathers:
     get:
@@ -1118,10 +1123,10 @@ paths:
                       mutator:
                         mutation: "Wet"
                         chancePerMinutePerCrop: 7
-                      sprite: "https://mg-api.ariedam.fr/assets/sprites/ui/RainIcon.png"
+                      sprite: "/assets/sprites/ui/RainIcon.png"
                     Sunny:
                       name: "Sunny"
-                      sprite: "https://mg-api.ariedam.fr/assets/sprites/ui/SunnyIcon.png"
+                      sprite: "/assets/sprites/ui/SunnyIcon.png"
 
   /data/weather-groups:
     get:
@@ -1302,7 +1307,7 @@ paths:
         Arrays are serialized as JSON strings within cells.
         The combined `/data.csv` includes a `category` column.
 
-        **Google Sheets:** `=IMPORTDATA("https://mg-api.ariedam.fr/data/plants.csv")`
+        **Google Sheets:** `=IMPORTDATA("/data/plants.csv")`
 
         **Excel:** Data > From Web > paste the `.csv` URL
       responses:
@@ -1621,7 +1626,7 @@ paths:
                   baseUrl:
                     type: string
                     description: Base URL for the API
-                    example: "https://mg-api.ariedam.fr"
+                    example: ""
                   categories:
                     type: array
                     items:
@@ -1641,23 +1646,23 @@ paths:
                             example: "Carrot"
                           url:
                             type: string
-                            example: "https://mg-api.ariedam.fr/assets/sprites/seeds/Carrot.png?v=642"
+                            example: "/assets/sprites/seeds/Carrot.png?v=642"
               examples:
                 filtered:
                   summary: Filtered catalog (?search=carrot)
                   value:
                     count: 3
-                    baseUrl: "https://mg-api.ariedam.fr"
+                    baseUrl: ""
                     categories: ["animations", "decor", "items", "mutations", "objects", "pets", "plants", "seeds", "tallPlants", "tiles", "ui", "weather", "winter"]
                     sprites:
                       plants:
                         - name: "BabyCarrot"
-                          url: "https://mg-api.ariedam.fr/assets/sprites/plants/BabyCarrot.png?v=642"
+                          url: "/assets/sprites/plants/BabyCarrot.png?v=642"
                         - name: "Carrot"
-                          url: "https://mg-api.ariedam.fr/assets/sprites/plants/Carrot.png?v=642"
+                          url: "/assets/sprites/plants/Carrot.png?v=642"
                       seeds:
                         - name: "Carrot"
-                          url: "https://mg-api.ariedam.fr/assets/sprites/seeds/Carrot.png?v=642"
+                          url: "/assets/sprites/seeds/Carrot.png?v=642"
         '400':
           description: Unknown category in `cat`
           content:
@@ -1687,25 +1692,25 @@ paths:
 
         **HTML:**
         ```html
-        <img src="https://mg-api.ariedam.fr/assets/sprites/seeds/Carrot.png" alt="Carrot Seed">
+        <img src="/assets/sprites/seeds/Carrot.png" alt="Carrot Seed">
         ```
 
         **JavaScript:**
         ```javascript
-        const spriteUrl = 'https://mg-api.ariedam.fr/assets/sprites/seeds/Carrot.png';
+        const spriteUrl = '/assets/sprites/seeds/Carrot.png';
         const img = new Image();
         img.src = spriteUrl;
         ```
 
         **Download with cURL:**
         ```bash
-        curl https://mg-api.ariedam.fr/assets/sprites/seeds/Carrot.png -o carrot.png
+        curl /assets/sprites/seeds/Carrot.png -o carrot.png
         ```
 
         **Python:**
         ```python
         import requests
-        response = requests.get('https://mg-api.ariedam.fr/assets/sprites/seeds/Carrot.png')
+        response = requests.get('/assets/sprites/seeds/Carrot.png')
         with open('carrot.png', 'wb') as f:
             f.write(response.content)
         ```
@@ -1850,7 +1855,7 @@ paths:
                     example: 118
                   baseUrl:
                     type: string
-                    example: "https://mg-api.ariedam.fr"
+                    example: ""
                   categories:
                     type: array
                     items:
@@ -1888,7 +1893,7 @@ paths:
                   summary: One species (?name=Chicken)
                   value:
                     count: 4
-                    baseUrl: "https://mg-api.ariedam.fr"
+                    baseUrl: ""
                     categories: ["pets"]
                     formats: ["webp"]
                     sources:
@@ -1901,7 +1906,7 @@ paths:
                           name: "Chicken"
                           clip: "idle"
                           timeline: "Pet_Idle"
-                          url: "https://mg-api.ariedam.fr/assets/animations/pets/Chicken_idle.webp?v=824"
+                          url: "/assets/animations/pets/Chicken_idle.webp?v=824"
                           format: "webp"
                           width: 212
                           height: 257
@@ -1941,7 +1946,7 @@ paths:
 
         **HTML:**
         ```html
-        <img src="https://mg-api.ariedam.fr/assets/animations/pets/Chicken_idle.webp" alt="Chicken">
+        <img src="/assets/animations/pets/Chicken_idle.webp" alt="Chicken">
         ```
 
         The file loops forever on its own - no JavaScript, no Rive runtime.
@@ -2056,7 +2061,7 @@ paths:
                     example: 6
                   baseUrl:
                     type: string
-                    example: "https://mg-api.ariedam.fr"
+                    example: ""
                   generatedAt:
                     type: string
                     format: date-time
@@ -2070,14 +2075,14 @@ paths:
                   summary: Default view
                   value:
                     count: 6
-                    baseUrl: "https://mg-api.ariedam.fr"
+                    baseUrl: ""
                     generatedAt: "2026-08-04T18:25:17.004Z"
                     files:
                       pets:
                         key: "pets"
                         aliases: ["rive/pets.riv", "rive/pets"]
                         bundle: "default"
-                        url: "https://mg-api.ariedam.fr/assets/proxy?url=https%3A%2F%2Fmagicgarden.gg%2Fruntime-assets%2Fpets.bfec8b856f6e2b0e4a83.riv"
+                        url: "/assets/proxy?url=https%3A%2F%2Fmagicgarden.gg%2Fruntime-assets%2Fpets.bfec8b856f6e2b0e4a83.riv"
                         origin: "https://magicgarden.gg/runtime-assets/pets.bfec8b856f6e2b0e4a83.riv"
                         bytes: 3085491
                         loadable: true
@@ -2500,7 +2505,7 @@ paths:
 
         **JavaScript:**
         ```javascript
-        const eventSource = new EventSource('https://mg-api.ariedam.fr/live/stream');
+        const eventSource = new EventSource('/live/stream');
         eventSource.addEventListener('weather', (event) => {
           const data = JSON.parse(event.data);
           console.log('Weather:', data.weather);
@@ -2513,7 +2518,7 @@ paths:
 
         **cURL:**
         ```bash
-        curl -N https://mg-api.ariedam.fr/live/stream
+        curl -N /live/stream
         ```
       responses:
         '200':
@@ -2555,7 +2560,7 @@ paths:
 
         **JavaScript:**
         ```javascript
-        const eventSource = new EventSource('https://mg-api.ariedam.fr/live/weather/stream');
+        const eventSource = new EventSource('/live/weather/stream');
         eventSource.addEventListener('weather', (event) => {
           const data = JSON.parse(event.data);
           console.log('Weather changed to:', data.weather);
@@ -2564,13 +2569,13 @@ paths:
 
         **cURL:**
         ```bash
-        curl -N https://mg-api.ariedam.fr/live/weather/stream
+        curl -N /live/weather/stream
         ```
 
         **Python:**
         ```python
         import requests
-        response = requests.get('https://mg-api.ariedam.fr/live/weather/stream', stream=True)
+        response = requests.get('/live/weather/stream', stream=True)
         for line in response.iter_lines():
             if line.startswith(b'data:'):
                 print(line.decode())
@@ -2612,7 +2617,7 @@ paths:
 
         **JavaScript:**
         ```javascript
-        const eventSource = new EventSource('https://mg-api.ariedam.fr/live/shops/stream');
+        const eventSource = new EventSource('/live/shops/stream');
         eventSource.addEventListener('shops', (event) => {
           const shops = JSON.parse(event.data);
           console.log('Seed shop:', shops.seed);
@@ -2628,7 +2633,7 @@ paths:
           const [shops, setShops] = useState(null);
 
           useEffect(() => {
-            const eventSource = new EventSource('https://mg-api.ariedam.fr/live/shops/stream');
+            const eventSource = new EventSource('/live/shops/stream');
             eventSource.addEventListener('shops', (event) => {
               setShops(JSON.parse(event.data));
             });
@@ -2641,7 +2646,7 @@ paths:
 
         **cURL:**
         ```bash
-        curl -N https://mg-api.ariedam.fr/live/shops/stream
+        curl -N /live/shops/stream
         ```
       responses:
         '200':
@@ -3371,7 +3376,7 @@ components:
               type: string
               format: uri
               description: Absolute URL to seed sprite
-              example: "https://mg-api.ariedam.fr/assets/sprites/seeds/Carrot.png"
+              example: "/assets/sprites/seeds/Carrot.png"
         plant:
           type: object
           description: Growing plant stage information
@@ -3388,7 +3393,7 @@ components:
               type: string
               format: uri
               description: Absolute URL to plant sprite
-              example: "https://mg-api.ariedam.fr/assets/sprites/plants/BabyCarrot.png"
+              example: "/assets/sprites/plants/BabyCarrot.png"
         crop:
           type: object
           description: Harvested crop information
@@ -3404,7 +3409,7 @@ components:
               type: string
               format: uri
               description: Absolute URL to crop sprite
-              example: "https://mg-api.ariedam.fr/assets/sprites/plants/Carrot.png"
+              example: "/assets/sprites/plants/Carrot.png"
 
     PetData:
       type: object
@@ -3425,7 +3430,7 @@ components:
           type: string
           format: uri
           description: Absolute URL to pet sprite
-          example: "https://mg-api.ariedam.fr/assets/sprites/pets/Bunny.png"
+          example: "/assets/sprites/pets/Bunny.png"
         released:
           type: boolean
           description: |
@@ -3446,7 +3451,7 @@ components:
             $ref: '#/components/schemas/PetAnimationLink'
           example:
             idle:
-              url: "https://mg-api.ariedam.fr/assets/animations/pets/Bunny_idle.webp?v=824"
+              url: "/assets/animations/pets/Bunny_idle.webp?v=824"
               format: "webp"
               width: 198
               height: 257
@@ -3586,7 +3591,7 @@ components:
           description: |
             Fetchable from a browser - it goes through `/assets/proxy`, which
             adds the CORS headers magicgarden.gg does not send.
-          example: "https://mg-api.ariedam.fr/assets/proxy?url=https%3A%2F%2Fmagicgarden.gg%2Fruntime-assets%2Fpets.bfec8b856f6e2b0e4a83.riv"
+          example: "/assets/proxy?url=https%3A%2F%2Fmagicgarden.gg%2Fruntime-assets%2Fpets.bfec8b856f6e2b0e4a83.riv"
         origin:
           type: string
           format: uri
@@ -3609,7 +3614,7 @@ components:
           type: string
           format: uri
           description: The animation link, in the primary format (WebP by default)
-          example: "https://mg-api.ariedam.fr/assets/animations/pets/Chicken_idle.webp?v=824"
+          example: "/assets/animations/pets/Chicken_idle.webp?v=824"
         format:
           type: string
           description: Format `url` points to
@@ -3673,7 +3678,7 @@ components:
         url:
           type: string
           format: uri
-          example: "https://mg-api.ariedam.fr/assets/animations/pets/Chicken_idle.webp?v=824"
+          example: "/assets/animations/pets/Chicken_idle.webp?v=824"
         format:
           type: string
           description: Format `url` points to
@@ -3732,7 +3737,7 @@ components:
           type: string
           format: uri
           description: Absolute URL to item sprite
-          example: "https://mg-api.ariedam.fr/assets/sprites/items/WateringCan.png"
+          example: "/assets/sprites/items/WateringCan.png"
 
     HealthStatus:
       type: object
