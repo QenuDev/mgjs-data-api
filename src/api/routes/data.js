@@ -4,7 +4,6 @@ import express from "express";
 import { asyncHandler } from "../middleware/index.js";
 import { gameDataService } from "../../services/index.js";
 import { getCacheStats } from "../../core/game/cache.js";
-import { getStoredVersionCached } from "../../core/game/versionStorage.js";
 import { CONTRACT_VERSION, getBuildInfo } from "../../docs/contract.js";
 import { ENGINE_SIGNATURE, eraAt } from "../../core/weather/index.js";
 import { logger } from "../../logger/index.js";
@@ -29,6 +28,28 @@ export const dataRouter = express.Router();
 // =====================
 
 const DATA_CACHE_CONTROL = "public, max-age=300, stale-while-revalidate=60";
+
+/**
+ * La version de jeu d'une réponse : celle du bundle dont le corps est extrait,
+ * et à défaut celle de l'enregistrement de build (`data/version.json`).
+ *
+ * Une seule valeur par réponse, lue une fois, et c'est la même qui part dans le
+ * `?v=` des sprites et dans l'ETag. Avant, le `?v=` venait de l'enregistrement
+ * de build (`getStoredVersionCached()`) pendant que le corps était extrait du
+ * bundle en cache, qui se rafraîchit de son côté : mesuré en direct, `/health`
+ * publiait le bundle en **1191** pendant que `/data/*` portait `?v=1190` dans
+ * la même fenêtre, et rien dans la réponse ne disait laquelle des deux la
+ * décrire.
+ *
+ * `getBuildInfo()` est la même dérivation que `/data/version` et `/schema.json`,
+ * et le cache du bundle ne dépasse plus la version enregistrée par la synchro
+ * (voir `heldBundleVersion`), donc les deux sources coïncident : le corps, son
+ * `?v=` et `/health` annoncent la même version.
+ */
+async function getGameVersion() {
+  const { gameVersion } = await getBuildInfo();
+  return gameVersion;
+}
 
 /**
  * Les capacités n'ont pas de transformer à elles, mais elles portent bien des
@@ -194,7 +215,7 @@ function setDataCacheHeaders(res, key, spriteVersion) {
 dataRouter.get(
   "/",
   asyncHandler(async (req, res) => {
-    const spriteVersion = await getStoredVersionCached();
+    const spriteVersion = await getGameVersion();
 
     const data = await getAllData(spriteVersion);
 
@@ -235,7 +256,7 @@ dataRouter.get(
 dataRouter.get(
   "/plants",
   asyncHandler(async (req, res) => {
-    const spriteVersion = await getStoredVersionCached();
+    const spriteVersion = await getGameVersion();
 
     const data = await getOrBuildCached("plants", spriteVersion, () =>
       getTransformedPlants({ spriteVersion })
@@ -248,7 +269,7 @@ dataRouter.get(
 dataRouter.get(
   "/pets",
   asyncHandler(async (req, res) => {
-    const spriteVersion = await getStoredVersionCached();
+    const spriteVersion = await getGameVersion();
     if (maybeNotModified(req, res, "pets", spriteVersion)) return;
 
     const transformed = await getOrBuildCached("pets", spriteVersion, () =>
@@ -262,7 +283,7 @@ dataRouter.get(
 dataRouter.get(
   "/items",
   asyncHandler(async (req, res) => {
-    const spriteVersion = await getStoredVersionCached();
+    const spriteVersion = await getGameVersion();
     if (maybeNotModified(req, res, "items", spriteVersion)) return;
 
     const transformed = await getOrBuildCached("items", spriteVersion, () =>
@@ -278,7 +299,7 @@ dataRouter.get(
 dataRouter.get(
   "/decors",
   asyncHandler(async (req, res) => {
-    const spriteVersion = await getStoredVersionCached();
+    const spriteVersion = await getGameVersion();
     if (maybeNotModified(req, res, "decor", spriteVersion)) return;
 
     const transformed = await getOrBuildCached("decor", spriteVersion, () =>
@@ -292,7 +313,7 @@ dataRouter.get(
 dataRouter.get(
   "/eggs",
   asyncHandler(async (req, res) => {
-    const spriteVersion = await getStoredVersionCached();
+    const spriteVersion = await getGameVersion();
     if (maybeNotModified(req, res, "eggs", spriteVersion)) return;
 
     const transformed = await getOrBuildCached("eggs", spriteVersion, () =>
@@ -308,7 +329,7 @@ dataRouter.get(
 dataRouter.get(
   "/abilities",
   asyncHandler(async (req, res) => {
-    const spriteVersion = await getStoredVersionCached();
+    const spriteVersion = await getGameVersion();
     if (maybeNotModified(req, res, "abilities", spriteVersion)) return;
 
     const data = await getOrBuildCached(
@@ -324,7 +345,7 @@ dataRouter.get(
 dataRouter.get(
   "/mutations",
   asyncHandler(async (req, res) => {
-    const spriteVersion = await getStoredVersionCached();
+    const spriteVersion = await getGameVersion();
     if (maybeNotModified(req, res, "mutations", spriteVersion)) return;
 
     const transformed = await getOrBuildCached("mutations", spriteVersion, () =>
@@ -340,7 +361,7 @@ dataRouter.get(
 dataRouter.get(
   "/weathers",
   asyncHandler(async (req, res) => {
-    const spriteVersion = await getStoredVersionCached();
+    const spriteVersion = await getGameVersion();
     if (maybeNotModified(req, res, "weathers", spriteVersion)) return;
 
     const transformed = await getOrBuildCached("weathers", spriteVersion, () =>
@@ -356,7 +377,7 @@ dataRouter.get(
 dataRouter.get(
   "/weather-groups",
   asyncHandler(async (req, res) => {
-    const spriteVersion = await getStoredVersionCached();
+    const spriteVersion = await getGameVersion();
     if (maybeNotModified(req, res, "weatherGroups", spriteVersion)) return;
 
     const data = await getOrBuildCached("weatherGroups", spriteVersion, () =>
@@ -370,7 +391,7 @@ dataRouter.get(
 dataRouter.get(
   "/enums",
   asyncHandler(async (req, res) => {
-    const spriteVersion = await getStoredVersionCached();
+    const spriteVersion = await getGameVersion();
     if (maybeNotModified(req, res, "enums", spriteVersion)) return;
 
     const data = await getOrBuildCached("enums", spriteVersion, () =>
@@ -454,7 +475,7 @@ function withEnrichedPlants(data) {
 function makeRootHandler(fmt) {
   const { convertCombined, send } = FORMAT_CONFIG[fmt];
   return asyncHandler(async (_req, res) => {
-    const spriteVersion = await getStoredVersionCached();
+    const spriteVersion = await getGameVersion();
     const data = await getAllData(spriteVersion);
     setDataCacheHeaders(res, "all", spriteVersion);
     send(res, convertCombined(withEnrichedPlants(data)), `data.${fmt}`);
@@ -472,7 +493,7 @@ for (const fmt of ["csv", "tsv"]) {
     dataRouter.get(
       `/${routeName}.${fmt}`,
       asyncHandler(async (_req, res) => {
-        const spriteVersion = await getStoredVersionCached();
+        const spriteVersion = await getGameVersion();
         let data = await getOrBuildCached(cacheKey, spriteVersion, () => builder(spriteVersion));
         if (cacheKey === "plants") data = enrichPlantsWithPurchasable(data);
         setDataCacheHeaders(res, cacheKey, spriteVersion);

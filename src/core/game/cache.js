@@ -6,6 +6,7 @@ import { fetchMainBundle } from "./bundle/resolver.js";
 import { clearEnumCaches } from "./bundle/sandbox.js";
 import { clearSpriteMappingCache } from "./bundle/spriteMapping.js";
 import { fetchGameVersion } from "./version.js";
+import { getStoredVersionCached } from "./versionStorage.js";
 
 /**
  * Cache pour le bundle et les catégories extraites.
@@ -22,6 +23,80 @@ const cache = {
 };
 
 /**
+ * Ce qu'un appelant reçoit du bundle : une copie des références en cache, jamais
+ * le cache lui-même.
+ */
+function bundleSnapshot() {
+  return {
+    mainUrl: cache.mainUrl,
+    mainJs: cache.mainJs,
+    indexJs: cache.indexJs,
+    uiColorsSources: cache.uiColorsSources,
+    abilityTextSource: cache.abilityTextSource,
+  };
+}
+
+/**
+ * La version dont on garde le bundle alors que le jeu a déjà bougé.
+ *
+ * `data/version.json` est la référence : c'est la version dont les sprites et
+ * les atlas sur disque ont été produits, donc celle que les `?v=` des réponses
+ * publient. Ces fichiers sont servis `immutable` pendant un an (nginx,
+ * `Cache-Control: public, max-age=31536000, immutable`) : un `?v=` qui change
+ * alors que les octets ne changent pas — ou l'inverse — est un cache
+ * empoisonné, pas un détail cosmétique.
+ *
+ * L'écart mesuré : `/health` publiait `cache.bundleUrl` en version **1191**
+ * pendant que `/data/*` portait `?v=1190`, parce que le bundle se rafraîchit
+ * tout seul (TTL de 5 min) pendant que la synchro des sprites, elle, tourne
+ * encore. Tant que cette synchro doit rattraper la nouvelle version, on sert
+ * donc le bundle de la version enregistrée : `/health`, `/data/*` et les `?v=`
+ * annoncent alors la même version, et c'est celle dont le corps a réellement
+ * été extrait.
+ *
+ * Le verrou ne s'applique pas quand le watcher est coupé : personne ne
+ * rattrapera l'enregistrement, et figer la donnée sur une version que rien ne
+ * vient mettre à jour serait pire que l'écart.
+ *
+ * @param {string} latestVersion - version que le jeu annonce à l'instant
+ * @param {string|null} storedVersion - version de l'enregistrement de build
+ * @returns {string|null} la version à continuer de servir, ou null pour suivre
+ *   `latestVersion`.
+ */
+export function heldBundleVersion(latestVersion, storedVersion) {
+  if (!config.versionWatch.enabled) return null;
+  if (!storedVersion || storedVersion === latestVersion) return null;
+  return storedVersion;
+}
+
+/**
+ * Récupère le bundle d'une version donnée, et retombe sur la dernière version
+ * du jeu si l'amont ne sert plus celle qu'on voulait.
+ *
+ * Une version retirée en amont est le seul cas où une réponse peut encore
+ * mélanger deux versions : la donnée vient alors de `latestVersion` pendant que
+ * les sprites sur disque sont ceux de l'enregistrement. C'est signalé, et
+ * `/data/version` publie les deux (`gameVersion` et `artVersion`), donc l'écart
+ * est visible au lieu d'être silencieux.
+ */
+async function fetchBundleFor(servedVersion, latestVersion) {
+  const pageUrl = `${config.game.origin}/version/${servedVersion}/index.html`;
+
+  try {
+    return await fetchMainBundle(pageUrl);
+  } catch (err) {
+    if (servedVersion === latestVersion) throw err;
+
+    logger.error(
+      { err: err?.message || String(err), servedVersion, latestVersion },
+      "The built version is no longer served upstream, falling back to the latest bundle (art and data versions will differ)"
+    );
+
+    return fetchMainBundle(`${config.game.origin}/version/${latestVersion}/index.html`);
+  }
+}
+
+/**
  * Récupère le bundle main.js avec cache.
  */
 export async function getMainBundle() {
@@ -29,7 +104,7 @@ export async function getMainBundle() {
   const expired = !cache.mainJs || now - cache.fetchedAt > config.cache.bundleTTL;
 
   if (!expired) {
-    return { mainUrl: cache.mainUrl, mainJs: cache.mainJs, indexJs: cache.indexJs, uiColorsSources: cache.uiColorsSources, abilityTextSource: cache.abilityTextSource };
+    return bundleSnapshot();
   }
 
   // Évite les requêtes concurrentes
@@ -39,9 +114,23 @@ export async function getMainBundle() {
 
   cache.pending = (async () => {
     try {
-      const version = await fetchGameVersion();
-      const pageUrl = `${config.game.origin}/version/${version}/index.html`;
-      const { mainUrl, mainJs, indexJs, uiColorsSources, abilityTextSource } = await fetchMainBundle(pageUrl);
+      const latestVersion = await fetchGameVersion();
+      const storedVersion = await getStoredVersionCached().catch(() => null);
+      const heldVersion = heldBundleVersion(latestVersion, storedVersion);
+
+      // Le bundle de la version servie est déjà en cache : y rester tant que la
+      // synchro n'a pas enregistré la nouvelle version.
+      if (heldVersion && getCachedBundleVersion() === heldVersion) {
+        logger.warn(
+          { latestVersion, servedVersion: heldVersion },
+          "Game version moved ahead of the sprites built on disk, still serving the built version"
+        );
+        cache.fetchedAt = Date.now();
+        return bundleSnapshot();
+      }
+
+      const { mainUrl, mainJs, indexJs, uiColorsSources, abilityTextSource } =
+        await fetchBundleFor(heldVersion ?? latestVersion, latestVersion);
 
       // Si la version a changé, flush les caches
       if (cache.mainUrl && cache.mainUrl !== mainUrl) {
@@ -58,7 +147,7 @@ export async function getMainBundle() {
       cache.abilityTextSource = abilityTextSource;
       cache.fetchedAt = Date.now();
 
-      return { mainUrl, mainJs, indexJs, uiColorsSources, abilityTextSource };
+      return bundleSnapshot();
     } finally {
       cache.pending = null;
     }
