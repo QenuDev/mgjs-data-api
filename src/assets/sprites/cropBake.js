@@ -52,6 +52,22 @@ import { initSprites, lookupSprite } from "./sprites.js";
 /** The manifest's own shape version, so a consumer can refuse one it does not know. */
 export const BAKE_FORMAT = "mg-crop-bake/1";
 
+/**
+ * The shape of the *pictures*, as a path segment: `<root>/<layout>/<game-version>/crops/…`.
+ *
+ * Bump this whenever a baked picture's geometry or the manifest's shape changes, and bump
+ * `BAKE_FORMAT` with it. The tree is namespaced by it so a tree baked under an older shape is
+ * never *reused and never served*: `readPublishedManifest` refuses a manifest whose layout is
+ * not this one, which makes the host compose — correct pictures — until the re-bake publishes,
+ * and makes the re-bake render everything instead of resuming an old tree's files.
+ *
+ * This is what keeps the box convention a one-edit change. The game version alone is not
+ * enough: a change to the composer (plan item 24 corrects the box from the clamped crop frame
+ * to the union of the art and its layers) changes every picture while the game version stays
+ * put, and reusing those files would serve the old geometry under the new boxes.
+ */
+export const BAKE_LAYOUT = "v1";
+
 /** True when the operator asked for a bake (`BAKE=1`). */
 export function isBakeEnabled() {
   return config.bake.enabled === true;
@@ -155,7 +171,7 @@ function safeSegment(name) {
  */
 function relativePicture(version, species, canonical) {
   const file = canonical ? `${safeSegment(canonical.split("+").join("_"))}.png` : "bare.png";
-  return [String(version), "crops", safeSegment(species), file].join("/");
+  return [BAKE_LAYOUT, String(version), "crops", safeSegment(species), file].join("/");
 }
 
 function picturePath(root, relative) {
@@ -174,8 +190,11 @@ export function clearBakeCache() {
 }
 
 /**
- * The published manifest, or null when there is none — or when the one on disk does not
- * parse, because advertising a torn document is worse than advertising nothing.
+ * The published manifest, or null when there is none.
+ *
+ * Null too when the one on disk does not parse, or when it was baked under a different
+ * `BAKE_LAYOUT`: a torn document is worse than nothing, and a tree whose pictures have the
+ * old shape must never be served (nor resumed) as if it were this one's.
  */
 export async function readPublishedManifest({ root } = {}) {
   const dir = root ? path.resolve(root) : bakeRoot();
@@ -200,7 +219,15 @@ export async function readPublishedManifest({ root } = {}) {
 
   let value = null;
   try {
-    value = JSON.parse(await fs.readFile(file, "utf8"));
+    const parsed = JSON.parse(await fs.readFile(file, "utf8"));
+    if (parsed?.layout === BAKE_LAYOUT) {
+      value = parsed;
+    } else {
+      logger.warn(
+        { file, layout: parsed?.layout ?? null, wanted: BAKE_LAYOUT },
+        "Bake manifest is for another picture layout, refusing it",
+      );
+    }
   } catch (err) {
     logger.error({ error: err?.message || String(err), file }, "Bake manifest is unreadable");
   }
@@ -372,7 +399,8 @@ async function existingPicture(file) {
  *
  * Flag-gated: with `BAKE=1` unset this returns `{ skipped: true, reason: "disabled" }`
  * without reading, writing or composing anything. It is resumable — a run killed partway
- * leaves its pictures in `<root>/<version>/` and the retry reuses every one that decodes —
+ * leaves its pictures in `<root>/<layout>/<version>/` and the retry reuses every one that
+ * decodes —
  * and it publishes only after the last picture is on disk.
  *
  * `compose` is injectable; the default is the real composer, imported lazily so this module
@@ -422,6 +450,7 @@ export async function bakeCrops({
 
   const manifest = {
     format: BAKE_FORMAT,
+    layout: BAKE_LAYOUT,
     gameVersion: version,
     generatedAt: null, // set once the pictures exist, immediately before the swap
     mutationGroups: Object.fromEntries(groups),
@@ -492,8 +521,9 @@ export async function bakeCrops({
 
   const summary = {
     gameVersion: version,
+    layout: BAKE_LAYOUT,
     root: dir,
-    dir: path.join(dir, version),
+    dir: path.join(dir, BAKE_LAYOUT, version),
     cropTypes: cropTypes.length,
     setsPerCropType: sets.length,
     pictures: manifest.pictures,
@@ -522,7 +552,7 @@ export async function bakeCrops({
 }
 
 async function writeVersionManifest(root, version, manifest) {
-  const versionDir = path.join(root, String(version));
+  const versionDir = path.join(root, BAKE_LAYOUT, String(version));
   await fs.mkdir(versionDir, { recursive: true });
   const temp = path.join(versionDir, ".manifest.json.tmp");
   await fs.writeFile(temp, JSON.stringify(manifest) + "\n");

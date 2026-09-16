@@ -81,6 +81,7 @@ const { composeSpriteWithBox, resolveComposedSprite, clearComposedCache } = awai
 const { composedRouter } = await import("../src/api/routes/composed.js");
 const {
   bakeCrops,
+  BAKE_LAYOUT,
   canonicalSet,
   clearBakeCache,
   enumerateCropTypes,
@@ -344,7 +345,11 @@ describe("the crop bake", () => {
       assert.equal(Object.keys(entry.sets).length, 90, `${species}: not 90 sets`);
 
       for (const [slug, picture] of Object.entries(entry.sets)) {
-        assert.match(picture.file, /^1192\/crops\/.+\/.+\.png$/, `${species} "${slug}" path`);
+        assert.match(
+          picture.file,
+          new RegExp(`^${BAKE_LAYOUT}/1192/crops/.+/.+\\.png$`),
+          `${species} "${slug}" path`,
+        );
         // No geometry in the manifest: the box convention is under correction and a box
         // written under today's composer would freeze the degenerate `0,0,width,height` for
         // every picture. Item 24 adds the union box and the art's rectangle, in one place.
@@ -362,7 +367,7 @@ describe("the crop bake", () => {
     }
 
     assert.equal(summary.bytes, bytesOnDisk, "the reported total is what is on disk");
-    assert.equal(await countFiles(path.join(root, "1192", "crops")), 180);
+    assert.equal(await countFiles(path.join(root, BAKE_LAYOUT, "1192", "crops")), 180);
 
     // The picture really is the crop (measured on the file, not trusted from the manifest):
     // it holds at least the crop's own art. Asserted as "at least", not "equal to", because
@@ -524,10 +529,10 @@ describe("the crop bake", () => {
     const spy = makeComposer({ pauseAt: 20, gate });
     const running = bakeCrops({ gameVersion: "1192", compose: spy.compose });
 
-    await until(async () => (await countFiles(path.join(root, "1192", "crops"))) >= 20);
+    await until(async () => (await countFiles(path.join(root, BAKE_LAYOUT, "1192", "crops"))) >= 20);
 
     // Half the pictures exist, and nothing advertises them: neither a manifest nor a hit.
-    assert.equal(await countFiles(path.join(root, "1192", "crops")), 20);
+    assert.equal(await countFiles(path.join(root, BAKE_LAYOUT, "1192", "crops")), 20);
     assert.equal(await readPublishedManifest(), null, "a half-baked version was advertised");
     assert.equal(await lookupBaked(artOf(PINNED.single), ["Wet"]), null);
     assert.equal(existsSync(path.join(root, "manifest.json")), false);
@@ -570,7 +575,7 @@ describe("the crop bake", () => {
     }
     // The previous version still answers, and the partial run is on disk for the retry.
     assert.ok(await lookupBaked(artOf(PINNED.single), ["Wet"]));
-    assert.equal(await countFiles(path.join(root, "1193", "crops")), 20);
+    assert.equal(await countFiles(path.join(root, BAKE_LAYOUT, "1193", "crops")), 20);
 
     // The retry renders only what is missing.
     const retry = makeComposer();
@@ -616,6 +621,45 @@ describe("the crop bake", () => {
     const third = await bakeCrops({ gameVersion: "1193", compose: spy.compose });
     assert.equal(third.pictures, 18);
     assert.equal((await readPublishedManifest()).gameVersion, "1193");
+  });
+
+  it("refuses a manifest whose pictures have another shape, and re-bakes instead of resuming it", async () => {
+    const root = await freshRoot();
+    config.bake.enabled = true;
+    config.bake.dir = root;
+    gameDataService.getPlants = async () => pick(PLANTS, [PINNED.single]);
+    gameDataService.getMutations = async () => onlyGroups(["Growth", "Hydro"]);
+
+    const art = artOf(PINNED.single);
+    const stale = {
+      format: "mg-crop-bake/0",
+      layout: "v0", // an older picture shape, e.g. before the box convention was corrected
+      gameVersion: "1192",
+      generatedAt: "2020-01-01T00:00:00.000Z",
+      pictures: 1,
+      bytes: 1,
+      crops: { [PINNED.single]: { art, sets: { "": { file: "v0/1192/crops/x/bare.png", bytes: 1 } } } },
+    };
+    await publishManifest(stale, { root });
+
+    // Not served: a picture baked under another shape must not answer as if it were this one.
+    assert.equal(await readPublishedManifest(), null, "an old-layout manifest was accepted");
+    assert.equal(await lookupBaked(art, []), null, "an old-layout picture was served");
+
+    // Not resumed either: the whole space is rendered into this layout's own tree.
+    const spy = makeComposer();
+    const summary = await bakeCrops({ gameVersion: "1192", compose: spy.compose });
+    assert.equal(summary.layout, BAKE_LAYOUT);
+    assert.equal(summary.rendered, 18, "the old tree's files were reused");
+    assert.equal(summary.resumed, 0);
+    assert.equal(spy.count(), 18);
+
+    const manifest = await readPublishedManifest();
+    assert.equal(manifest.layout, BAKE_LAYOUT);
+    for (const picture of Object.values(manifest.crops[PINNED.single].sets)) {
+      assert.ok(picture.file.startsWith(`${BAKE_LAYOUT}/1192/`), picture.file);
+    }
+    assert.ok(await lookupBaked(art, ["Wet"]), "the re-baked picture is not served");
   });
 
   it("publishes nothing when there is nothing to bake", async () => {
@@ -687,7 +731,7 @@ describe("the crop bake", () => {
     assert.equal(summary.cropTypes, 69);
     assert.equal(summary.setsPerCropType, 90);
     assert.equal(summary.pictures, 6210);
-    assert.equal(await countFiles(path.join(root, "1192", "crops")), 6210);
+    assert.equal(await countFiles(path.join(root, BAKE_LAYOUT, "1192", "crops")), 6210);
     assert.equal((await readPublishedManifest()).pictures, 6210);
   });
 });
