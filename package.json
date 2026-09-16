@@ -19,9 +19,10 @@
   "license": "ISC",
   "type": "module",
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=22.0.0"
   },
   "dependencies": {
+    "@mg.js/art": "^0.1.4",
     "@napi-rs/canvas": "^1.0.3",
     "@rive-app/canvas-advanced-single": "^2.39.1",
     "better-sqlite3": "^12.10.0",
