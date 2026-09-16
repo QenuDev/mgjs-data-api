@@ -176,10 +176,13 @@ const outDir = explicitOut ?? `tests/fixtures/art/bundle-${gameVersion}`;
  * de travail), donc le chemin enregistré est celui du dossier de capture tel
  * qu'on le nomme, pas un `../../` qui ne se lirait que d'ici.
  */
-const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const captureRoot = path.resolve(captureDir);
-const source = path.relative(repoRoot, captureRoot).split(path.sep).join("/");
+// Le chemin enregistré est celui que la spécification nomme, pas un chemin relatif calculé depuis l'endroit
+// où ce script tourne : `path.relative(repoRoot, …)` donnait `../` depuis le dépôt et `../../` depuis un
+// worktree, donc le fichier commité changeait selon qui l'avait régénéré en dernier, et une simple exécution
+// des tests laissait l'arbre sale. La valeur ci-dessous est la même partout.
 const captureName = spec.capture;
+const source = captureName;
 
 /** L'index du caractère qui referme le bloc ouvert à `start`, quotes sautées. */
 function balanced(text, start, open, close) {
