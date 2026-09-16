@@ -186,6 +186,20 @@ export const config = {
     dir: (process.env.BAKE_DIR || "").trim() || null,
   },
 
+  // Le composeur de scènes (`POST /compose`, plan §3.2). Le cache est adressé par le
+  // contenu de la spec normalisée : deux specs identiques composent une fois, et
+  // `GET /compose/<clé>.png` sert le fichier. Le plafond est un nombre de scènes, évincé
+  // LRU, donc le disque ne grandit pas sans borne.
+  compose: {
+    // Racine des scènes composées. Vide => `<SPRITES_EXPORT_DIR>/compose`, pour qu'un
+    // opérateur n'ait qu'un volume à persister, comme le bake.
+    dir: (process.env.COMPOSE_CACHE_DIR || "").trim() || null,
+    // Nombre de scènes gardées sur disque. Une scène pèse quelques dizaines de
+    // kilo-octets ; 256 est la borne que le contrat donne au nombre d'items, pas un
+    // volume mesuré.
+    maxEntries: Number(process.env.COMPOSE_CACHE_MAX) || 256,
+  },
+
   // Animations de pets (boucles WebP/GIF rendues depuis rive/pets.riv).
   // Ces fichiers pèsent ~1 Mo par espèce et coûtent quelques minutes de CPU à
   // (re)générer : c'est un travail de fond, déclenché quand le .riv change.

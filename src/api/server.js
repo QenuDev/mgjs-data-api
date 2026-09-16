@@ -17,7 +17,7 @@ import {
   dataRouter, dataCsvRootHandler, dataTsvRootHandler,
   liveRouter, liveCsvRootHandler, liveTsvRootHandler,
   healthRouter, docsRouter, schemaRouter, assetsRouter, statsRouter,
-  weatherStationRouter,
+  weatherStationRouter, composeRouter,
 } from "./routes/index.js";
 
 /**
@@ -79,6 +79,9 @@ export function createApp() {
 
   // Assets routes (cosmetics, audios, etc.)
   app.use("/assets", assetsRouter);
+
+  // Le composeur de scènes : une scène en entrée, une image et sa disposition en sortie.
+  app.use("/compose", composeRouter);
 
   // Stats routes (aggregated history)
   app.use("/stats", statsRouter);

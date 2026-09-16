@@ -9,3 +9,4 @@ export { spritesRouter } from "./sprites.js";
 export { assetsRouter } from "./assets.js";
 export { statsRouter } from "./stats.js";
 export { weatherStationRouter } from "./weatherStation.js";
+export { composeRouter } from "./compose.js";
