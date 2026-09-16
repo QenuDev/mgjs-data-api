@@ -10,8 +10,10 @@
 // construction de filtre qui les porte, et la fonction de placement par
 // l'arithmétique que les tables publiées impliquent — exécutée, pas relue.
 //
-// Hors ligne : les tables viennent du découpage 1176 sous
-// `tests/fixtures/art/`, les frames des atlas 1192 déjà figés. Aucun réseau.
+// Hors ligne : les tables viennent des découpages de `tests/fixtures/art/`,
+// **toutes versions confondues** — une seule laissait la suite verte contre 1176
+// pendant que l'API servait 1192 —, et les frames des atlas 1192 déjà figés.
+// Aucun réseau.
 
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -28,35 +30,44 @@ import {
 import { projectChunk, tokenize } from "../src/core/game/art/shapes.js";
 import { portedPlacement } from "./helpers/art-invariants.js";
 import {
-  ART_FIXTURE_VERSION,
   artChunk,
   artChunks,
+  artFixtureVersions,
   atlasFrames,
   dataChunk,
   fixtureCuts,
   syntheticFrame,
 } from "./helpers/art-fixtures.js";
 
-const chunks = artChunks();
-const ART = artChunk();
-const DATA = dataChunk();
-const FRAMES = atlasFrames();
-
-const extraction = extractArtTables({ chunks, gameVersion: ART_FIXTURE_VERSION });
-const { tables, evidence } = extraction;
-
 const SPRITE_PATH = /^sprite\/[a-z0-9-]+\/[A-Za-z0-9_-]+$/;
 
-/** Une variante du chunk d'art, avec les autres chunks inchangés. */
-function withArtChunk(text) {
-  return [...chunks.filter((entry) => entry.file !== ART.file), { file: ART.file, text }];
-}
+/** Les atlas ne dépendent pas de la version du découpage : ils sont figés à part. */
+const FRAMES = atlasFrames();
+
+/**
+ * Toute la suite, pour **une** version de découpage.
+ *
+ * Rien ici ne nomme 1176 ni 1192 : le dossier de la fixture est la seule chose
+ * qui change, et c'est ce qui fait qu'une version ajoutée à
+ * `tests/fixtures/art/` est exercée sans toucher à ce fichier.
+ */
+function artTablesFor(version) {
+  const chunks = artChunks(version);
+  const ART = artChunk(version);
+  const DATA = dataChunk(version);
+  const extraction = extractArtTables({ chunks, gameVersion: version });
+  const { tables, evidence } = extraction;
+
+  /** Une variante du chunk d'art, avec les autres chunks inchangés. */
+  function withArtChunk(text) {
+    return [...chunks.filter((entry) => entry.file !== ART.file), { file: ART.file, text }];
+  }
 
 // ---------------------------------------------------------------------------------------------
 // Le repérage du chunk : c'est le test que `fetchMainBundle` utilise pour choisir quoi télécharger
 // ---------------------------------------------------------------------------------------------
 
-test("le chunk qui porte les tables d'art est reconnu par sa forme, pas par son nom", () => {
+test(`[${version}] le chunk qui porte les tables d'art est reconnu par sa forme, pas par son nom`, () => {
   assert.equal(
     looksLikeArtTables(ART.text),
     true,
@@ -78,13 +89,15 @@ test("le chunk qui porte les tables d'art est reconnu par sa forme, pas par son 
 // Le repérage par forme, jamais par un nom minifié
 // ---------------------------------------------------------------------------------------------
 
-test("aucune table n'est trouvée par un nom minifié", () => {
+test(`[${version}] aucune table n'est trouvée par un nom minifié`, () => {
   // Les noms que le découpage a retenus sont ceux que le jeu écrit ; ils changent à chaque build,
   // donc les citer dans le code serait une panne programmée. Le test lit les noms dans la fixture
   // et cherche ces mots comme **identifiants** dans la source d'extraction : le tokeniseur du
   // projet est réutilisé pour cela, parce qu'une regex qui retire chaînes et commentaires se
   // trompe — `"E"` est un caractère comparé dans `scanNumber`, pas le symbole du jeu.
-  const minified = new Set(fixtureCuts().cuts.map((cut) => cut.declaration));
+  const minified = new Set(
+    artFixtureVersions().flatMap((version) => fixtureCuts(version).cuts.map((cut) => cut.declaration))
+  );
   assert.ok(minified.size >= 10, `trop peu de déclarations coupées : ${minified.size}`);
 
   for (const file of [
@@ -111,7 +124,7 @@ test("aucune table n'est trouvée par un nom minifié", () => {
 // Les tables et leurs invariants
 // ---------------------------------------------------------------------------------------------
 
-test("les ancres sont keyées par des espèces que la table des plantes porte", () => {
+test(`[${version}] les ancres sont keyées par des espèces que la table des plantes porte`, () => {
   const species = new Set(Object.keys(tables.plants));
   const keys = Object.keys(tables.anchors);
   assert.ok(keys.length > 0, "aucune ancre extraite");
@@ -141,7 +154,7 @@ test("les ancres sont keyées par des espèces que la table des plantes porte", 
   );
 });
 
-test("chaque drapeau d'affichage est une frame que les atlas ont", () => {
+test(`[${version}] chaque drapeau d'affichage est une frame que les atlas ont`, () => {
   const keys = Object.keys(tables.displayFlags);
   assert.ok(keys.length > 0, "aucun drapeau extrait");
   const missing = keys.filter((key) => !(key in FRAMES));
@@ -160,7 +173,7 @@ test("chaque drapeau d'affichage est une frame que les atlas ont", () => {
   assert.ok(narrow > 0, "aucune plante étroite");
 });
 
-test("chaque mutation se résout en une teinte ou en un matériau, jamais en rien", () => {
+test(`[${version}] chaque mutation se résout en une teinte ou en un matériau, jamais en rien`, () => {
   const records = Object.keys(tables.mutationRecords);
   const keys = Object.keys(tables.mutationArt);
   assert.ok(keys.length > 0, "aucune mutation extraite");
@@ -206,7 +219,7 @@ test("chaque mutation se résout en une teinte ou en un matériau, jamais en rie
   assert.equal(Math.min(...orders), 0, "l'échelle ne commence pas à zéro");
 });
 
-test("l'échelle est lue : la formule du plafond trouvée une fois, le multiplicateur haut dérivé", () => {
+test(`[${version}] l'échelle est lue : la formule du plafond trouvée une fois, le multiplicateur haut dérivé`, () => {
   const counts = evidence.scale.coverage.counts;
   assert.equal(counts.capFormulaOccurrences, 1, "la formule du plafond n'est pas trouvée exactement une fois");
   assert.equal(counts.capConstantDeclared, 1, "le plafond n'est pas une constante déclarée");
@@ -227,7 +240,7 @@ test("l'échelle est lue : la formule du plafond trouvée une fois, le multiplic
   );
 });
 
-test("l'ensemble des mutations superposées est un sous-ensemble des mutations déclarées", () => {
+test(`[${version}] l'ensemble des mutations superposées est un sous-ensemble des mutations déclarées`, () => {
   assert.ok(tables.overMutations.length > 0, "l'ensemble des superposées est vide");
   for (const name of tables.overMutations) {
     assert.ok(Object.hasOwn(tables.mutationArt, name), `${name} n'est pas une mutation de la table d'art`);
@@ -236,7 +249,7 @@ test("l'ensemble des mutations superposées est un sous-ensemble des mutations d
   assert.equal(counts.setUsedBesideTheMutationArtTable, 1, "l'ensemble n'est pas lu à côté de la table d'art");
 });
 
-test("l'échelle de z est extraite du code qui place les mutations", () => {
+test(`[${version}] l'échelle de z est extraite du code qui place les mutations`, () => {
   const ladder = tables.zOrder.iconZIndex;
   for (const [band, value] of Object.entries(ladder)) {
     assert.equal(typeof value, "number", `la bande ${band} n'est pas un nombre`);
@@ -251,7 +264,7 @@ test("l'échelle de z est extraite du code qui place les mutations", () => {
   );
 });
 
-test("la table des plantes porte les types de récolte que le placement lit", () => {
+test(`[${version}] la table des plantes porte les types de récolte que le placement lit`, () => {
   const members = new Set();
   for (const record of Object.values(tables.plants)) {
     for (const part of ["seed", "plant", "crop"]) {
@@ -275,7 +288,7 @@ test("la table des plantes porte les types de récolte que le placement lit", ()
 // La fonction de placement : extraite, et exécutée
 // ---------------------------------------------------------------------------------------------
 
-test("la fonction de placement est le texte du jeu, clos sur trois déclarations locales", () => {
+test(`[${version}] la fonction de placement est le texte du jeu, clos sur trois déclarations locales`, () => {
   const counts = evidence.placement.coverage.counts;
   assert.equal(counts.closesOverTheAnchorsAndTheCap, 1, "la fonction ne clôt pas sur les ancres et le plafond");
   assert.equal(counts.unresolvedExternals, 0, "des noms lus par la fonction ne sont pas résolus");
@@ -324,7 +337,7 @@ test("la fonction de placement est le texte du jeu, clos sur trois déclarations
   );
 });
 
-test("la fonction extraite s'accorde avec les nombres que les tables publiées impliquent", () => {
+test(`[${version}] la fonction extraite s'accorde avec les nombres que les tables publiées impliquent`, () => {
   const game = compilePlacement(tables);
   // Deux frames : une large, une haute, pour que la branche « plante haute » soit exercée.
   const frames = [
@@ -359,7 +372,7 @@ test("la fonction extraite s'accorde avec les nombres que les tables publiées i
   assert.ok(withAnOverride > 0, "aucune espèce comparée ne porte d'ancre : la comparaison serait vide");
 });
 
-test("les overrides par espèce font un vrai travail dans cette comparaison", () => {
+test(`[${version}] les overrides par espèce font un vrai travail dans cette comparaison`, () => {
   const game = compilePlacement(tables);
   const frame = syntheticFrame({ width: 128, height: 128, anchorX: 0.5, anchorY: 0.5 });
 
@@ -383,7 +396,7 @@ test("les overrides par espèce font un vrai travail dans cette comparaison", ()
   );
 });
 
-test("le placement distingue la partie dessinée, pour une espèce qui la distingue", () => {
+test(`[${version}] le placement distingue la partie dessinée, pour une espèce qui la distingue`, () => {
   const game = compilePlacement(tables);
   const frame = syntheticFrame({ width: 128, height: 128, anchorX: 0.5, anchorY: 0.5 });
   const perPart = Object.entries(tables.anchors).find(([, value]) => {
@@ -409,12 +422,12 @@ test("le placement distingue la partie dessinée, pour une espèce qui la distin
 // La validation contre les atlas, et les refus
 // ---------------------------------------------------------------------------------------------
 
-test("la validation contre les atlas ne trouve aucun chemin orphelin", () => {
+test(`[${version}] la validation contre les atlas ne trouve aucun chemin orphelin`, () => {
   const failures = validateArtTables(tables, FRAMES);
   assert.deepEqual(failures, [], `chemins que les atlas n'ont pas : ${JSON.stringify(failures)}`);
 });
 
-test("un chemin de sprite que les atlas n'ont pas est refusé", () => {
+test(`[${version}] un chemin de sprite que les atlas n'ont pas est refusé`, () => {
   const broken = {
     ...tables,
     displayFlags: {
@@ -431,7 +444,7 @@ test("un chemin de sprite que les atlas n'ont pas est refusé", () => {
   );
 });
 
-test("une ancre keyée par autre chose qu'une espèce est refusée", () => {
+test(`[${version}] une ancre keyée par autre chose qu'une espèce est refusée`, () => {
   // Le refus est la moitié utile d'une extraction par forme : une table de fractions qui partage
   // la forme des ancres doit être refusée, pas publiée.
   const art = ART.text.replace(
@@ -450,7 +463,7 @@ test("une ancre keyée par autre chose qu'une espèce est refusée", () => {
   );
 });
 
-test("un bundle sans le multiplicateur de décalque haut est refusé", () => {
+test(`[${version}] un bundle sans le multiplicateur de décalque haut est refusé`, () => {
   const withoutTall = ART.text.replace(/\?\s*([A-Za-z_$][\w$]*)\s*:\s*1\b/, "?1:1");
   assert.notEqual(withoutTall, ART.text, "la fixture n'a pas la forme attendue : le test ne coupe rien");
   assert.throws(
@@ -463,7 +476,7 @@ test("un bundle sans le multiplicateur de décalque haut est refusé", () => {
   );
 });
 
-test("un chunk de données absent fait refuser plutôt que publier des tables non témoignées", () => {
+test(`[${version}] un chunk de données absent fait refuser plutôt que publier des tables non témoignées`, () => {
   assert.throws(
     () => extractArtTables({ chunks: [{ file: ART.file, text: ART.text }] }),
     (err) => {
@@ -473,7 +486,7 @@ test("un chunk de données absent fait refuser plutôt que publier des tables no
   );
 });
 
-test("un gabarit hostile ne fait pas tomber la projection, et ne fait pas passer un chunk", () => {
+test(`[${version}] un gabarit hostile ne fait pas tomber la projection, et ne fait pas passer un chunk`, () => {
   // Trouvé contre le bundle de la version servie : une expression régulière
   // contenant un guillemet (`/['"]/`) à l'intérieur d'une substitution de
   // gabarit ressemble à une chaîne qui ne se referme jamais. La projection
@@ -489,3 +502,10 @@ test("un gabarit hostile ne fait pas tomber la projection, et ne fait pas passer
   assert.equal(looksLikeArtTables(hostile), false);
   assert.equal(looksLikeSpriteNames(hostile), false);
 });
+}
+
+// ---------------------------------------------------------------------------------------------
+// Toutes les versions dont le découpage est commité
+// ---------------------------------------------------------------------------------------------
+
+for (const version of artFixtureVersions()) artTablesFor(version);

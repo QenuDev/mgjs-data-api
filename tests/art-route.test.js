@@ -28,44 +28,75 @@ import { startTestApp } from "./helpers/httpApp.js";
 config.bundle.timeout = 2000;
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const FIXTURE_DIR = path.resolve(HERE, "fixtures", "art", "bundle-1176");
-
-/** La version que ce faux bundle porte, et celle que l'endpoint de version annonce. */
-const VERSION = "1176";
-const INDEX_FILE = "index-Cxu-pBRw.js";
-/** Le nom du chunk de données, qui est aussi celui que la fixture copie. */
-const DATA_FILE = "quinoaPredictionAtoms-ptrrFeF6.js";
-const ART_FILE = "LayoutMotionController-CwhDlPns.js";
 
 /**
- * Le faux amont : l'endpoint de version, la page, l'index et les deux chunks.
+ * Le bundle que le faux amont sert : ses chunks, et la version que l'endpoint de
+ * version annonce.
+ *
+ * Deux versions, parce qu'une seule est exactement ce qui a laissé la route
+ * verte sur 1176 pendant que le jeu servait 1192, où le chunk d'art et le chunk
+ * des noms ne sont plus les mêmes fichiers. Les noms sont ceux des captures,
+ * jamais réécrits.
+ */
+const BUNDLES = {
+  1176: {
+    dir: path.resolve(HERE, "fixtures", "art", "bundle-1176"),
+    index: "index-Cxu-pBRw.js",
+    data: "quinoaPredictionAtoms-ptrrFeF6.js",
+    art: "LayoutMotionController-CwhDlPns.js",
+    names: null,
+  },
+  1192: {
+    dir: path.resolve(HERE, "fixtures", "art", "bundle-1192"),
+    index: "index-Cxu-pBRw.js",
+    data: "worldDepthSortKey-BXUHHrP0.js",
+    art: "resources-D_3Zwcn-.js",
+    names: "BakedRoundedRect-lGFgQzh1.js",
+  },
+};
+
+/** Le bundle que les tests historiques servent, et que la route doit lire. */
+const VERSION = "1176";
+const INDEX_FILE = BUNDLES[VERSION].index;
+/** Le nom du chunk de données, qui est aussi celui que la fixture copie. */
+const DATA_FILE = BUNDLES[VERSION].data;
+const ART_FILE = BUNDLES[VERSION].art;
+
+/**
+ * Le faux amont : l'endpoint de version, la page, l'index et les chunks.
  *
  * Il ne répond que ce qu'un bundle réel répondrait à ces chemins, et il répond
  * 404 à tout le reste — un test qui laisserait passer une requête vers le vrai
  * `magicgarden.gg` ne serait pas hors ligne.
  */
-async function startFakeGame({ omit = [] } = {}) {
+/** La version qu'un bundle de `BUNDLES` porte : sa clé, lue une fois. */
+function versionOf(bundle) {
+  return Object.entries(BUNDLES).find(([, candidate]) => candidate === bundle)?.[0] ?? VERSION;
+}
+
+async function startFakeGame({ omit = [], bundle = BUNDLES[VERSION] } = {}) {
+  const files = [bundle.data, bundle.art, ...(bundle.names === null ? [] : [bundle.names])];
   const server = http.createServer((req, res) => {
     const pathname = new URL(req.url, "http://127.0.0.1").pathname;
-    const asset = (file) => fs.readFileSync(path.join(FIXTURE_DIR, file), "utf8");
+    const asset = (file) => fs.readFileSync(path.join(bundle.dir, file), "utf8");
 
     if (pathname === "/platform/v1/version") {
       res.writeHead(200, { "content-type": "application/json" });
-      res.end(JSON.stringify({ version: VERSION }));
+      res.end(JSON.stringify({ version: versionOf(bundle) }));
       return;
     }
     if (/\/version\/[^/]+\/index\.html$/.test(pathname)) {
       res.writeHead(200, { "content-type": "text/html" });
-      res.end(`<!doctype html><html><body><script type="module" src="/version/${VERSION}/assets/${INDEX_FILE}"></script></body></html>`);
+      res.end(`<!doctype html><html><body><script type="module" src="/version/${versionOf(bundle)}/assets/${bundle.index}"></script></body></html>`);
       return;
     }
-    if (pathname.endsWith(`/${INDEX_FILE}`)) {
-      // L'index du bundle : deux imports relatifs, comme le build du jeu les écrit.
+    if (pathname.endsWith(`/${bundle.index}`)) {
+      // L'index du bundle : les imports relatifs, comme le build du jeu les écrit.
       res.writeHead(200, { "content-type": "text/javascript" });
-      res.end(`import "./${DATA_FILE}";\nimport "./${ART_FILE}";\n`);
+      res.end(`${files.map((file) => `import "./${file}";`).join("\n")}\n`);
       return;
     }
-    if (pathname.endsWith(`/${DATA_FILE}`) || pathname.endsWith(`/${ART_FILE}`)) {
+    if (files.some((file) => pathname.endsWith(`/${file}`))) {
       const file = path.basename(pathname);
       if (omit.includes(file)) {
         res.writeHead(404, { "content-type": "text/plain" });
@@ -95,13 +126,13 @@ async function startFakeGame({ omit = [] } = {}) {
  * depuis la même valeur. Le changer après l'import de `config` est ce que fait
  * déjà `tests/upstream-timeout.test.js`.
  */
-async function pointAtFakeGame(origin) {
+async function pointAtFakeGame(origin, version = VERSION) {
   const { config } = await import("../src/config/index.js");
   const { invalidateAllCaches } = await import("../src/core/game/cache.js");
   const { clearTransformedDataCache } = await import("../src/api/routes/data.js");
 
   config.game.origin = origin;
-  config.game.pageUrl = `${origin}/version/${VERSION}/index.html`;
+  config.game.pageUrl = `${origin}/version/${version}/index.html`;
   invalidateAllCaches();
   clearTransformedDataCache();
 }
@@ -217,6 +248,68 @@ test("la réponse est revalidable : un If-None-Match qui correspond rend un 304 
     VERSION,
     "un 304 doit encore dire de quelle version il parle"
   );
+});
+
+test("la route publie aussi la table d'art de 1192, dont le lavage est un entier packé", async (t) => {
+  // Le cas qui a produit le 500 : le chunk d'art est `resources-…`, la table des
+  // noms est dans un troisième chunk, et le lavage est un `colorOverlay` packé.
+  // Hors ligne, donc une version servie dans cette forme ne peut plus passer
+  // sans que cette route la lise.
+  const bundle = BUNDLES["1192"];
+  const game = await startFakeGame({ bundle });
+  await pointAtFakeGame(game.origin, "1192");
+
+  const api = await startTestApp();
+  t.after(async () => {
+    await api.close();
+    await game.close();
+    await restoreRealGame();
+  });
+
+  // Un premier appel à froid amorce le bundle : c'est le comportement de toutes
+  // les routes `/data/*`, et c'est le corps qui porte la version lue, dans
+  // `source`, avant que l'instance ne la connaisse.
+  const cold = await api.get("/data/art");
+  assert.equal(cold.status, 200, "la route ne publie pas la table d'art de 1192");
+  const coldBody = await cold.json();
+  assert.equal(coldBody.source.gameVersion, "1192");
+
+  const res = await api.get("/data/art");
+  assert.equal(res.status, 200);
+  const body = await res.json();
+
+  // L'en-tête, le bloc `_meta` et la provenance disent la même version, et
+  // c'est celle des URL du bundle : 1192, pas 1176.
+  assert.equal(body.source.gameVersion, "1192");
+  assert.equal(body._meta.gameVersion, "1192");
+  assert.equal(res.headers.get("x-game-version"), "1192");
+
+  // Les trois chunks lus : le données, l'art, et les noms — la table des noms
+  // n'est plus dans le chunk de données en 1192.
+  for (const file of [bundle.data, bundle.art, bundle.names]) {
+    assert.ok(
+      body.source.chunks.some((chunk) => chunk.file === file),
+      `le chunk ${file} n'est pas dans la provenance : la cible n'a pas été résolue`
+    );
+  }
+
+  // Le lavage lu depuis l'entier, écrit dans l'orthographe que les deux versions
+  // partagent — 3323080 vaut 0x32B4C8, soit le `rgb(50, 180, 200)` de 1176.
+  assert.equal(body.mutationArt.Wet?.tint?.color, "rgb(50, 180, 200)");
+  assert.equal(body.mutationArt.Wet?.tint?.alpha, 0.25);
+  assert.ok(body.mutationArt.Wet?.material === false);
+  assert.deepEqual(
+    Object.entries(body.mutationArt)
+      .filter(([, art]) => art.material)
+      .map(([name]) => name)
+      .sort(),
+    ["Gold", "Rainbow"]
+  );
+
+  for (const [table, proof] of Object.entries(body.evidence)) {
+    assert.ok(proof.predicate, `${table}: la preuve ne nomme pas son prédicat`);
+    assert.ok(proof.chunk, `${table}: la preuve ne nomme pas son chunk`);
+  }
 });
 
 test("l'extraction refuse de publier quand le chunk d'art est introuvable", async (t) => {

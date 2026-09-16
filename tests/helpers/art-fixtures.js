@@ -2,9 +2,16 @@
 //
 // Ce que les tests d'art lisent hors ligne, et d'où ça vient.
 //
-// Deux captures, et c'est volontaire : les tables viennent du bundle **1176**
-// (le chunk coupé sous `tests/fixtures/art/bundle-1176/`), tandis que les
-// chemins de sprite sont confirmés contre les **atlas 1192** déjà figés sous
+// **Toutes les versions dont le découpage est commité**, jamais une seule. Une
+// fixture unique est exactement ce qui a laissé la suite verte contre 1176
+// pendant que l'API servait 1192, dont la table d'art avait renommé son champ de
+// lavage : `artFixtureVersions()` est ce que les tests parcourent, et
+// `tests/art-versions.test.js` est ce qui refuse qu'une version servie n'y soit
+// pas.
+//
+// Deux sources, et c'est volontaire : les tables viennent des découpages de
+// `tests/fixtures/art/`, tandis que les chemins de sprite sont confirmés contre
+// les **atlas 1192** déjà figés sous
 // `tests/fixtures/game/version/1192/assets/atlases/`. Un invariant qui ne
 // compare une table qu'à elle-même ne prouve rien ; celui-ci compare un
 // découpage du jeu à des pixels que le jeu sert.
@@ -20,7 +27,10 @@ import { looksLikeArtTables } from "../../src/core/game/art/index.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
-export const ART_FIXTURE_DIR = path.resolve(HERE, "..", "fixtures", "art", "bundle-1176");
+/** Le dossier des découpages d'art, un par version. */
+export const ART_FIXTURES_ROOT = path.resolve(HERE, "..", "fixtures", "art");
+
+/** Les atlas figés contre lesquels les chemins de sprite sont témoignés. */
 export const ATLAS_FIXTURE_DIR = path.resolve(
   HERE,
   "..",
@@ -32,27 +42,53 @@ export const ATLAS_FIXTURE_DIR = path.resolve(
   "atlases"
 );
 
-/** La version de jeu du découpage d'art (cf. `tests/fixtures/art/README.md`). */
-export const ART_FIXTURE_VERSION = "1176";
-
-/** Les deux chunks du découpage, dans la forme que l'extracteur attend. */
-export function artChunks() {
+/**
+ * Les versions dont le découpage d'art est commité, dans l'ordre des versions.
+ *
+ * Le dossier est la source : ajouter `bundle-<v>/` fait entrer `<v>` dans tous
+ * les tests d'art, et l'oublier est visible ici.
+ */
+export function artFixtureVersions() {
   return fs
-    .readdirSync(ART_FIXTURE_DIR)
+    .readdirSync(ART_FIXTURES_ROOT)
+    .map((name) => /^bundle-(\d+)$/.exec(name)?.[1] ?? null)
+    .filter((version) => version !== null)
+    .sort();
+}
+
+/** Le dossier du découpage d'une version. */
+export function artFixtureDirectory(version) {
+  const dir = path.resolve(ART_FIXTURES_ROOT, `bundle-${version}`);
+  if (!fs.existsSync(dir)) throw new Error(`no art fixture for game version ${version}`);
+  return dir;
+}
+
+/** La version la plus récente dont le découpage est commité : celle que l'API sert. */
+export function newestArtFixtureVersion() {
+  const newest = artFixtureVersions().at(-1);
+  if (newest === undefined) throw new Error("no art fixture is committed at all");
+  return newest;
+}
+
+/** Les chunks d'un découpage, dans la forme que l'extracteur attend. */
+export function artChunks(version) {
+  const dir = artFixtureDirectory(version);
+  return fs
+    .readdirSync(dir)
     .filter((name) => name.endsWith(".js"))
     .sort()
-    .map((file) => ({ file, text: fs.readFileSync(path.join(ART_FIXTURE_DIR, file), "utf8") }));
+    .map((file) => ({ file, text: fs.readFileSync(path.join(dir, file), "utf8") }));
 }
 
-/** Les intervalles et empreintes du découpage, tels que le script les a écrits. */
-export function fixtureCuts() {
-  return JSON.parse(fs.readFileSync(path.join(ART_FIXTURE_DIR, "CUTS.json"), "utf8"));
+/** Les intervalles et empreintes d'un découpage, tels que le script les a écrits. */
+export function fixtureCuts(version) {
+  return JSON.parse(fs.readFileSync(path.join(artFixtureDirectory(version), "CUTS.json"), "utf8"));
 }
 
-/** Le chemin du chunk qui porte les tables d'art, et son texte. */
-export function artChunk() {
-  const chunk = artChunks().find((entry) => looksLikeArtTables(entry.text));
-  if (!chunk) throw new Error("no chunk in the art fixture carries the art tables");
+/** Le chunk qui porte les tables d'art d'une version, et son texte. */
+export function artChunk(version) {
+  const chunk = artChunks(version).find((entry) => looksLikeArtTables(entry.text));
+  if (!chunk) throw new Error(`no chunk in the ${version} art fixture carries the art tables`);
   return chunk;
 }
 
@@ -60,9 +96,9 @@ export function artChunk() {
  * Le disque de test : le chunk de données, qui est celui que `fetchMainBundle`
  * résout déjà par sa signature `secondsToHatch`.
  */
-export function dataChunk() {
-  const chunk = artChunks().find((entry) => entry.text.includes("secondsToHatch"));
-  if (!chunk) throw new Error("no chunk in the art fixture carries the data signature");
+export function dataChunk(version) {
+  const chunk = artChunks(version).find((entry) => entry.text.includes("secondsToHatch"));
+  if (!chunk) throw new Error(`no chunk in the ${version} art fixture carries the data signature`);
   return chunk;
 }
 

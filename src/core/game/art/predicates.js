@@ -49,6 +49,27 @@ const ANCHOR_KEYS = new Set(["x", "y", "scale", "plant", "crop"]);
 /** Les membres de la table d'art d'une mutation que cet extracteur lit. */
 const ART_FIELDS = /sprite|icon|overlay|filters|ground/i;
 
+/**
+ * Les champs sous lesquels une mutation état son lavage de récolte, sous le nom
+ * que le jeu leur donne.
+ *
+ * Deux orthographes existent dans les captures que ce lecteur connaît. Jusqu'au
+ * build 1176 le lavage est une construction `filters` ; 1192 état le même lavage
+ * dans un objet `colorOverlay`. Les deux noms sont ceux du jeu et sont lus par
+ * son propre code (`e.colorOverlay` dans le placement des icônes de mutation),
+ * donc les nommer décrit la forme de la table plutôt que de deviner un symbole
+ * minifié — c'est la distinction sur laquelle cet extracteur est bâti. Un
+ * prédicat qui ne connaissait que `filters` cesse de correspondre le jour où le
+ * champ est renommé, et c'est exactement ce que 1192 a produit :
+ *
+ *   1176  Wet:{filters:new To({color:`rgb(50, 180, 200)`,alpha:.25}), …}
+ *   1192  Wet:{colorOverlay:{color:3323080,alpha:.25}, …}
+ */
+const COLOUR_OVERLAY_FIELDS = ["filters", "colorOverlay"];
+
+/** La plus grande couleur qu'un `colorOverlay.color` packé peut état : la borne `[0, 0xFFFFFF]` du jeu. */
+const MAX_PACKED_COLOUR = 0xff_ffff;
+
 /** La plus petite table de noms de sprite qui mérite ce nom. Le build capturé en a 583. */
 const MIN_SPRITE_PATHS = 100;
 
@@ -86,18 +107,28 @@ function resolveSprite(path, index) {
 }
 
 /**
- * La première couleur littérale et le premier `alpha` d'une construction de filtre.
+ * La première couleur littérale et le premier `alpha` d'une construction de
+ * filtre.
  *
  * Les instructions sont celles du jeu : le lavage vit dans les arguments du
  * filtre (`new Filter({color, alpha})`) et nulle part ailleurs, donc ce lecteur
  * lit les littéraux plutôt qu'une table de couleurs — la couleur d'interface
  * avec laquelle une mutation se dessine est une autre valeur que le lavage
  * traversé par sa récolte, et les couleurs publiées par l'API sont la première.
+ *
+ * La couleur s'écrit de deux façons selon la capture : une chaîne CSS jusqu'à
+ * 1176 (`rgb(50, 180, 200)`) et un entier packé `0xRRGGBB` à partir de 1192. Le
+ * packé est **décodé** ici plutôt que transporté tel quel, parce que
+ * `mutationArt[].tint.color` est la valeur avec laquelle un consommateur dessine
+ * et que la chaîne CSS est l'orthographe sur laquelle les deux builds
+ * s'accordent : les neuf couleurs que 1192 état se décodent, sous la règle
+ * ci-dessous, octet pour octet dans les neuf chaînes que 1176 état.
  */
 function filterFacts(value) {
   const queue = [value];
   let color = null;
   let alpha = null;
+  let unreadableColour = false;
   let seen = 0;
   while (queue.length > 0 && seen < 64) {
     seen += 1;
@@ -108,16 +139,60 @@ function filterFacts(value) {
         if (member.key === "alpha" && alpha === null && member.value.kind === "number") {
           alpha = member.value.value;
         }
-        if (color === null) {
+        if (color === null && member.key === "color") {
           const string = asString(member.value);
           if (string !== null && COLOUR.test(string.text)) color = string.text;
+          else {
+            color = packedColour(member.value);
+            // Un nombre qui n'est pas une couleur est **compté** plutôt que
+            // perdu : refuser un lavage illisible comme un matériau est
+            // exactement la façon dont un lavage que ce lecteur ne sait pas lire
+            // passerait pour un lavage que le jeu n'a jamais déclaré.
+            if (color === null && member.value.kind === "number") unreadableColour = true;
+          }
         }
         queue.push(member.value);
       }
     } else if (node.kind === "call") queue.push(...node.args);
     else if (node.kind === "array") queue.push(...node.items);
   }
-  return { color, alpha };
+  return { color, alpha, unreadableColour };
+}
+
+/**
+ * Une couleur `0xRRGGBB` packée, écrite dans l'orthographe `rgb(...)` qu'emploie
+ * le build précédent.
+ *
+ * L'encodage est celui du jeu, pas une lecture des nombres. Le code qui consomme
+ * la table refuse une couleur qui n'est pas un entier de `[0, 0xFFFFFF]`
+ * (« Material color overlays require an RGB color and finite alpha ») et la
+ * dépaquette en `(c & 255) << 16 | c & 65280 | c >>> 16 & 255` — lu comme une
+ * rotation, cela donne `rgb(c >>> 16 & 255, c >>> 8 & 255, c & 255)`, donc rouge
+ * en octet haut, vert au milieu, bleu en octet bas. La déclaration est dans le
+ * chunk qui construit ces lavages (`quinoaAssetResolver-…js` du build 1192),
+ * function `xn()` ; elle n'est pas recopiée de mémoire.
+ *
+ * Un nombre hors de cette plage n'est pas une couleur : il est refusé ici et
+ * compté par l'appelant, pour que le prédicat le signale au lieu de lire
+ * silencieusement l'entrée comme un matériau.
+ */
+function packedColour(value) {
+  if (value.kind !== "number") return null;
+  const packed = value.value;
+  if (!Number.isInteger(packed) || packed < 0 || packed > MAX_PACKED_COLOUR) return null;
+  return `rgb(${(packed >>> 16) & 255}, ${(packed >>> 8) & 255}, ${packed & 255})`;
+}
+
+/**
+ * Le lavage qu'une entrée de mutation état, sous l'orthographe qu'emploie ce
+ * build.
+ */
+function colourOverlayOf(object) {
+  for (const field of COLOUR_OVERLAY_FIELDS) {
+    const found = memberValue(object, field);
+    if (found !== null) return found;
+  }
+  return null;
 }
 
 /** Vrai quand chaque membre d'une forme est un nombre, ou un objet de nombres. */
@@ -340,9 +415,9 @@ const mutationArtTable = {
   id: "mutationArt",
   predicate: "mutation-art-table",
   looksFor:
-    "un littéral d'objet d'au moins huit clés dont les valeurs portent des champs d'art (sprite, icon, overlay, filters, ground), dont au moins un filtre",
+    "un littéral d'objet d'au moins huit clés dont les valeurs portent des champs d'art (sprite, icon, overlay, ground) et état un lavage de récolte, que le jeu écrit `filters` jusqu'au build 1176 et `colorOverlay` à partir de 1192, dont au moins un lavage",
   invariant:
-    "chaque clé est une mutation que ce bundle déclare, chaque filtre porteur d'une couleur état sa couleur et son alpha, chaque référence de sprite se résout par la table des noms, et les clés qui ne construisent aucun filtre coloré sont comptées comme des matériaux plutôt que perdues",
+    "chaque clé est une mutation que ce bundle déclare, chaque filtre porteur d'une couleur état sa couleur et son alpha, chaque référence de sprite se résout par la table des noms, aucune couleur n'est hors de la plage `0xRRGGBB` que le jeu valide, et les clés qui ne construisent aucun filtre coloré sont comptées comme des matériaux plutôt que perdues",
   candidates(context) {
     const found = [];
     const records = context.tables.mutationRecords ?? {};
@@ -350,24 +425,26 @@ const mutationArtTable = {
       for (const object of chunk.objects) {
         if (object.members.length < MIN_KEYS) continue;
         const fieldNames = new Set();
-        let filters = 0;
+        let washes = 0;
         for (const member of object.members) {
           for (const inner of asObject(member.value)?.members ?? []) {
             fieldNames.add(inner.key);
-            if (inner.key === "filters") filters += 1;
+            if (COLOUR_OVERLAY_FIELDS.includes(inner.key)) washes += 1;
           }
         }
         const artFields = [...fieldNames].filter((field) => ART_FIELDS.test(field));
-        if (filters === 0 || artFields.length < 2) continue;
+        if (washes === 0 || artFields.length < 2) continue;
         const art = {};
         let tinted = 0;
         let materials = 0;
         let unresolvedRefs = 0;
         let recordKeys = 0;
+        let unreadableColours = 0;
         for (const [order, member] of object.members.entries()) {
           const value = asObject(member.value) ?? EMPTY_OBJECT;
-          const facts = memberValue(value, "filters");
-          const wash = facts === null ? { color: null, alpha: null } : filterFacts(facts);
+          const facts = colourOverlayOf(value);
+          const wash = facts === null ? { color: null, alpha: null, unreadableColour: false } : filterFacts(facts);
+          if (wash.unreadableColour) unreadableColours += 1;
           const material = wash.color === null;
           if (material) materials += 1;
           else tinted += 1;
@@ -414,11 +491,12 @@ const mutationArtTable = {
           coverage: {
             counts: {
               keys: object.members.length,
-              valuesCarryingAFilter: filters,
+              valuesCarryingAFilter: washes,
               valuesWithATint: tinted,
               valuesThatAreMaterials: materials,
               keysThatAreMutationRecords: recordKeys,
               referencesUnresolved: unresolvedRefs,
+              coloursOutsideThePackedRange: unreadableColours,
             },
             notes: [`champs d'art vus : ${artFields.sort().join(", ")}`],
           },
@@ -443,6 +521,12 @@ const mutationArtTable = {
     }
     const unresolved = counts.referencesUnresolved ?? 0;
     if (unresolved > 0) problems.push(`${unresolved} références de sprite ne se résolvent pas`);
+    const unreadable = counts.coloursOutsideThePackedRange ?? 0;
+    if (unreadable > 0) {
+      problems.push(
+        `${unreadable} lavages état une couleur qui n'est pas un entier 0xRRGGBB packé, donc ce n'est pas un lavage que ce lecteur sait lire`
+      );
+    }
     return problems;
   },
 };

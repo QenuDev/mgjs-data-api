@@ -1,6 +1,7 @@
 {
   "gameVersion": "1176",
-  "source": "/home/james/Documents/dsh_workspaces/MG/mgafk-pi/json/bundle-1176-0",
+  "source": "../../mgafk-pi/json/bundle-1176-0",
+  "note": "`start`/`end` sont les intervalles du déclarateur dans le chunk du jeu, `initializerStart`/`initializerEnd` ceux de la valeur verbatim, et `fixtureValueStart`/`fixtureValueEnd` où cette même valeur se trouve dans le fichier écrit. `aliasOf` nomme la déclaration du chunk dont une entrée est une liaison.",
   "cuts": [
     {
       "chunk": "quinoaPredictionAtoms-ptrrFeF6.js",
@@ -9,7 +10,11 @@
       "start": 820107,
       "end": 843858,
       "bytes": 23751,
-      "sha256": "4672d9a85963a0d7"
+      "sha256": "4672d9a85963a0d7",
+      "initializerStart": 820113,
+      "initializerEnd": 843858,
+      "fixtureValueStart": 763,
+      "fixtureValueEnd": 24508
     },
     {
       "chunk": "quinoaPredictionAtoms-ptrrFeF6.js",
@@ -18,7 +23,11 @@
       "start": 937741,
       "end": 938793,
       "bytes": 1052,
-      "sha256": "b160bf7f3a62d989"
+      "sha256": "b160bf7f3a62d989",
+      "initializerStart": 937743,
+      "initializerEnd": 938793,
+      "fixtureValueStart": 24516,
+      "fixtureValueEnd": 25566
     },
     {
       "chunk": "quinoaPredictionAtoms-ptrrFeF6.js",
@@ -27,7 +36,11 @@
       "start": 901973,
       "end": 936353,
       "bytes": 34380,
-      "sha256": "da94d7dd34641340"
+      "sha256": "da94d7dd34641340",
+      "initializerStart": 901975,
+      "initializerEnd": 936353,
+      "fixtureValueStart": 25574,
+      "fixtureValueEnd": 59952
     },
     {
       "chunk": "quinoaPredictionAtoms-ptrrFeF6.js",
@@ -36,7 +49,11 @@
       "start": 849511,
       "end": 852133,
       "bytes": 2622,
-      "sha256": "5374fd0a7dc8f1a3"
+      "sha256": "5374fd0a7dc8f1a3",
+      "initializerStart": 849514,
+      "initializerEnd": 852133,
+      "fixtureValueStart": 59961,
+      "fixtureValueEnd": 62580
     },
     {
       "chunk": "quinoaPredictionAtoms-ptrrFeF6.js",
@@ -45,7 +62,11 @@
       "start": 901614,
       "end": 901681,
       "bytes": 67,
-      "sha256": "d31ff6d26402f67b"
+      "sha256": "d31ff6d26402f67b",
+      "initializerStart": 901616,
+      "initializerEnd": 901681,
+      "fixtureValueStart": 62588,
+      "fixtureValueEnd": 62653
     },
     {
       "chunk": "quinoaPredictionAtoms-ptrrFeF6.js",
@@ -54,7 +75,11 @@
       "start": 901682,
       "end": 901766,
       "bytes": 84,
-      "sha256": "91779375067fb700"
+      "sha256": "91779375067fb700",
+      "initializerStart": 901685,
+      "initializerEnd": 901766,
+      "fixtureValueStart": 62662,
+      "fixtureValueEnd": 62743
     },
     {
       "chunk": "LayoutMotionController-CwhDlPns.js",
@@ -63,7 +88,11 @@
       "start": 34033,
       "end": 34074,
       "bytes": 41,
-      "sha256": "dd3ee78ae847f3f2"
+      "sha256": "dd3ee78ae847f3f2",
+      "initializerStart": 34039,
+      "initializerEnd": 34074,
+      "fixtureValueStart": 765,
+      "fixtureValueEnd": 800
     },
     {
       "chunk": "LayoutMotionController-CwhDlPns.js",
@@ -72,7 +101,11 @@
       "start": 34075,
       "end": 37799,
       "bytes": 3724,
-      "sha256": "f23bf6500015c470"
+      "sha256": "f23bf6500015c470",
+      "initializerStart": 34078,
+      "initializerEnd": 37799,
+      "fixtureValueStart": 809,
+      "fixtureValueEnd": 4530
     },
     {
       "chunk": "LayoutMotionController-CwhDlPns.js",
@@ -81,7 +114,11 @@
       "start": 41070,
       "end": 42469,
       "bytes": 1399,
-      "sha256": "d4798903cb9b7739"
+      "sha256": "d4798903cb9b7739",
+      "initializerStart": 41073,
+      "initializerEnd": 42469,
+      "fixtureValueStart": 4539,
+      "fixtureValueEnd": 5935
     },
     {
       "chunk": "LayoutMotionController-CwhDlPns.js",
@@ -90,7 +127,11 @@
       "start": 45115,
       "end": 45121,
       "bytes": 6,
-      "sha256": "2af88c722bc74230"
+      "sha256": "2af88c722bc74230",
+      "initializerStart": 45118,
+      "initializerEnd": 45121,
+      "fixtureValueStart": 5944,
+      "fixtureValueEnd": 5947
     },
     {
       "chunk": "LayoutMotionController-CwhDlPns.js",
@@ -99,7 +140,11 @@
       "start": 45553,
       "end": 45557,
       "bytes": 4,
-      "sha256": "94a03de41af4609e"
+      "sha256": "94a03de41af4609e",
+      "initializerStart": 45556,
+      "initializerEnd": 45557,
+      "fixtureValueStart": 5956,
+      "fixtureValueEnd": 5957
     },
     {
       "chunk": "LayoutMotionController-CwhDlPns.js",
@@ -108,7 +153,11 @@
       "start": 45483,
       "end": 45552,
       "bytes": 69,
-      "sha256": "eec080b429a535a9"
+      "sha256": "eec080b429a535a9",
+      "initializerStart": 45490,
+      "initializerEnd": 45552,
+      "fixtureValueStart": 5966,
+      "fixtureValueEnd": 6028
     },
     {
       "chunk": "LayoutMotionController-CwhDlPns.js",
@@ -117,7 +166,11 @@
       "start": 44639,
       "end": 45114,
       "bytes": 475,
-      "sha256": "d804033c486c11ad"
+      "sha256": "d804033c486c11ad",
+      "initializerStart": 44646,
+      "initializerEnd": 45114,
+      "fixtureValueStart": 6037,
+      "fixtureValueEnd": 6505
     },
     {
       "chunk": "LayoutMotionController-CwhDlPns.js",
@@ -126,7 +179,11 @@
       "start": 44575,
       "end": 44639,
       "bytes": 64,
-      "sha256": "4b6b754e22f4609a"
+      "sha256": "4b6b754e22f4609a",
+      "initializerStart": 44575,
+      "initializerEnd": 44639,
+      "fixtureValueStart": 6507,
+      "fixtureValueEnd": 6571
     },
     {
       "chunk": "LayoutMotionController-CwhDlPns.js",
@@ -135,7 +192,11 @@
       "start": 45558,
       "end": 46212,
       "bytes": 654,
-      "sha256": "038926f28d291349"
+      "sha256": "038926f28d291349",
+      "initializerStart": 45558,
+      "initializerEnd": 46212,
+      "fixtureValueStart": 6573,
+      "fixtureValueEnd": 7227
     },
     {
       "chunk": "LayoutMotionController-CwhDlPns.js",
@@ -144,7 +205,11 @@
       "start": 45122,
       "end": 45483,
       "bytes": 361,
-      "sha256": "8f4890908db2160f"
+      "sha256": "8f4890908db2160f",
+      "initializerStart": 45122,
+      "initializerEnd": 45483,
+      "fixtureValueStart": 7229,
+      "fixtureValueEnd": 7590
     }
   ]
 }
