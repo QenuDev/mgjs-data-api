@@ -1,7 +1,7 @@
 // src/api/routes/assets.js
 
 import express from "express";
-import { asyncHandler, ApiError, Errors } from "../middleware/index.js";
+import { asyncHandler, ApiError, Errors, requireSpriteExport } from "../middleware/index.js";
 import { assetDataService } from "../../services/index.js";
 import { config } from "../../config/index.js";
 import { spritesRouter } from "./sprites.js";
@@ -140,6 +140,11 @@ assetsRouter.get("/proxy", asyncHandler(createProxyHandler()));
 // =====================
 // Sprite files (static PNG serving)
 // =====================
+
+// Profil `data` : rien de tout ce qui suit n'est exporté sur cette instance, donc
+// tout ce qui suit répond 503 au lieu de servir un dossier absent ou périmé. Un
+// seul point de refus, avant les quatre routeurs.
+assetsRouter.use(requireSpriteExport);
 
 // Composed sprites (must be before /sprites to avoid :category/:name capturing "composed")
 // GET /assets/sprites/composed?key=...&mutations=...
