@@ -1,7 +1,7 @@
 // src/assets/sprites/riveManifest.js
 
 import { getBaseUrl } from "../assets.js";
-import { loadManifest } from "../manifest.js";
+import { extractAllSources, loadManifest } from "../manifest.js";
 import { joinUrl } from "../../utils/url.js";
 
 /**
@@ -49,9 +49,16 @@ export async function resolveRiveAssets({ baseUrl = null } = {}) {
 
   for (const bundle of bundles) {
     for (const asset of bundle?.assets ?? []) {
-      const src = (Array.isArray(asset?.src) ? asset.src : []).find(
-        (s) => typeof s === "string" && s.endsWith(".riv")
-      );
+      // Un `src` de manifest est soit une chaîne (versions anciennes), soit un
+      // descripteur `{ src, resolution }` (versions courantes). `extractAllSources`
+      // est le normaliseur qui lit déjà les deux — écrit pour les atlas dans
+      // `c067fc9` — donc on le réutilise au lieu d'en écrire un second.
+      //
+      // Ce test lisait `typeof s === "string"`, ce qui ne trouvait plus aucun
+      // `.riv` à partir de la v1150 : `resolveRiveAssets()` renvoyait `[]` et
+      // `resolveRiveUrl("pets")` `null`, donc plus de PNG de pets, plus de
+      // boucles d'animation, plus de décor animé, et un export vectoriel vide.
+      const src = extractAllSources({ assets: [asset] }).find((s) => s.endsWith(".riv"));
       if (!src) continue;
 
       const key = keyFromSrc(src);
