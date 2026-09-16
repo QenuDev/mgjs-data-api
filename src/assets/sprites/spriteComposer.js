@@ -106,7 +106,7 @@ async function getPlantMeta() {
 // url → { sharpInput, sharpOptions }
 const atlasCache = new Map();
 
-// cacheKey → PNG Buffer
+// cacheKey → { buffer, box }
 const composedCache = new Map();
 const COMPOSED_CACHE_MAX = 500;
 
@@ -469,10 +469,33 @@ export function clearComposedCache() {
 }
 
 /**
- * Compose a base sprite with mutations and return a PNG Buffer.
+ * Compose a base sprite with mutations and return a PNG Buffer at the crop's own size.
+ *
+ * The buffer-only entry point: `/assets/sprites/composed` serves the picture itself, and
+ * a caller that wants only the picture should not have to unwrap one. Callers that need
+ * to place the picture ask `composeSpriteWithBox`.
+ *
  * Returns null if the base sprite key does not exist.
  */
 export async function composeSprite(baseKey, mutationIds = []) {
+  const composed = await composeSpriteWithBox(baseKey, mutationIds);
+  return composed ? composed.buffer : null;
+}
+
+/**
+ * The same composition, with the box it is in.
+ *
+ * Returns `{ buffer, box }`: a PNG whose dimensions are the crop's own art, and
+ * `box = { x, y, width, height }` saying where that art sits inside the picture, in
+ * picture pixels. With the picture sized to the crop's own box, `x` and `y` are the
+ * crop's corner and are 0 — the box is stated rather than assumed because that is the
+ * shape the scene layout uses (`docs/mgjs-community-api-plan.md` §3.2), so one box
+ * shape serves both paths, and a picture that later carries padding or a shadow states
+ * it here instead of silently changing size under a caller.
+ *
+ * Returns null if the base sprite key does not exist.
+ */
+export async function composeSpriteWithBox(baseKey, mutationIds = []) {
   await initSprites();
 
   const sorted     = sortMutations(mutationIds.map(String));
@@ -516,23 +539,28 @@ export async function composeSprite(baseKey, mutationIds = []) {
   );
   const icons = resolvedIcons.filter(Boolean);
 
-  // ── Compute bounding box to avoid clipping ───────────────────────────────
-  let bbMinX = 0, bbMinY = 0, bbMaxX = baseW, bbMaxY = baseH;
-  for (const icon of icons) {
-    bbMinX = Math.min(bbMinX, icon.drawX);
-    bbMinY = Math.min(bbMinY, icon.drawY);
-    bbMaxX = Math.max(bbMaxX, icon.drawX + icon.drawW);
-    bbMaxY = Math.max(bbMaxY, icon.drawY + icon.drawH);
-  }
-  const offX    = Math.ceil(-bbMinX);
-  const offY    = Math.ceil(-bbMinY);
-  const canvasW = Math.ceil(bbMaxX) + offX;
-  const canvasH = Math.ceil(bbMaxY) + offY;
-  const baseLeft = offX;
-  const baseTop  = offY;
+  // ── The picture is the crop's own box, and the box is stated ─────────────
+  //
+  // A caller places the picture by the crop's own art, so the canvas is the art's own
+  // box: `extractSprite` restores the trim, so `baseW`×`baseH` is exactly the art the
+  // game draws for this key. Sizing the canvas to the union of every layer's bounding
+  // box instead was what made a composed clover come back 116×190 against its own
+  // 116×169 — a picture nobody can place on a tile, because the crop inside it has been
+  // fitted to a size that is not the crop's.
+  const canvasW = baseW;
+  const canvasH = baseH;
+
+  // Where the crop's own art sits inside the picture, in picture pixels. Every other
+  // layer is placed against it.
+  const baseLeft = 0;
+  const baseTop  = 0;
+
+  // The crop's own box: the whole picture, and the thing a caller needs to place it.
+  const box = { x: baseLeft, y: baseTop, width: baseW, height: baseH };
 
   // Helper: composite a batch of ops onto the current canvas
   async function composite(canvas, ops) {
+    if (!ops.length) return canvas;
     return sharp(canvas).composite(ops).png().toBuffer();
   }
 
@@ -541,15 +569,38 @@ export async function composeSprite(baseKey, mutationIds = []) {
     return sharp(buf).resize(Math.max(1, w), Math.max(1, h), { fit: "fill", kernel: "lanczos3" }).png().toBuffer();
   }
 
-  // Helper: build composite ops for a group of icons (parallel resize)
+  // Helper: build composite ops for a group of icons (resize in parallel, cut to the box).
+  //
+  // An icon placed against the crop's own box routinely hangs off it: 33 of the game's 69
+  // crop arts carry one whose drawn size is larger than the art, and the Wet decal on
+  // Delphinium lands 85 px left of its 218-wide art. sharp refuses a piece larger than the
+  // canvas ("Image to composite must have same dimensions or smaller"), so a piece is cut
+  // to the part that lands inside the picture. The icon keeps the position the placement
+  // math gives it; only pixels outside the crop's box are dropped, which is what a caller
+  // drawing the picture into the crop's box would have seen anyway. Where a mutation is
+  // drawn is not this fix's business (plan §6 items 19-22 own it) — this only stops an
+  // icon from resizing the picture.
   async function iconOps(group, xOff, yOff) {
-    return Promise.all(
-      group.map(async (icon) => ({
-        input: await resizeIcon(icon.iconBuf, icon.drawW, icon.drawH),
-        left: Math.max(0, Math.round(xOff + icon.drawX)),
-        top:  Math.max(0, Math.round(yOff + icon.drawY)),
-      })),
+    const ops = await Promise.all(
+      group.map(async (icon) => {
+        const input = await resizeIcon(icon.iconBuf, icon.drawW, icon.drawH);
+        const left  = Math.round(xOff + icon.drawX);
+        const top   = Math.round(yOff + icon.drawY);
+        const x0 = Math.max(0, left);
+        const y0 = Math.max(0, top);
+        const x1 = Math.min(canvasW, left + icon.drawW);
+        const y1 = Math.min(canvasH, top + icon.drawH);
+        if (x1 <= x0 || y1 <= y0) return null; // wholly outside the crop's box
+        const cut = (x1 - x0 === icon.drawW && y1 - y0 === icon.drawH)
+          ? input
+          : await sharp(input)
+                .extract({ left: x0 - left, top: y0 - top, width: x1 - x0, height: y1 - y0 })
+                .png()
+                .toBuffer();
+        return { input: cut, left: x0, top: y0 };
+      }),
     );
+    return ops.filter(Boolean);
   }
 
   // 1. Start with transparent canvas (expanded to fit all layers)
@@ -560,7 +611,7 @@ export async function composeSprite(baseKey, mutationIds = []) {
   // 2. z = -1: icons behind base (tall plants) — batch composite
   const behindIcons = icons.filter((i) => i.zIndex === -1);
   if (behindIcons.length > 0) {
-    canvas = await composite(canvas, await iconOps(behindIcons, offX, offY));
+    canvas = await composite(canvas, await iconOps(behindIcons, baseLeft, baseTop));
   }
 
   // 3. Base sprite
@@ -581,7 +632,7 @@ export async function composeSprite(baseKey, mutationIds = []) {
   // 5. z = 2: standard icons (above color layers) — batch composite
   const standardIcons = icons.filter((i) => i.zIndex === 2);
   if (standardIcons.length > 0) {
-    canvas = await composite(canvas, await iconOps(standardIcons, offX, offY));
+    canvas = await composite(canvas, await iconOps(standardIcons, baseLeft, baseTop));
   }
 
   // 6. Tall-plant overlays (masked to plant silhouette, sequential — each may interact)
@@ -594,14 +645,15 @@ export async function composeSprite(baseKey, mutationIds = []) {
   // 7. z = 10: floating icons (Dawnlit, Ambershine, …) — batch composite
   const floatingIcons = icons.filter((i) => i.zIndex === 10);
   if (floatingIcons.length > 0) {
-    canvas = await composite(canvas, await iconOps(floatingIcons, offX, offY));
+    canvas = await composite(canvas, await iconOps(floatingIcons, baseLeft, baseTop));
   }
 
   // ── Cache and return ─────────────────────────────────────────────────────
+  const composed = { buffer: canvas, box };
   if (composedCache.size >= COMPOSED_CACHE_MAX) {
     composedCache.delete(composedCache.keys().next().value);
   }
-  composedCache.set(cacheKey, canvas);
+  composedCache.set(cacheKey, composed);
 
-  return canvas;
+  return composed;
 }
