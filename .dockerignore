@@ -1,0 +1,45 @@
+# .dockerignore
+#
+# The build context is small on purpose: the Dockerfile copies an explicit file
+# list, and everything excluded here is either generated at build time or is
+# runtime state that belongs in a volume.
+
+# Dependencies and VCS. `node_modules` is a symlink in a worktree checkout and
+# would otherwise land in the context as whatever `tar` makes of the link.
+node_modules
+.git
+.gitignore
+
+# Runtime state. These hold the atlas export and the history database on a host
+# that already runs the service; neither belongs inside an image, and the atlas
+# alone is minutes of CPU and ~10 MB that would go stale the moment the game
+# updates. Volumes carry them instead.
+sprites_dump
+data
+export
+dump.json
+roles.json
+
+# Secrets and local config. `.env.example` is documented and stays; a real
+# `.env` never travels in an image layer.
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.crt
+*.csr
+*.p12
+*.pfx
+
+# Development and load-testing files, none of which the server imports.
+tests
+k6-data.js
+sse-load.mjs
+*.log
+
+# Editor and OS noise.
+.claude
+.vscode
+.DS_Store
+Thumbs.db
