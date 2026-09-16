@@ -58,8 +58,14 @@ import { config } from "../../config/index.js";
  * top-left corner. A cache of v3 pictures holds every sprig of every patch one anchor offset up and to the
  * left of the place it states, and the spec that asks for it has not changed, so the segment is the only
  * thing that can retire them.
+ *
+ * v4 -> v5 is the painter (`scenePainter.js`), twice over: a crop's frame is no longer drawn *as well as*
+ * its picture (every sprig of every patch was composited twice, which greyed its edges and diluted its
+ * colour), and the wash is now the game's own `mix(c.rgb, uColor * c.a, uAlpha)` rather than a CSS
+ * luminosity blend. Both are changes to the *drawing* of a spec that has not moved, which is exactly the
+ * case this segment exists for.
  */
-export const SCENE_LAYOUT = "v4";
+export const SCENE_LAYOUT = "v5";
 
 /**
  * The scene tree's own directory, beside the bake under the sprite export root.
