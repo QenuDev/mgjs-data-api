@@ -6,8 +6,8 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
-    "test": "node --test tests/*.test.js",
-    "test:live": "MG_LIVE_ASSETS=1 node --test tests/*.test.js",
+    "test": "node --test --test-concurrency=1 tests/*.test.js",
+    "test:live": "MG_LIVE_ASSETS=1 node --test --test-concurrency=1 tests/*.test.js",
     "export:animations": "node scripts/exportPetAnimations.js"
   },
   "keywords": [

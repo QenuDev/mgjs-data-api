@@ -205,8 +205,20 @@ test("le profil data démarre, sert /data, et refuse les routes d'images", async
 
     // 4. Ce qui n'est pas une image n'est pas concerné : le catalogue dérivé du
     //    bundle et le contrat restent servis.
+    //
+    //    Ce que ce test vérifie ici est que le profil ne *refuse* pas la route, pas
+    //    qu'elle réponde 200 : `/assets/sprite-data` est dérivé du bundle du jeu, donc
+    //    hors ligne elle ne peut pas répondre 200 et cela n'a rien à voir avec le
+    //    profil. Le statut est donc lu pour son code d'erreur, et seul un refus
+    //    SPRITES_PROFILE fait échouer le test.
     const spriteData = await fetch(`${api.baseUrl}/assets/sprite-data`);
-    assert.equal(spriteData.status, 200);
+    assert.notEqual(spriteData.status, 503, "/assets/sprite-data n'est pas une route d'image");
+    const spriteDataBody = await spriteData.json().catch(() => null);
+    assert.notEqual(
+      spriteDataBody?.error?.code,
+      "SPRITES_PROFILE",
+      "le profil data ne doit pas refuser une route qui ne rend aucune image"
+    );
 
     const schema = await (await fetch(`${api.baseUrl}/schema.json`)).json();
     assert.equal(schema.contract, 1);
