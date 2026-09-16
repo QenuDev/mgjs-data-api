@@ -64,8 +64,12 @@ import { config } from "../../config/index.js";
  * colour), and the wash is now the game's own `mix(c.rgb, uColor * c.a, uAlpha)` rather than a CSS
  * luminosity blend. Both are changes to the *drawing* of a spec that has not moved, which is exactly the
  * case this segment exists for.
+ *
+ * v5 -> v6 is the **turn**: a crop's rotation is now drawn (`turnedPlacement` in `scenePainter.js`, with
+ * `drawnBox` in `sceneLayout.js` growing the union by the turned rectangle). Every picture composed
+ * before it is the same spec drawn upright, which is the wrong picture and not an old one.
  */
-export const SCENE_LAYOUT = "v5";
+export const SCENE_LAYOUT = "v6";
 
 /**
  * The scene tree's own directory, beside the bake under the sprite export root.

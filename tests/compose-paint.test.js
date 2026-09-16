@@ -39,6 +39,7 @@ const PLANTS = await plantFixture();
 gameDataService.getPlants = async () => PLANTS;
 
 const { SPEC_VERSION } = await import("../src/assets/compose/spec.js");
+const { REFERENCE_TILE_PX } = await import("@mg.js/art");
 const { initSprites } = await import("../src/assets/sprites/sprites.js");
 const { clearScenePainterCache, washedPng } = await import("../src/assets/compose/scenePainter.js");
 const { clearSceneCaches } = await import("../src/assets/compose/sceneService.js");
@@ -108,6 +109,107 @@ test("un brin de patch est dessiné une seule fois : la même image qu'une cultu
       `le brin de patch n'est pas la même image que la culture nue : ${differing} octets diffèrent, écart maximal ${worst} (un dessin doublé décale les bords demi-transparents)`,
     );
   }
+});
+
+/** La boîte des pixels opaques d'une image, en coordonnées image. */
+async function alphaBox(png) {
+  const { data, info } = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const box = { minX: Infinity, minY: Infinity, maxX: -1, maxY: -1 };
+  for (let y = 0; y < info.height; y += 1) {
+    for (let x = 0; x < info.width; x += 1) {
+      if (data[(y * info.width + x) * info.channels + 3] > 8) {
+        if (x < box.minX) box.minX = x;
+        if (y < box.minY) box.minY = y;
+        if (x > box.maxX) box.maxX = x;
+        if (y > box.maxY) box.maxY = y;
+      }
+    }
+  }
+  return box;
+}
+
+test("un brin tourné est tourné : l'art occupe le rectangle tourné, et le canevas le contient", async (t) => {
+  await cleanCache();
+  const api = await startTestApp();
+  t.after(async () => {
+    await api.close();
+    await cleanCache();
+  });
+
+  // Sans fond : tout pixel opaque est l'art, donc la boîte des pixels est celle de l'art, et elle se
+  // compare à la rotation que le jeu applique (`i.angle = n.rotationDegrees`, horaire sur un canevas y
+  // vers le bas) sans passer par ce que la disposition rapporte d'elle-même.
+  const degrees = 30;
+  const spec = {
+    spec: SPEC_VERSION,
+    canvas: { fit: "content", padding: 0 },
+    items: [
+      {
+        id: "turned",
+        kind: "patch",
+        species: "Clover",
+        at: { column: 1, row: 0 },
+        crops: [{ size: 100, at: { x: 0, y: 0, rotation: degrees } }],
+      },
+    ],
+  };
+  const layout = await (await api.get("/compose?format=layout", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(spec),
+  })).json();
+  const png = await compose(api, spec);
+
+  const crop = layout.items[0].crops[0];
+  const pivot = { x: (1 + 0.5) * REFERENCE_TILE_PX, y: (0 + 0.5) * REFERENCE_TILE_PX };
+  const radians = (degrees * Math.PI) / 180;
+  const cos = Math.cos(radians);
+  const sin = Math.sin(radians);
+  const corners = [
+    [crop.scene.x, crop.scene.y],
+    [crop.scene.x + crop.scene.width, crop.scene.y],
+    [crop.scene.x, crop.scene.y + crop.scene.height],
+    [crop.scene.x + crop.scene.width, crop.scene.y + crop.scene.height],
+  ].map(([x, y]) => {
+    const dx = x - pivot.x;
+    const dy = y - pivot.y;
+    return { x: pivot.x + dx * cos - dy * sin, y: pivot.y + dx * sin + dy * cos };
+  });
+  const xs = corners.map((corner) => corner.x);
+  const ys = corners.map((corner) => corner.y);
+  const want = {
+    left: Math.min(...xs),
+    top: Math.min(...ys),
+    width: Math.max(...xs) - Math.min(...xs),
+    height: Math.max(...ys) - Math.min(...ys),
+  };
+
+  // Le canevas est le rectangle tourné (le fond est absent, l'union ne contient que l'art).
+  assert.ok(
+    Math.abs(layout.canvas.width - want.width) <= 2 && Math.abs(layout.canvas.height - want.height) <= 2,
+    `canevas ${layout.canvas.width}x${layout.canvas.height}, rectangle tourné attendu ${want.width.toFixed(1)}x${want.height.toFixed(1)} — l'union doit tenir compte de la rotation, sinon le brin est coupé`,
+  );
+
+  const box = await alphaBox(png);
+  const origin = layout.canvas.origin;
+  const measured = {
+    left: box.minX - origin.x,
+    top: box.minY - origin.y,
+    width: box.maxX - box.minX + 1,
+    height: box.maxY - box.minY + 1,
+  };
+  for (const [axis, delta] of [["left", 3], ["top", 3], ["width", 4], ["height", 4]]) {
+    assert.ok(
+      Math.abs(measured[axis] - want[axis]) <= delta,
+      `${axis} de l'art tourné : ${measured[axis].toFixed(1)} au lieu de ${want[axis].toFixed(1)} (rotation ${degrees}° about ${pivot.x},${pivot.y})`,
+    );
+  }
+  // Et l'art occupe bien le rectangle tourné, pas celui d'avant la rotation : 30° sur un art de
+  // 174x254 change la boîte de plusieurs dizaines de pixels dans les deux sens.
+  assert.ok(
+    Math.abs(measured.width - crop.scene.width) > 10 || Math.abs(measured.height - crop.scene.height) > 10,
+    "l'image n'est pas celle d'un art non tourné",
+  );
 });
 
 test("la teinture d'une mutation est celle du shader du jeu, pas un mélange de luminosité", async () => {

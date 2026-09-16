@@ -108,31 +108,81 @@ export function clearScenePainterCache() {
 export async function paintScene({ width, height, layers }) {
   const operations = [];
   for (const layer of layers) collect(layer, operations);
-  const visible = operations.filter(
-    (operation) =>
-      operation.left + operation.width > 0 &&
-      operation.top + operation.height > 0 &&
-      operation.left < width &&
-      operation.top < height,
-  );
+  const visible = operations.filter((operation) => {
+    const box = turnedBox(operation);
+    return box.left + box.width > 0 && box.top + box.height > 0 && box.left < width && box.top < height;
+  });
   await Promise.all(
     visible.map(async (operation) => {
       const image = await sizedPng(operation.sprite, operation.width, operation.height);
-      operation.input = image === null ? null : await washedPng(image, operation.washes);
+      const washed = image === null ? null : await washedPng(image, operation.washes);
+      operation.input = washed;
+      operation.placed = await turnedPlacement(operation, washed);
     }),
   );
   const ops = visible
-    .filter((operation) => operation.input !== null)
+    .filter((operation) => operation.placed !== null)
     .map((operation) => ({
-      input: operation.input,
-      left: Math.max(0, Math.round(operation.left)),
-      top: Math.max(0, Math.round(operation.top)),
+      input: operation.placed.input,
+      left: Math.max(0, Math.round(operation.placed.left)),
+      top: Math.max(0, Math.round(operation.placed.top)),
     }));
 
   return sharp({ create: { width, height, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
     .composite(ops)
     .png()
     .toBuffer();
+}
+
+/**
+ * The turned sprite, and where its canvas goes.
+ *
+ * The game places a crop with `i.position.set(n.xPixels, n.yPixels); i.angle = n.rotationDegrees`, i.e.
+ * the crop's **container** is turned about the point the crop stands on, and the art turns with it. A
+ * layer here is a sprite in a rectangle, so the turn is a rotation of that sprite about the same pivot:
+ * `sharp.rotate` turns the image about its own centre (clockwise for a positive angle, the same direction
+ * Pixi's `angle` turns on a y-down canvas), and the centre is then placed where the turn puts it.
+ */
+async function turnedPlacement(operation, washed) {
+  if (washed === null) return null;
+  const { turn, pivot } = operation;
+  if (!turn || pivot === null || pivot === undefined) {
+    return { input: washed, left: operation.left, top: operation.top };
+  }
+  const rotated = await sharp(washed)
+    .rotate(turn, { background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .png()
+    .toBuffer();
+  const meta = await sharp(rotated).metadata();
+  const radians = (turn * Math.PI) / 180;
+  const centre = { x: operation.left + operation.width / 2, y: operation.top + operation.height / 2 };
+  const dx = centre.x - pivot.x;
+  const dy = centre.y - pivot.y;
+  return {
+    input: rotated,
+    left: pivot.x + dx * Math.cos(radians) - dy * Math.sin(radians) - meta.width / 2,
+    top: pivot.y + dx * Math.sin(radians) + dy * Math.cos(radians) - meta.height / 2,
+  };
+}
+
+/** The rectangle a turned operation covers, for the cheap off-canvas test before any pixels are read. */
+function turnedBox(operation) {
+  const { turn, pivot } = operation;
+  if (!turn || pivot === null || pivot === undefined) {
+    return { left: operation.left, top: operation.top, width: operation.width, height: operation.height };
+  }
+  const radians = (turn * Math.PI) / 180;
+  const cos = Math.cos(radians);
+  const sin = Math.sin(radians);
+  const half = { x: operation.width / 2, y: operation.height / 2 };
+  const centre = { x: operation.left + half.x, y: operation.top + half.y };
+  const dx = centre.x - pivot.x;
+  const dy = centre.y - pivot.y;
+  const turned = { x: pivot.x + dx * cos - dy * sin, y: pivot.y + dx * sin + dy * cos };
+  // A rotated rectangle's axis-aligned box: the half-extents of |w cos| + |h sin|, |w sin| + |h cos|.
+  const width = Math.abs(operation.width * cos) + Math.abs(operation.height * sin);
+  const height = Math.abs(operation.width * sin) + Math.abs(operation.height * cos);
+  return { left: turned.x - width / 2, top: turned.y - height / 2, width, height };
 }
 
 /** Flatten a layer and its nested picture into one list of draw operations, in draw order.
@@ -143,8 +193,13 @@ export async function paintScene({ width, height, layers }) {
  * composited twice into a grey fringe, and the picture layer's mutation colour was diluted by an unwashed
  * copy of the same art underneath it. `kind: "crop"` has no nested picture, which is why bare crops looked
  * clean while patch sprigs did not.
+ *
+ * A crop's **turn** and the point it stands on belong to the frame and are inherited by every layer of the
+ * picture: turning each of them about the same pivot is the same as turning the picture, which is what the
+ * game does to the whole container.
  */
-function collect(layer, operations) {
+function collect(layer, operations, inherited = null) {
+  const turn = layer.turn ? { turn: layer.turn, pivot: layer.pivot ?? null } : inherited;
   const nested = layer.nested ?? [];
   if (nested.length === 0) {
     operations.push({
@@ -154,8 +209,11 @@ function collect(layer, operations) {
       width: layer.width,
       height: layer.height,
       washes: layer.material === true ? [] : (layer.washes ?? []),
+      turn: turn?.turn ?? 0,
+      pivot: turn?.pivot ?? null,
       input: null,
+      placed: null,
     });
   }
-  for (const inner of nested) collect(inner, operations);
+  for (const inner of nested) collect(inner, operations, turn);
 }

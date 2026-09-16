@@ -194,10 +194,13 @@ async function layOutCrop(item) {
     left: layer.left + at.x,
     top: layer.top + at.y,
     turn: layer.kind === "art" || layer.kind === "mutation" ? at.rotation : (layer.turn ?? 0),
+    // The point the crop stands on: the turn happens about it, in the layout's own arithmetic and in
+    // the rasteriser, so it travels with the layer.
+    pivot: at,
   }));
 
   return laidItem(item, {
-    box: boxOf(layers.map((layer) => ({ left: layer.left, top: layer.top, width: layer.width, height: layer.height }))),
+    box: boxOf(layers.map(drawnBox)),
     layers,
     sprites: [...new Set(layers.map((layer) => layer.sprite).filter(Boolean))],
   });
@@ -325,7 +328,7 @@ async function layOutPlant(item) {
   // The item's own box is the union of what it draws: the plant's parts, and each crop's own picture
   // rather than the frame it stands on — a mutation's art reaches past that frame, and a box that
   // stopped at it would clip the picture it is supposed to hold.
-  const box = boxOf(layers.map(layerBox));
+  const box = boxOf(layers.map(drawnBox));
 
   return laidItem(item, {
     box,
@@ -402,6 +405,10 @@ function cropLayersOf(recipe, origin, cropAt) {
     };
     const drawn = {
       ...one,
+      // The point the crop stands on: a turned crop is rotated about it — in `drawnBox` for the canvas
+      // union, and in the rasteriser when it draws — so it travels with the layer (`one.turn` is the
+      // crop's own rotation, which `plant.ts`'s `cropLayer` put there from `crop.rotation`).
+      pivot: at,
       nested: composition.layers.map((inner) => ({
         kind: inner.kind,
         sprite: inner.sprite,
@@ -543,7 +550,7 @@ async function layOutPatch(item) {
 
   const { layers, crops: cropBoxes } = cropLayersOf(recipe, origin, cropAt);
   return laidItem(item, {
-    box: boxOf(layers.map(layerBox)),
+    box: boxOf(layers.map(drawnBox)),
     layers,
     sprites: [
       ...new Set(
@@ -633,10 +640,52 @@ function integerOrNull(value) {
 
 /** The rectangle a painted layer covers, its nested picture included. */
 function layerBox(layer) {
-  if (layer.nested === null || layer.nested.length === 0) {
+  const nested = layer.nested ?? [];
+  if (nested.length === 0) {
     return { left: layer.left, top: layer.top, width: layer.width, height: layer.height };
   }
-  return boxOf(layer.nested.map(layerBox));
+  return boxOf(nested.map(layerBox));
+}
+
+/**
+ * The axis-aligned rectangle a rectangle **occupies** after a clockwise turn about a pivot.
+ *
+ * Screen axes, y down, degrees clockwise — the game's own frame: it places a crop with
+ * `i.position.set(n.xPixels, n.yPixels); i.angle = n.rotationDegrees` (`resources-D_3Zwcn-.js`), and
+ * Pixi's `angle` turns clockwise on a y-down canvas, which is also what `sharp.rotate` does.
+ */
+function rotatedBox(box, pivot, degrees) {
+  const radians = (degrees * Math.PI) / 180;
+  const cos = Math.cos(radians);
+  const sin = Math.sin(radians);
+  const corners = [
+    [box.left, box.top],
+    [box.left + box.width, box.top],
+    [box.left, box.top + box.height],
+    [box.left + box.width, box.top + box.height],
+  ].map(([x, y]) => {
+    const dx = x - pivot.x;
+    const dy = y - pivot.y;
+    return { x: pivot.x + dx * cos - dy * sin, y: pivot.y + dx * sin + dy * cos };
+  });
+  const xs = corners.map((corner) => corner.x);
+  const ys = corners.map((corner) => corner.y);
+  const left = Math.min(...xs);
+  const top = Math.min(...ys);
+  return { left, top, width: Math.max(...xs) - left, height: Math.max(...ys) - top };
+}
+
+/**
+ * A layer's box **as drawn**: a crop that states a turn is rotated about the point it stands on, so the
+ * rectangle it occupies is the rotated one, and the canvas union has to see that or a turned sprig is
+ * clipped at the edge. `layerBox` stays the picture's own rectangle — which is what the layout *reports*
+ * per crop (`crops[].box`, the art at the published scale, the thing a caller checks the art against)
+ * and what the rasteriser is handed to draw; this is only what the union is measured with.
+ */
+function drawnBox(layer) {
+  const box = layerBox(layer);
+  if (layer.pivot === null || layer.pivot === undefined || !layer.turn) return box;
+  return rotatedBox(box, layer.pivot, layer.turn);
 }
 
 /** The pot's frame, from the game's own sprite-name table. */
