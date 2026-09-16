@@ -3,7 +3,7 @@
 
 import { config } from "./config/index.js";
 import { logger } from "./logger/index.js";
-import { startApiServer } from "./api/server.js";
+import { startApiServer, exitOnListenFailure } from "./api/server.js";
 import { startHistoryRecorder, stopHistoryRecorder } from "./services/index.js";
 import { startLivePoller, stopLivePoller } from "./services/livePoller.js";
 import { startVersionWatcher, stopVersionWatcher } from "./services/spriteSync.js";
@@ -12,7 +12,23 @@ import { startVersionWatcher, stopVersionWatcher } from "./services/spriteSync.j
 // 1) Start API Server
 // =====================
 
-const { server } = startApiServer({ port: config.server.port });
+// `listen` échoue après le retour de `startApiServer` : un port déjà pris
+// (EADDRINUSE) arrive sur le serveur sous forme d'événement `'error'`, quelques
+// millisecondes plus tard.
+//
+// Un drapeau lu après coup ne suffit pas : `logger.info` écrit de façon
+// asynchrone, donc tout ce que ce module journalise *avant* que le handler
+// n'ait parlé part quand même — mesuré sur le vrai point d'entrée, « MG API
+// ready » sortait à côté du message d'échec. Le handler sort donc lui-même, dès
+// qu'il a écrit sa ligne, sans rendre la main à la boucle d'événements : rien
+// de ce qui suit ne s'exécute, et aucun service de fond ne démarre contre un
+// port que personne n'écoute.
+const { server } = startApiServer({
+  port: config.server.port,
+  onListenError: (err, context) => {
+    exitOnListenFailure(err, context);
+  },
+});
 
 // =====================
 // 2) Live data from the game's official API

@@ -5,7 +5,7 @@ import { asyncHandler } from "../middleware/index.js";
 import { gameDataService } from "../../services/index.js";
 import { getCacheStats } from "../../core/game/cache.js";
 import { getStoredVersionCached } from "../../core/game/versionStorage.js";
-import { CONTRACT_VERSION, getBuildInfo } from "../../docs/contract.js";
+import { contractVersion, getBuildInfo } from "../../docs/contract.js";
 import { ENGINE_SIGNATURE, eraAt } from "../../core/weather/index.js";
 import { logger } from "../../logger/index.js";
 import { getTransformedPlants, enrichPlantsWithPurchasable } from "../../services/plantTransformer.js";
@@ -226,7 +226,7 @@ dataRouter.get(
     res.json({
       gameVersion,
       artVersion,
-      contract: CONTRACT_VERSION,
+      contract: contractVersion(),
       generatedAt,
     });
   })

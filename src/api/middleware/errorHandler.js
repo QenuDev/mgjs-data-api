@@ -75,6 +75,18 @@ export function errorHandler(err, req, res, _next) {
     return res.status(err.status).json(err.toJSON());
   }
 
+  // Défaut de configuration du serveur, pas de la requête : la réponse doit
+  // porter le code stable de l'erreur pour qu'un opérateur le retrouve dans les
+  // journaux, même en production où le message d'une erreur inconnue est tu.
+  if (err.name === "ContractDocumentError") {
+    return res.status(500).json({
+      error: {
+        code: err.code ?? "CONTRACT_DOCUMENT_INVALID",
+        message: err.message,
+      },
+    });
+  }
+
   // Erreur inconnue
   res.status(500).json({
     error: {

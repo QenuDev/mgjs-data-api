@@ -36,10 +36,10 @@ test("/data/version rapporte la version dont les données ont été construites"
   // La vérité de l'instance, pas une constante recopiée : sans bundle en cache
   // ni `data/version.json` (clone frais), les trois champs valent null ; avec
   // un bundle en cache, `gameVersion` est celle qu'il porte.
-  const { getBuildInfo, CONTRACT_VERSION } = await import("../src/docs/contract.js");
+  const { getBuildInfo, contractVersion } = await import("../src/docs/contract.js");
   const build = await getBuildInfo();
 
-  assert.equal(body.contract, CONTRACT_VERSION);
+  assert.equal(body.contract, contractVersion());
   assert.equal(body.contract, 1);
   assert.equal(body.gameVersion, build.gameVersion);
   assert.equal(body.artVersion, build.artVersion);

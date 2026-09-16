@@ -57,6 +57,16 @@ export const config = {
     userAgent: process.env.PLATFORM_USER_AGENT || "MG-API/2.1 (+https://mg-api.ariedam.fr)",
   },
 
+  // Récupération du bundle du jeu (page -> index.js -> chunks -> data).
+  // Chaque requête de cette chaîne alimente `/data/*` à froid : sans plafond,
+  // un amont qui accepte la connexion sans jamais répondre suspend la requête
+  // du client indéfiniment, et le pool de requêtes avec elle.
+  bundle: {
+    // Large : les chunks pèsent quelques Mo et l'amont peut être lent, mais
+    // fini. Un dépassement est une erreur nommée, pas une attente sans fin.
+    timeout: Number(process.env.BUNDLE_TIMEOUT) || 20 * 1000,
+  },
+
   // Surveillance de la version du jeu : remplace les codes de fermeture
   // WebSocket 4700/4710, qui étaient jusqu'ici notre signal de mise à jour.
   versionWatch: {
@@ -71,7 +81,12 @@ export const config = {
   // Logging
   logging: {
     level: process.env.LOG_LEVEL || "info",
-    pretty: process.env.NODE_ENV !== "production",
+    // Opt-in, pas « NODE_ENV !== production » : pino-pretty est une
+    // devDependency, et un transport configuré mais absent fait échouer pino au
+    // chargement du logger — donc au démarrage, avant toute liaison de port. Un
+    // déploiement fait avec `npm ci --omit=dev` n'a aucune raison de payer ce
+    // piège pour une décoration de sortie ; celui qui la veut la demande.
+    pretty: process.env.LOG_PRETTY === "true",
   },
 
   // Sprites (export & serving)

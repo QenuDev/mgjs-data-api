@@ -1,8 +1,9 @@
 // src/api/routes/assets.js
 
 import express from "express";
-import { asyncHandler, Errors } from "../middleware/index.js";
+import { asyncHandler, ApiError, Errors } from "../middleware/index.js";
 import { assetDataService } from "../../services/index.js";
+import { config } from "../../config/index.js";
 import { spritesRouter } from "./sprites.js";
 import { composedRouter } from "./composed.js";
 import { animationsRouter } from "./animations.js";
@@ -86,15 +87,44 @@ const PROXY_ALLOWED_URL_RX = [
   /^https:\/\/magicgarden\.gg\/[\w./%-]+$/i,
   /^https:\/\/mg-api\.ariedam\.fr\/assets\/sprites\/[\w./%-]+$/i,
 ];
-assetsRouter.get(
-  "/proxy",
-  asyncHandler(async (req, res) => {
+
+/**
+ * Le handler du proxy, paramétré par son `fetch`.
+ *
+ * `fetchImpl` est injectable parce que le comportement à mesurer — un amont qui
+ * n'écrit jamais — ne s'obtient pas contre une URL réelle de la liste blanche.
+ */
+export function createProxyHandler({ fetchImpl = fetch } = {}) {
+  return async function proxyUpstream(req, res) {
     const url = String(req.query.url || "");
     if (!url) throw Errors.badRequest("Missing required query param: url");
     if (!PROXY_ALLOWED_URL_RX.some((rx) => rx.test(url))) {
       throw Errors.badRequest("URL must be a https://magicgarden.gg/ or mg-api sprite asset");
     }
-    const upstream = await fetch(url);
+
+    // Sans plafond, un amont qui accepte la connexion sans jamais répondre
+    // laissait la requête du client ouverte pour toujours. Le proxy est sur le
+    // chemin d'un navigateur qui attend une image : il doit rendre un 504
+    // nommé plutôt que de tenir la connexion.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), config.platform.timeout);
+
+    let upstream;
+    try {
+      upstream = await fetchImpl(url, { signal: controller.signal });
+    } catch (err) {
+      if (err?.name === "AbortError") {
+        throw new ApiError(
+          504,
+          "UPSTREAM_TIMEOUT",
+          `Upstream did not respond within ${config.platform.timeout} ms: ${new URL(url).host}`
+        );
+      }
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
+
     if (!upstream.ok) throw Errors.notFound(`Upstream HTTP ${upstream.status}`);
     const contentType = upstream.headers.get("content-type") || "application/octet-stream";
     const buf = Buffer.from(await upstream.arrayBuffer());
@@ -102,8 +132,10 @@ assetsRouter.get(
     res.set("Cross-Origin-Resource-Policy", "cross-origin");
     res.set("Cache-Control", "public, max-age=86400, immutable");
     res.type(contentType).send(buf);
-  })
-);
+  };
+}
+
+assetsRouter.get("/proxy", asyncHandler(createProxyHandler()));
 
 // =====================
 // Sprite files (static PNG serving)

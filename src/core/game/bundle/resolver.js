@@ -8,16 +8,34 @@ import { ABILITY_COLOR_NAMES, MUTATION_COLOR_NAMES, COLOR_MIN_HITS } from "./col
 
 /**
  * Fetch une URL et retourne le texte.
+ *
+ * Deux choses qu'un `fetch` nu ne fait pas ici :
+ *
+ * - **Un plafond de temps.** `config.bundle.timeout` (20 s) : chaque appel de
+ *   cette fonction est sur le chemin d'une requête `/data/*` à froid. Un amont
+ *   qui accepte la connexion sans jamais écrire laissait la requête du client
+ *   suspendue pour toujours — et, avec elle, la promesse en cache de
+ *   `getMainBundle`, donc toute requête suivante.
+ * - **Une erreur qui nomme l'URL.** Le client n'a qu'une liste d'URLs à
+ *   corriger (`GAME_ORIGIN`, `GAME_PAGE_URL`) ; `fetch failed` ne dit pas
+ *   laquelle a échoué, ni pourquoi.
  */
 export async function fetchText(url) {
-  const res = await fetch(url, {
-    redirect: "follow",
-    headers: {
-      "user-agent": "MG-API/1.0",
-      accept: "*/*",
-      "cache-control": "no-cache",
-    },
-  });
+  let res;
+  try {
+    res = await fetch(url, {
+      redirect: "follow",
+      signal: AbortSignal.timeout(config.bundle.timeout),
+      headers: {
+        "user-agent": "MG-API/1.0",
+        accept: "*/*",
+        "cache-control": "no-cache",
+      },
+    });
+  } catch (err) {
+    const reason = err?.name === "TimeoutError" ? `timed out after ${config.bundle.timeout} ms` : err?.message ?? String(err);
+    throw new Error(`Bundle fetch failed (${reason}) -> ${url}`, { cause: err });
+  }
 
   if (!res.ok) {
     throw new Error(`HTTP ${res.status} ${res.statusText} -> ${url}`);
