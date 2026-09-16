@@ -18,6 +18,12 @@ import { config } from "../config/index.js";
  */
 export function requestOrigin(req) {
   if (config.sprites.baseUrl) return config.sprites.baseUrl;
+  // `API_PUBLIC_URL` est l'adresse de *cette* instance, celle que le spec annonce
+  // déjà dans ses `servers`. Deux réglages pour un seul fait finissent par se
+  // contredire : celui-ci gagne quand `SPRITES_BASE_URL` n'est pas renseigné, et
+  // les charges utiles mises en cache restent relatives (elles ne peuvent pas
+  // porter l'origine d'un appelant).
+  if (config.api?.publicUrl) return config.api.publicUrl;
   const host = typeof req?.get === "function" ? req.get("host") : null;
   if (!host) return "";
   return `${req.protocol}://${host}`;

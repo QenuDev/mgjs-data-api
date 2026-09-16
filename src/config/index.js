@@ -113,7 +113,12 @@ export const config = {
     // Plafond du backoff exponentiel quand l'API officielle est injoignable.
     maxBackoff: Number(process.env.PLATFORM_MAX_BACKOFF) || 60 * 1000,
     timeout: Number(process.env.PLATFORM_TIMEOUT) || 8 * 1000,
-    userAgent: process.env.PLATFORM_USER_AGENT || "MG-API/2.1 (+https://mg-api.ariedam.fr)",
+    // Ce que l'API du jeu voit dans ses journaux. Le défaut nommait le déploiement
+    // d'origine (`mg-api.ariedam.fr`), donc notre fork se présentait comme le service de
+    // quelqu'un d'autre à chaque requête — le même défaut que le spec qui nommait cet hôte
+    // en production. Le défaut ne nomme plus personne ; un opérateur qui veut être
+    // identifiable met sa propre URL ici.
+    userAgent: process.env.PLATFORM_USER_AGENT || "mgjs-data-api/2.1",
   },
 
   // Récupération du bundle du jeu (page -> index.js -> chunks -> data).
