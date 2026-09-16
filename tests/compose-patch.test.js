@@ -183,13 +183,18 @@ test("une patch de quinze brins place chaque ancre à sa propre place, dans les 
     // Dans le repère **scène**, dont le milieu de la tuile est `(column + .5) x 256`.
     const artLeft = (0 + 0.5) * REFERENCE_TILE_PX + crop.place.x * REFERENCE_TILE_PX - frame.anchorX * frame.width * scale;
     const artTop = (0 + 0.5) * REFERENCE_TILE_PX + crop.place.y * REFERENCE_TILE_PX - frame.anchorY * frame.height * scale;
+    // Le rectangle de l'art doit **coïncider** avec celui que la disposition publie, à 1,5 px près. Une
+    // simple contenance (« l'ancre est quelque part dans la boîte ») laissait passer un décalage allant
+    // jusqu'à la hauteur entière de la boîte : c'est ce qui a laissé sortir un patch dont chaque brin
+    // était dessiné une ancre plus haut que sa place, 237 px à l'échelle 3, donc hors de la tuile, la
+    // disposition rapportant le même décalage et les deux se donnant raison.
     assert.ok(
-      artLeft >= crop.scene.x - 1.5 && artLeft <= crop.scene.x + crop.scene.width + 1.5,
-      `ancre du brin hors de sa boîte (x) : ${artLeft} hors de [${crop.scene.x}, ${crop.scene.x + crop.scene.width}]`,
+      Math.abs(artLeft - crop.scene.x) <= 1.5,
+      `coin gauche de l'art du brin : ${artLeft} au lieu de ${crop.scene.x}`,
     );
     assert.ok(
-      artTop >= crop.scene.y - 1.5 && artTop <= crop.scene.y + crop.scene.height + 1.5,
-      `ancre du brin hors de sa boîte (y) : ${artTop} hors de [${crop.scene.y}, ${crop.scene.y + crop.scene.height}]`,
+      Math.abs(artTop - crop.scene.y) <= 1.5,
+      `haut de l'art du brin : ${artTop} au lieu de ${crop.scene.y}`,
     );
     // Le repère image est le repère scène décalé du coin de l'image, à l'arrondi près.
     assert.ok(Math.abs(crop.box.x - (crop.scene.x + origin.x)) <= 1);
@@ -208,6 +213,77 @@ test("une patch de quinze brins place chaque ancre à sa propre place, dans les 
   for (const crop of item.crops) {
     assert.equal(crop.depth, Math.round((crop.place.y + 1) * 10), "la profondeur est celle de la règle");
   }
+});
+
+test("l'art d'un brin est dessiné là où sa place le dit, ancre comprise", async (t) => {
+  await cleanCache();
+  const api = await startTestApp();
+  t.after(async () => {
+    await api.close();
+    await cleanCache();
+  });
+
+  // Un seul brin, une place déclarée : rien ne dépend de la dispersion, et les **pixels** de l'image
+  // composée se comparent à la règle sans passer par ce que la disposition rapporte d'elle-même. C'est la
+  // seule forme de preuve qui ne peut pas être satisfaite par une disposition qui se trompe en accord
+  // avec elle-même.
+  const place = { x: 0.2, y: -0.3 };
+  const spec = {
+    spec: SPEC_VERSION,
+    canvas: { fit: "content", padding: 0 },
+    background: { kind: "tiles", ground: "Dirt_A", columns: 3, rows: 1 },
+    items: [
+      {
+        id: "one-big",
+        kind: "patch",
+        species: "Clover",
+        at: { column: 1, row: 0 },
+        crops: [{ size: 100, at: place }],
+      },
+    ],
+  };
+
+  const layout = await (await layoutOf(api, spec)).json();
+  const response = await api.get("/compose", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(spec),
+  });
+  assert.equal(response.status, 200);
+  const png = Buffer.from(await response.arrayBuffer());
+
+  const item = layout.items[0];
+  const crop = item.crops[0];
+  const frame = drawnFrame("sprite/plant/CloverThreeLeaf").box;
+  const tile = { x: (1 + 0.5) * REFERENCE_TILE_PX, y: (0 + 0.5) * REFERENCE_TILE_PX };
+  const want = {
+    left: tile.x + place.x * REFERENCE_TILE_PX - frame.anchorX * frame.width * crop.scale,
+    top: tile.y + place.y * REFERENCE_TILE_PX - frame.anchorY * frame.height * crop.scale,
+  };
+  // La disposition publie ce rectangle...
+  assert.ok(Math.abs(crop.scene.x - want.left) <= 1.5, `coin gauche publié ${crop.scene.x} au lieu de ${want.left}`);
+  assert.ok(Math.abs(crop.scene.y - want.top) <= 1.5, `haut publié ${crop.scene.y} au lieu de ${want.top}`);
+
+  // ...et les pixels y sont : hors de la bande de sol, tout ce qui est opaque appartient au brin, et la
+  // boîte de ces pixels est celle de la règle. L'échelle 3 est le cas qui se voyait : l'ancre est à
+  // 0,935 de la hauteur de l'art, soit 237 px — presque une tuile — et le brin se dessinait au-dessus.
+  const { data, info } = await sharp(png).raw().toBuffer({ resolveWithObject: true });
+  const ground = { top: layout.canvas.origin.y, bottom: layout.canvas.origin.y + REFERENCE_TILE_PX };
+  const drawn = { minX: Number.POSITIVE_INFINITY, minY: Number.POSITIVE_INFINITY };
+  for (let y = 0; y < info.height; y += 1) {
+    if (y >= ground.top && y < ground.bottom) continue;
+    for (let x = 0; x < info.width; x += 1) {
+      if (data[(y * info.width + x) * info.channels + 3] > 8) {
+        if (x < drawn.minX) drawn.minX = x;
+        if (y < drawn.minY) drawn.minY = y;
+      }
+    }
+  }
+  assert.ok(Number.isFinite(drawn.minX) && Number.isFinite(drawn.minY), "le brin est dessiné au-dessus du sol");
+  const sceneLeft = drawn.minX - layout.canvas.origin.x;
+  const sceneTop = drawn.minY - layout.canvas.origin.y;
+  assert.ok(Math.abs(sceneLeft - want.left) <= 2, `pixels : l'art commence à x ${sceneLeft} au lieu de ${want.left}`);
+  assert.ok(Math.abs(sceneTop - want.top) <= 2, `pixels : l'art commence à y ${sceneTop} au lieu de ${want.top}`);
 });
 
 test("la dispersion est déterministe : deux compositions identiques, une seule image, un hit", async (t) => {

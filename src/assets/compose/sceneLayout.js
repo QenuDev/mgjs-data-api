@@ -380,6 +380,8 @@ function cropLayersOf(recipe, origin, cropAt) {
       top: origin.y + layer.top,
       width: layer.width,
       height: layer.height,
+      anchorX: layer.anchorX,
+      anchorY: layer.anchorY,
       turn: layer.turn ?? 0,
       washes: [],
       material: false,
@@ -387,14 +389,24 @@ function cropLayersOf(recipe, origin, cropAt) {
     };
     if (layer.kind !== "crop" || layer.composition === null || layer.composition === undefined) return one;
     const composition = layer.composition;
-    const corner = { x: one.left + (composition.anchor?.x ?? 0), y: one.top + (composition.anchor?.y ?? 0) };
+    // `pictureOf` puts the composition's art **anchor at the origin**, so its layers live in anchor space:
+    // they hang off the point the crop stands on — the crop layer's own anchor — and not off the top-left
+    // corner of its frame. This used to read `composition.anchor`, a field nothing sets, so it added zero
+    // and every composed crop was drawn one anchor offset up and to the left of its own place: 237 px,
+    // nearly a whole tile, on a clover at scale 3 (`anchorY` is 0.935 of the art's height). The sprig's
+    // frame was right; its picture was not, and the reported box repeated the mistake, so the two agreed
+    // with each other while both sat outside the tile.
+    const at = {
+      x: one.left + (layer.anchorX ?? 0) * layer.width,
+      y: one.top + (layer.anchorY ?? 0) * layer.height,
+    };
     const drawn = {
       ...one,
       nested: composition.layers.map((inner) => ({
         kind: inner.kind,
         sprite: inner.sprite,
-        left: corner.x + inner.left,
-        top: corner.y + inner.top,
+        left: at.x + inner.left,
+        top: at.y + inner.top,
         width: inner.width,
         height: inner.height,
         washes: [...(inner.washes ?? [])],
