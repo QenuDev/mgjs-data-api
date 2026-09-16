@@ -175,14 +175,16 @@ test("le document dit où le bloc recule si le jeu occupe la clé", () => {
 });
 
 // =====================
-// /assets/sprites/composed : le tableau est la caisse de la culture, et le dit
+// /assets/sprites/composed : le canevas est l'union, la caisse dit où est la culture
 // =====================
 //
-// La composition cadrait son canevas sur l'union des calques, donc l'image ne
-// pouvait pas être posée : rien ne disait où était la culture dedans. Le canevas
-// est maintenant la caisse de la culture, l'art qui déborde est coupé, et la
-// caisse est dite deux fois — `X-MG-Sprite-Box` sur la réponse, `?format=layout`
-// dans un corps JSON. Le test tient les deux contre la route.
+// La composition a d'abord cadré son canevas sur la caisse de la culture, donc l'art d'une
+// mutation qui débordait était coupé. Le jeu ne fait pas ça : chaque sprite de mutation est
+// ajouté au conteneur de la culture sans masque (la preuve est dans
+// `src/assets/sprites/cropBox.js`), donc son art va où le calcul de placement le met. Le
+// canevas est maintenant l'union serrée de la caisse et de ses calques, la caisse dit où la
+// culture est dedans, et le seul calque encore coupé est la surcouche de plante haute, que le
+// jeu masque lui-même au contour de la culture. Le test tient les deux contre la route.
 
 const REPO = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const COMPOSED_PATH = "/assets/sprites/composed";
@@ -223,15 +225,39 @@ const exposedHeaders = (() => {
     .filter(Boolean);
 })();
 
-test("le document ne dit plus que le canevas s'élargit pour tenir tous les calques", () => {
+test("le document dit que le canevas est l'union, et quel calque reste coupé", () => {
   const description = doc.paths[COMPOSED_PATH]?.get?.description;
   assert.ok(description, `${COMPOSED_PATH} : pas de description`);
 
-  assert.ok(!/expands to fit/i.test(description), "la description promet encore un canevas qui s'élargit");
-  assert.ok(!/never clipped/i.test(description), "la description promet encore que rien n'est coupé");
+  // Ce que la description ne doit plus promettre : un canevas à la caisse de la culture, et
+  // un art de mutation coupé à cette caisse. Les deux étaient la convention fausse.
+  assert.ok(
+    !/the picture is the crop's own art/i.test(description),
+    "la description dit encore que l'image est l'art de la culture"
+  );
+  assert.ok(
+    !/image dimensions are exactly what the game draws/i.test(description),
+    "la description promet encore que l'image fait exactement l'art de la culture"
+  );
 
-  assert.match(description, /crop's own (art|box)/i, "la description ne dit pas que l'image est la caisse de la culture");
-  assert.match(description, /clipped/i, "la description ne dit pas que l'art hors caisse est coupé");
+  // Ce qu'elle doit dire : l'union, la caisse comme rectangle de l'art dedans, et le seul
+  // calque que le jeu masque lui-même.
+  assert.match(description, /tight union/i, "la description ne dit pas que le canevas est l'union");
+  assert.match(
+    description,
+    /crop art's own rectangle inside the picture/i,
+    "la description ne dit pas que la caisse est le rectangle de l'art dedans"
+  );
+  assert.match(
+    description,
+    /tall-plant overlay/i,
+    "la description ne nomme pas le seul calque encore coupé"
+  );
+  assert.match(
+    description,
+    /never changes the picture's size/i,
+    "la description ne dit pas que la surcouche ne change pas la taille de l'image"
+  );
 });
 
 test("l'en-tête de boîte déclaré est celui que la route pose", () => {
