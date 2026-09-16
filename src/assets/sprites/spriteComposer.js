@@ -5,7 +5,7 @@ import { initSprites, lookupSprite, lookupSpriteByAliases } from "./sprites.js";
 import { decodeKTX2, isKTX2 } from "../ktx2Decoder.js";
 import { gameDataService } from "../../services/gameData.js";
 import { getRiveFrames, clearRiveFramesCache, riveSpritePath } from "./riveFrames.js";
-import { cropBox, cropArtSize } from "./cropBox.js";
+import { cropComposition, cropArtSize, overlayClip } from "./cropBox.js";
 import { isBakeEnabled, lookupBaked, persistComposed } from "./cropBake.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -391,19 +391,14 @@ async function buildOverlayLayer(baseBuf, baseW, baseH, baseAnchor, overlayKey, 
 
   const { buffer: overlayBuf, width: ow, height: oh } = overlaySprite;
 
-  // Game forces plant anchor.x for overlay X, anchor.y = 0 (top) or 1 (bottom)
-  const basePosX    = baseW * baseAnchor.x;
-  const rawOverlayX = Math.round(basePosX - baseAnchor.x * ow);
-  const rawOverlayY = overlayFromBottom ? baseH - oh : 0;
+  // The one clip the game applies to a mutation's art: the tall-plant overlay is masked to
+  // the crop body's own texture, so it is cut to the art's own rectangle and never grows the
+  // picture. `./cropBox.js` states that arithmetic (`overlayClip`) and the bundle evidence
+  // for it — and it is the *only* clip left in this file.
+  const clip = overlayClip(baseW, baseH, ow, oh, baseAnchor.x, overlayFromBottom);
+  if (!clip) return null;
 
-  const cropLeft = rawOverlayX < 0 ? -rawOverlayX : 0;
-  const cropTop  = rawOverlayY < 0 ? -rawOverlayY : 0;
-  const canvasX  = Math.max(0, rawOverlayX);
-  const canvasY  = Math.max(0, rawOverlayY);
-
-  const visibleW = Math.min(ow - cropLeft, baseW - canvasX);
-  const visibleH = Math.min(oh - cropTop,  baseH - canvasY);
-  if (visibleW <= 0 || visibleH <= 0) return null;
+  const { cropLeft, cropTop, x: canvasX, y: canvasY, width: visibleW, height: visibleH } = clip;
 
   const clippedOverlay = (cropLeft > 0 || cropTop > 0 || visibleW < ow || visibleH < oh)
     ? await sharp(overlayBuf).extract({ left: cropLeft, top: cropTop, width: visibleW, height: visibleH }).png().toBuffer()
@@ -419,21 +414,51 @@ async function buildOverlayLayer(baseBuf, baseW, baseH, baseAnchor, overlayKey, 
     .png().toBuffer();
 }
 
-// ─── Icon lookup ──────────────────────────────────────────────────────────────
+// ─── Composition geometry ─────────────────────────────────────────────────────
 
-async function resolveIcon(mutation, isTall) {
-  const cfg = MUTATION_CONFIG[mutation];
-  if (!cfg) return null;
-  const key = (isTall && cfg.tallIconKey) ? cfg.tallIconKey : cfg.iconKey;
-  return extractByKey(key);
+/**
+ * Where a sprite is drawn and how big it is, from the atlas metadata alone.
+ *
+ * Dimensions come from `cropArtSize` (the one derivation of an art's own size), the anchor
+ * from the frame, and `isTall` from the two markers the game uses: a `sprite/tallplant/` key,
+ * or a species the plant data flags with `tileTransformOrigin: "bottom"`. A key the atlas
+ * does not have falls back to the Rive frames (pets), whose metadata carries the same fields.
+ *
+ * Returns null when the key is in neither, which is the one case a caller must skip.
+ */
+async function spriteGeometry(key) {
+  const meta = lookupSprite(key);
+  if (meta?.url && meta.frame) {
+    const { width, height } = cropArtSize(meta);
+    const { tallSpriteNames } = await getPlantMeta();
+    return {
+      key,
+      width,
+      height,
+      anchor: meta.anchor ?? { x: 0.5, y: 0.5 },
+      isTall: key.startsWith("sprite/tallplant/") || tallSpriteNames.has(key.split("/").pop()),
+    };
+  }
+
+  const frames = await getRiveFrames();
+  const rive = frames?.[key];
+  if (!rive) return null;
+  return {
+    key,
+    width: rive.sourceSize?.w ?? 0,
+    height: rive.sourceSize?.h ?? 0,
+    anchor: rive.anchor ?? { x: 0.5, y: 1 },
+    isTall: false, // les pets ne sont jamais "tall" (cf. doc-sprite.md §11)
+  };
 }
 
-// ─── Icon position ────────────────────────────────────────────────────────────
-
-// Bundle logic: targetY = anchorY when harvestType === "Single" AND isVertical, else 0.4.
-// harvestType defaults to "Single" for non-plant sprites (pets, items, etc.)
-function computeIconComposite(iconSprite, baseW, baseH, baseAnchor, species, isTall, harvestType = "Single") {
-  const { buffer: iconBuf, width: iconW, height: iconH, anchor: iconAnchor } = iconSprite;
+/**
+ * The icon position for a crop, from the bundle's own placement math (the port §3.3 of the
+ * plan keeps honest): the icon is scaled by the crop's smaller dimension against the 256-px
+ * reference tile, then placed on the crop's anchor moved to the mutation's target point.
+ */
+function iconRect(iconSprite, baseW, baseH, baseAnchor, species, isTall, harvestType = "Single") {
+  const { width: iconW, height: iconH, anchor: iconAnchor } = iconSprite;
   const anchorX = baseAnchor.x;
   const anchorY = baseAnchor.y;
 
@@ -458,7 +483,72 @@ function computeIconComposite(iconSprite, baseW, baseH, baseAnchor, species, isT
   const drawX = Math.round(basePosX + offsetX - drawW * (iconAnchor?.x ?? 0.5));
   const drawY = Math.round(basePosY + offsetY - drawH * (iconAnchor?.y ?? 0.5));
 
-  return { iconBuf, drawW, drawH, drawX, drawY };
+  return { drawW, drawH, drawX, drawY };
+}
+
+/**
+ * Where every layer of a composition is drawn, and therefore the picture's box.
+ *
+ * Metadata only — no atlas pixels, no sharp — so the bake can ask for the box of a picture it
+ * already has on disk without rendering it, and the renderer below draws exactly the plan.
+ *
+ * The layers that can move the canvas are the icons, with the rectangle the game's placement
+ * math gives them before any cut. The tall-plant overlays cannot: they are clipped to the
+ * art's own rectangle (`overlayClip` in `./cropBox.js`), and the base sprite and its tint
+ * layers are exactly the art. `cropComposition` unions the rectangles and states both the
+ * canvas and the art's own rectangle inside it.
+ *
+ * Returns null when the base key is in neither the atlas nor the Rive frames.
+ */
+async function planComposition(baseKey, sorted) {
+  const base = await spriteGeometry(baseKey);
+  if (!base) return null;
+
+  const species = baseKey.split("/").pop() ?? "";
+  const { harvestTypeMap } = await getPlantMeta();
+  const harvestType = harvestTypeMap.get(species) ?? "Single";
+
+  const colorList   = buildColorList(sorted);
+  const overlayList = base.isTall ? buildOverlayList(sorted) : [];
+
+  const icons = [];
+  for (const mutation of buildIconList(sorted)) {
+    const cfg = MUTATION_CONFIG[mutation];
+    const key = (base.isTall && cfg.tallIconKey) ? cfg.tallIconKey : cfg.iconKey;
+    const icon = await spriteGeometry(key);
+    if (!icon) continue; // Ignore a missing icon asset — do not 404 (doc-sprite.md §13).
+
+    let zIndex = 2;
+    if (FLOATING_MUTATIONS.has(mutation)) zIndex = 10;
+    else if (base.isTall) zIndex = -1;
+
+    icons.push({ mutation, zIndex, key, ...iconRect(icon, base.width, base.height, base.anchor, species, base.isTall, harvestType) });
+  }
+
+  // The canvas and the box a caller places the picture by are the same decision, so both come
+  // from `cropComposition()` (`./cropBox.js`), the one place that states the union convention.
+  const { canvas, box } = cropComposition(
+    base.width,
+    base.height,
+    icons.map((i) => ({ left: i.drawX, top: i.drawY, width: i.drawW, height: i.drawH })),
+  );
+
+  return { ...base, species, harvestType, colorList, overlayList, icons, canvas, box };
+}
+
+/**
+ * The box `composeSpriteWithBox` states for a pair, without composing it.
+ *
+ * Exported for the bake, which records each picture's box in its manifest: a picture it
+ * resumes from disk must carry the box a fresh composition would state, and the geometry
+ * needs no pixels, so resuming stays a metadata question rather than a re-render.
+ *
+ * Returns null when the base key does not exist.
+ */
+export async function composedBox(baseKey, mutationIds = []) {
+  await initSprites();
+  const plan = await planComposition(baseKey, sortMutations(mutationIds.map(String)));
+  return plan ? plan.box : null;
 }
 
 // ─── Main composition ─────────────────────────────────────────────────────────
@@ -471,7 +561,7 @@ export function clearComposedCache() {
 }
 
 /**
- * Compose a base sprite with mutations and return a PNG Buffer at the crop's own size.
+ * Compose a base sprite with mutations and return the picture's PNG Buffer.
  *
  * The buffer-only entry point: `/assets/sprites/composed` serves the picture itself, and
  * a caller that wants only the picture should not have to unwrap one. Callers that need
@@ -487,17 +577,14 @@ export async function composeSprite(baseKey, mutationIds = []) {
 /**
  * The same composition, with the box it is in.
  *
- * Returns `{ buffer, box }`: a PNG whose dimensions are the crop's own art, and
- * `box = { x, y, width, height }` saying where that art sits inside the picture, in
- * picture pixels. With the picture sized to the crop's own box, `x` and `y` are the
- * crop's corner and are 0 — the box is stated rather than assumed because that is the
- * shape the scene layout uses (`docs/mgjs-community-api-plan.md` §3.2), so one box
- * shape serves both paths, and a picture that later carries padding or a shadow states
- * it here instead of silently changing size under a caller.
+ * Returns `{ buffer, box }`: a PNG whose canvas is the tight **union** of the crop's own art
+ * and every layer drawn over it, and `box = { x, y, width, height }` saying where the art's
+ * own rectangle sits inside that picture, in picture pixels. A mutation whose art reaches
+ * past the crop's frame grows the picture instead of being cut to it; `x`/`y` are that art's
+ * corner and are no longer always 0.
  *
- * The box and the canvas come from `cropBox()` (`./cropBox.js`), which is the one place
- * that states that convention and records that it is contested. Read it before changing
- * either.
+ * Both come from `planComposition()` → `cropComposition()` (`./cropBox.js`), the one place
+ * that states the convention and the evidence for it. Read it before changing either.
  *
  * Returns null if the base sprite key does not exist.
  */
@@ -509,57 +596,42 @@ export async function composeSpriteWithBox(baseKey, mutationIds = []) {
 
   if (composedCache.has(cacheKey)) return composedCache.get(cacheKey);
 
-  // ── Base sprite ──────────────────────────────────────────────────────────
-  const baseSpriteInfo = await extractByKey(baseKey);
-  if (!baseSpriteInfo) return null;
+  // ── The plan: where every layer goes, and the picture's box (no pixels) ──
+  const plan = await planComposition(baseKey, sorted);
+  if (!plan) return null;
 
-  const { buffer: baseBuf, width: baseW, height: baseH, anchor: baseAnchor, isTall } = baseSpriteInfo;
-  const species = baseKey.split("/").pop() ?? "";
+  const {
+    width: baseW, height: baseH, anchor: baseAnchor, isTall,
+    colorList, overlayList, icons: plannedIcons,
+  } = plan;
 
-  // ── Plant meta ───────────────────────────────────────────────────────────
-  const { harvestTypeMap } = await getPlantMeta();
-  const harvestType = harvestTypeMap.get(species) ?? "Single";
-
-  // ── Decode base raw once (reused by all color layer builders) ────────────
-  const baseRaw = await sharp(baseBuf).ensureAlpha().raw().toBuffer();
-
-  // ── Mutation lists ───────────────────────────────────────────────────────
-  const colorList   = buildColorList(sorted);
-  const overlayList = isTall ? buildOverlayList(sorted) : [];
-  const iconList    = buildIconList(sorted);
-
-  // ── Resolve icons in parallel ────────────────────────────────────────────
-  const resolvedIcons = await Promise.all(
-    iconList.map(async (mutation) => {
-      const iconSprite = await resolveIcon(mutation, isTall);
-      if (!iconSprite) return null;
-
-      const comp = computeIconComposite(iconSprite, baseW, baseH, baseAnchor, species, isTall, harvestType);
-
-      let zIndex = 2;
-      if (FLOATING_MUTATIONS.has(mutation)) zIndex = 10;
-      else if (isTall) zIndex = -1;
-
-      return { zIndex, ...comp };
-    }),
-  );
-  const icons = resolvedIcons.filter(Boolean);
-
-  // ── The picture's box, from the one place that states it ─────────────────
-  //
-  // The canvas and the box a caller places the picture by are the same decision, so both
-  // come from `cropBox()` (`./cropBox.js`) — the clamp-to-the-crop's-own-art convention,
-  // which plan item 3 chose and which is measured as contested against `@mg.js/art`'s union
-  // box. Read that file before changing either: it is the single place to flip, and the
-  // comment there records what is and is not settled.
-  const box = cropBox(baseW, baseH);
-  const canvasW = box.width;
-  const canvasH = box.height;
+  const canvasW = plan.canvas.width;
+  const canvasH = plan.canvas.height;
 
   // Where the crop's own art sits inside the picture, in picture pixels. Every other
   // layer is placed against it.
+  const box = plan.box;
   const baseLeft = box.x;
   const baseTop  = box.y;
+
+  // ── The pixels the plan names ────────────────────────────────────────────
+  const baseSpriteInfo = await extractByKey(baseKey);
+  if (!baseSpriteInfo) return null;
+  const baseBuf = baseSpriteInfo.buffer;
+
+  // Decode base raw once (reused by all color layer builders)
+  const baseRaw = await sharp(baseBuf).ensureAlpha().raw().toBuffer();
+
+  const resolvedIcons = await Promise.all(
+    plannedIcons.map(async (icon) => {
+      // Ignore a missing icon asset — do not 404 (doc-sprite.md §13). The rectangle stays in
+      // the plan either way, so the box never depends on whether a download succeeded.
+      const sprite = await extractByKey(icon.key);
+      if (!sprite) return null;
+      return { zIndex: icon.zIndex, iconBuf: sprite.buffer, drawW: icon.drawW, drawH: icon.drawH, drawX: icon.drawX, drawY: icon.drawY };
+    }),
+  );
+  const icons = resolvedIcons.filter(Boolean);
 
   // Helper: composite a batch of ops onto the current canvas
   async function composite(canvas, ops) {
@@ -572,43 +644,24 @@ export async function composeSpriteWithBox(baseKey, mutationIds = []) {
     return sharp(buf).resize(Math.max(1, w), Math.max(1, h), { fit: "fill", kernel: "lanczos3" }).png().toBuffer();
   }
 
-  // Helper: build composite ops for a group of icons (resize in parallel, cut to the box).
+  // Helper: build composite ops for a group of icons, at the position the plan gives them.
   //
-  // An icon placed against the crop's own box routinely hangs off it: 33 of the game's 69
-  // crop arts carry one whose drawn size is larger than the art, and the Wet decal on
-  // Delphinium lands 85 px left of its 218-wide art. sharp refuses a piece larger than the
-  // canvas ("Image to composite must have same dimensions or smaller"), so a piece is cut
-  // to the part that lands inside the picture. The icon keeps the position the placement
-  // math gives it; only pixels outside the crop's box are dropped, which is what a caller
-  // drawing the picture into the crop's box would have seen anyway. Where a mutation is
-  // drawn is not this fix's business (plan §6 items 19-22 own it) — this only stops an
-  // icon from resizing the picture.
+  // No cut: the canvas is the union of these very rectangles (`cropComposition`), so every
+  // icon is inside the picture by construction and a piece that were not would make sharp
+  // fail loudly ("Image to composite must have same dimensions or smaller") rather than be
+  // silently clipped. The only clip the composer applies to a layer is the tall-plant
+  // overlay's, in `buildOverlayLayer`.
   async function iconOps(group, xOff, yOff) {
-    const ops = await Promise.all(
+    return Promise.all(
       group.map(async (icon) => {
         const input = await resizeIcon(icon.iconBuf, icon.drawW, icon.drawH);
-        const left  = Math.round(xOff + icon.drawX);
-        const top   = Math.round(yOff + icon.drawY);
-        const x0 = Math.max(0, left);
-        const y0 = Math.max(0, top);
-        const x1 = Math.min(canvasW, left + icon.drawW);
-        const y1 = Math.min(canvasH, top + icon.drawH);
-        if (x1 <= x0 || y1 <= y0) return null; // wholly outside the crop's box
-        const cut = (x1 - x0 === icon.drawW && y1 - y0 === icon.drawH)
-          ? input
-          : await sharp(input)
-                .extract({ left: x0 - left, top: y0 - top, width: x1 - x0, height: y1 - y0 })
-                .png()
-                .toBuffer();
-        return { input: cut, left: x0, top: y0 };
+        return { input, left: Math.round(xOff + icon.drawX), top: Math.round(yOff + icon.drawY) };
       }),
     );
-    return ops.filter(Boolean);
   }
 
-  // 1. Start with a transparent canvas the size of the crop's own art. It does *not* expand to fit
-  // the layers: an icon that reaches past this box is cut to it by `iconOps`, because a canvas sized
-  // to the union of every layer is a picture nobody can place on a tile.
+  // 1. Start with a transparent canvas the size of the union: it expands to fit the layers,
+  // and the box above says where the crop's own art sits inside it.
   let canvas = await sharp({
     create: { width: canvasW, height: canvasH, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
   }).png().toBuffer();
@@ -676,11 +729,11 @@ export async function composeSpriteWithBox(baseKey, mutationIds = []) {
  *   - `BAKE=1` unset → nothing above runs. `isBakeEnabled()` is a sync config read, so the
  *     flag-off path is the composer and nothing else, byte for byte what it always was.
  *
- * The box always comes from `composeSpriteWithBox`, never from the bake: the bake's manifest
- * records no geometry, because the convention is under correction (item 24, `./cropBox.js`)
- * and a manifest written under it would state the degenerate `0,0,width,height` for every
- * picture. The composer caches its result per (key, set), so the box costs one composition
- * per process per set and a request after that is one file read plus a cache lookup.
+ * The box comes from the manifest when the bake states it (it has since `BAKE_LAYOUT` v2, the
+ * layout that introduced the union box), so a hit is one file read and no composition at all;
+ * an entry without one — a manifest from a tree that predates the box, which its layout is
+ * refused for — falls back to the composer's own box for that pair. A miss is composed once,
+ * kept under the bake's own naming scheme and added to the manifest.
  *
  * Returns null when the base key is not in the atlas, exactly like `composeSpriteWithBox`.
  */
@@ -688,9 +741,9 @@ export async function resolveComposedSprite(baseKey, mutationIds = []) {
   if (isBakeEnabled()) {
     const baked = await lookupBaked(baseKey, mutationIds);
     if (baked) {
-      const composed = await composeSpriteWithBox(baseKey, mutationIds);
-      if (composed) {
-        return { buffer: await fs.readFile(baked.file), box: composed.box, source: "baked" };
+      const box = baked.box ?? (await composeSpriteWithBox(baseKey, mutationIds))?.box;
+      if (box) {
+        return { buffer: await fs.readFile(baked.file), box, source: "baked" };
       }
     }
   }

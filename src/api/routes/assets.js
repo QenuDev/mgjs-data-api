@@ -9,6 +9,7 @@ import { composedRouter } from "./composed.js";
 import { animationsRouter } from "./animations.js";
 import { riveRouter } from "./rive.js";
 import { applyCacheHeaders, buildWeakEtag, isFresh } from "../../utils/httpCache.js";
+import { requestOrigin } from "../../utils/spriteUrlBuilder.js";
 
 export const assetsRouter = express.Router();
 
@@ -81,12 +82,41 @@ assetsRouter.get(
 // problem for our own /assets/sprites/ — it's served straight off disk by
 // nginx (see nginx.conf) with no CORS header of its own, which is why pet
 // cosmetics (exported PNGs, not on magicgarden.gg) needed adding here too.
-// Whitelisted to magicgarden.gg and our own sprite exports - not a general
-// open proxy.
-const PROXY_ALLOWED_URL_RX = [
-  /^https:\/\/magicgarden\.gg\/[\w./%-]+$/i,
-  /^https:\/\/mg-api\.ariedam\.fr\/assets\/sprites\/[\w./%-]+$/i,
-];
+// Whitelisted to magicgarden.gg and this instance's own sprite exports - not a
+// general open proxy.
+//
+// The second pattern used to name `mg-api.ariedam.fr`, the upstream deployment,
+// and two things were wrong with that. It made our fork proxy *its own* files
+// through somebody else's host — the comment above already says our sprites
+// "needed adding here too", and they never were, because the pattern named a host
+// we do not run. And it told every reader that the upstream deployment is ours,
+// which is the same claim the spec used to make (plan item 14) and the sprite
+// URLs used to make (item 23).
+//
+// So the game stays the fixed upstream, and everything else is derived from where
+// this instance actually lives: its configured public URL, its sprite base if one
+// is set, and the origin the request arrived at. The list is still explicit and
+// still short — the point is that it is short for the right reason.
+const GAME_ASSET_URL_RX = /^https:\/\/magicgarden\.gg\/[\w./%-]+$/i;
+
+/** One origin's own sprite files, as a pattern, or nothing when there is no origin to allow. */
+function ownSpritesRx(origin) {
+  if (!origin) return [];
+  const escaped = origin.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return [new RegExp(`^${escaped}/assets/sprites/[\\w./%-]+$`, "i")];
+}
+
+/** Every pattern one request may proxy: the game, and this instance wherever it is reachable. */
+function proxyAllowed(req) {
+  const host = typeof req?.get === "function" ? req.get("host") : null;
+  const fromRequest = host ? `${req.protocol}://${host}` : "";
+  return [
+    GAME_ASSET_URL_RX,
+    ...ownSpritesRx(config.api?.publicUrl),
+    ...ownSpritesRx(config.sprites.baseUrl),
+    ...ownSpritesRx(fromRequest),
+  ];
+}
 
 /**
  * Le handler du proxy, paramétré par son `fetch`.
@@ -98,8 +128,8 @@ export function createProxyHandler({ fetchImpl = fetch } = {}) {
   return async function proxyUpstream(req, res) {
     const url = String(req.query.url || "");
     if (!url) throw Errors.badRequest("Missing required query param: url");
-    if (!PROXY_ALLOWED_URL_RX.some((rx) => rx.test(url))) {
-      throw Errors.badRequest("URL must be a https://magicgarden.gg/ or mg-api sprite asset");
+    if (!proxyAllowed(req).some((rx) => rx.test(url))) {
+      throw Errors.badRequest("URL must be a https://magicgarden.gg/ or this instance's own sprite asset");
     }
 
     // Sans plafond, un amont qui accepte la connexion sans jamais répondre

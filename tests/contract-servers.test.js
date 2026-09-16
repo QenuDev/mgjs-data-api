@@ -53,3 +53,23 @@ test("le document ne nomme plus l'hôte du déploiement d'origine", async () => 
     await app.close();
   }
 });
+
+test("rien de ce que cette instance envoie ne se présente comme le déploiement d'origine", async () => {
+  // Le document OpenAPI n'est pas le seul endroit qui nommait cet hôte : le
+  // `User-Agent` par défaut le nommait aussi, donc chaque requête à l'API du jeu
+  // se présentait comme le service de quelqu'un d'autre. C'est la même famille de
+  // défaut que le bloc `servers` (item 14) et que les URLs de sprites (item 23) :
+  // une instance ne doit nommer qu'elle-même. La liste blanche du proxy, qui le
+  // nommait également, est testée dans `proxy-own-origin.test.js`.
+  const { config } = await import("../src/config/index.js");
+  assert.equal(
+    config.platform.userAgent.includes("ariedam"),
+    false,
+    `l'agent envoyé au jeu ne doit nommer aucun déploiement : ${config.platform.userAgent}`
+  );
+  assert.match(
+    config.platform.userAgent,
+    /^mgjs-data-api\//,
+    "et il nomme cette instance, pour que l'amont sache qui l'interroge"
+  );
+});

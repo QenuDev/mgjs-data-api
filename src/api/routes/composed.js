@@ -19,8 +19,13 @@ function boxHeader(box) {
  *   &mutations=Rainbow,Wet,Amberlit   (order-insensitive, deduplicated server-side)
  *   &format=layout                    (the box without the picture)
  *
- * Returns a pre-composed PNG with mutations applied, sized to the crop's own art, with
- * `X-MG-Sprite-Box: x,y,width,height` saying where that art sits inside the picture.
+ * Returns a pre-composed PNG with mutations applied: the canvas is the tight union of the
+ * crop's own art and every layer drawn over it, and the art sits inside it at the rectangle
+ * `X-MG-Sprite-Box: x,y,width,height` states — where that art is, in picture pixels, so a
+ * caller can place the picture on a tile. The one layer still cut is the tall-plant overlay,
+ * which the game itself masks to the crop body's own texture (`src/assets/sprites/cropBox.js`
+ * states the convention and the evidence).
+ *
  * `?format=layout` answers the same box as JSON instead of the picture, for a caller
  * that only needs to place one it already has — and so the box can be asserted as
  * numbers, without decoding a PNG.

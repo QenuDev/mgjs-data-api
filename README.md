@@ -72,6 +72,34 @@ npm start
 
 The server starts on `http://localhost:3000`
 
+### Running it as a service
+
+The repository carries what you need to run this on a host rather than on your laptop, and until now
+nothing here pointed at it:
+
+```bash
+cp .env.example .env      # every setting, with what it does
+docker compose up -d      # the API on :3002, plus the sprite exporter
+```
+
+- **`docker-compose.yml`** runs two services: the API and the sprite exporter. `NODE_ENV=production`
+  is required rather than cosmetic — the image is built without devDependencies, and without it the
+  logger's pretty transport fails to resolve before `app.listen`. `PORT` is pinned to 3002 because the
+  code's default is 3000 while the reverse-proxy config proxies to 3002.
+- **`.env.example`** documents every setting, including `SPRITES_PROFILE=data` for a host that serves
+  data only and must not spend disk or CPU exporting an atlas.
+- **`nginx.conf`** is not started by the compose file. It is the reverse-proxy configuration to install
+  in front if you want one — TLS, caching and a published sprite directory served straight off disk,
+  which is faster than going through Node. The API works without it.
+- **`SPRITES_BASE_URL` and `API_PUBLIC_URL`** are both empty by default, deliberately: the API then
+  builds every URL it hands out from the request that asked for it, so the answer names the host the
+  client actually reached, on any port or proxy name. Set them only when the public URL genuinely
+  differs from the one the process sees.
+
+Measured on this tree rather than assumed: the image builds at **357 MB**, boots on the data-only
+profile, answers `/health`, `/schema.json` and `/data/version`, and refuses image routes with a named
+`SPRITES_PROFILE` error rather than a 404.
+
 ## Main Endpoints
 
 ### Game data (bundle)
@@ -140,7 +168,7 @@ Pets are the only creatures the game renders as vectors (`rive/pets.riv`) rather
 
 The eight animated decorations (windmill, fountain, cauldron, …) get the same treatment from `rive/decor.riv`, attached to `/data/decors` - including `WeatherStation` and `BoobooBooth`, which exist only in the Rive file. The loops are pre-rendered when the game ships a new pet file and served as plain files - drop the URL in an `<img>` tag and it plays, no runtime needed. They are also attached to each species in `/data/pets` under `animations`. See `doc-rive.md` §7.
 
-The composed endpoint accepts a full atlas key (e.g. `sprite/tallplant/Cactus`) and an optional comma-separated list of mutations. It returns a single PNG with all layers merged (color filters, icons, overlays). See `doc-sprite.md` for the full spec.
+The composed endpoint accepts a full atlas key (e.g. `sprite/tallplant/Cactus`) and an optional comma-separated list of mutations. It returns a single PNG with all layers merged (color filters, icons, overlays), composed into the **tight union** of the crop's art and the layers drawn over it, plus an `X-MG-Sprite-Box` header (or `?format=layout` in a JSON body) stating the crop art's own rectangle inside that picture. The only layer still clipped is the tall-plant overlay, which the game itself masks to the crop body's own texture. See `doc-sprite.md` for the full spec.
 
 ### Live data (Real-time via SSE)
 
@@ -461,9 +489,9 @@ Off by default. With the flag off, a request for a crop wearing mutations compos
 
 It bakes crops, never whole plants. A crop wearing mutations is a bounded set; a plant picture is the pot, the platform, the body, its crops and the celestial layers, so its space is that set to the power of the plant's crop-slot count — which is why a plant is not on disk.
 
-The layout is `<BAKE_DIR>/<layout>/<game-version>/crops/<species>/<set>.png` with the published manifest at `<BAKE_DIR>/manifest.json`, swapped in with a `rename` only once the last picture is on disk, so a half-baked version is never advertised and the previous one keeps serving until the swap. The `<layout>` segment names the shape of the pictures (`v1` today); a change to how a picture is composed bumps it, so a tree baked under the old shape is neither served nor resumed. A run killed partway through resumes: every picture already written and decodable is reused. A set the bake did not produce is composed on demand and persisted under the same scheme, so a gap is one slow request rather than a 404.
+The layout is `<BAKE_DIR>/<layout>/<game-version>/crops/<species>/<set>.png` with the published manifest at `<BAKE_DIR>/manifest.json`, swapped in with a `rename` only once the last picture is on disk, so a half-baked version is never advertised and the previous one keeps serving until the swap. The `<layout>` segment names the shape of the pictures (`v2` today — the union box; `v1` was the clamped one); a change to how a picture is composed bumps it, so a tree baked under the old shape is neither served nor resumed. A run killed partway through resumes: every picture already written and decodable is reused, and its box is restated from the atlas metadata (`composedBox()`), which needs no pixels. A set the bake did not produce is composed on demand and persisted under the same scheme, so a gap is one slow request rather than a 404.
 
-The manifest names each picture's file and byte count and states **no box**. The box convention is under correction — the game draws a crop's mutation art into the union of the art and its layers rather than clipping it to the crop's own frame (`src/assets/sprites/cropBox.js` records the evidence, plan item 24 owns the fix) — and a box baked under today's clamped composer would state the degenerate `0,0,width,height` for all of them. A request's box therefore comes from the composer, which owns the convention.
+The manifest names each picture's file, its byte count and the box that picture is in: the crop art's own rectangle inside the union canvas (`src/assets/sprites/cropBox.js` records the convention and the bundle evidence for it). A request served from the bake therefore reads one file and one box, with no composition at all; an entry without a box — impossible in this layout, since a manifest from another one is refused — falls back to the composer's own box for that pair.
 
 Set `CORS_ENABLED=false` or `RATE_LIMIT_ENABLED=false` to disable those features. SSE streams use a separate limiter (defaults to `RATE_LIMIT_MAX / 10` per window).
 

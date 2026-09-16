@@ -1,10 +1,19 @@
-// A composed crop is the crop's own box, and it says so.
+// A composed crop is the tight union of the crop's art and its layers, and it says where the
+// art is inside that picture.
 //
-// The endpoint used to size its canvas to the union of every layer's bounding box, so a
-// caller that asked for a crop wearing a mutation got a picture bigger than the crop and
-// no way to know where the crop was inside it. This file asserts the fixed contract: the
-// picture's dimensions are the crop's own art, for every species the composer can compose,
-// against the table below, and the box is stated.
+// The endpoint used to size its canvas to the crop's own art and cut every layer that reached
+// past it, then state the degenerate box `0,0,width,height`. The game does not do that: each
+// mutation sprite is added to the crop's container unmasked and unfitted, so its art lands
+// where the placement math puts it (`src/assets/sprites/cropBox.js` records the bundle
+// evidence and the measurements). This file asserts the corrected contract:
+//
+//   * the picture is the **tight union** of the crop's own art and the rectangles of the
+//     layers actually drawn into it — `cropComposition()` is the one statement of that;
+//   * `X-MG-Sprite-Box` is the **art's own rectangle inside that picture**: the art's own
+//     width and height, at a corner that is `0,0` exactly when nothing reaches past the art;
+//   * a picture that grew really holds the art that made it grow: the rows above the art's
+//     frame are drawn, not empty (they were impossible to hold before — that is the whole
+//     point of the change).
 //
 // It runs offline. `tests/fixtures/sprites/` holds one packed PNG and its atlas JSON with
 // the real frame geometry — every composable crop art plus every mutation icon, overlay
@@ -167,22 +176,38 @@ const dims = async (buffer) => {
   return `${meta.width}x${meta.height}`;
 };
 
-/** Compose one species and report the first thing that is wrong, or null. */
+/**
+ * Compose one species and report the first thing that is wrong, or null.
+ *
+ * What is asserted is the convention and its self-consistency, never a size pinned against
+ * the art: the picture may be bigger than the art (that is the fix), but the box must always
+ * be the art's own rectangle, it must lie inside the picture, and a box that moves the art off
+ * the origin must sit in a picture that is actually bigger.
+ */
 async function check(species, [artKey, width, height], mutations) {
   const composed = await composeSpriteWithBox(artKey, mutations);
   if (!composed) return `${species} (${artKey}) [${mutations.join("+") || "bare"}] composed nothing`;
-  const got = await dims(composed.buffer);
-  if (got !== `${width}x${height}`) {
-    return `${species} (${artKey}) [${mutations.join("+") || "bare"}] composed ${got}, the crop's own art is ${width}x${height}`;
-  }
+
   const box = composed.box;
-  if (!box || box.x !== 0 || box.y !== 0 || box.width !== width || box.height !== height) {
-    return `${species} (${artKey}) [${mutations.join("+") || "bare"}] stated box ${JSON.stringify(box)}, expected {x:0,y:0,width:${width},height:${height}}`;
+  const label = `${species} (${artKey}) [${mutations.join("+") || "bare"}]`;
+  if (!box) return `${label} stated no box`;
+  if (box.width !== width || box.height !== height) {
+    return `${label} stated box ${JSON.stringify(box)}, whose width/height must be the art's ${width}x${height}`;
+  }
+  if (box.x < 0 || box.y < 0) return `${label} stated box ${JSON.stringify(box)} outside the picture`;
+
+  const got = await dims(composed.buffer);
+  const [pictureW, pictureH] = got.split("x").map(Number);
+  if (box.x + width > pictureW || box.y + height > pictureH) {
+    return `${label} stated box ${JSON.stringify(box)} for a ${got} picture: the art does not fit`;
+  }
+  if ((box.x > 0 && pictureW === width) || (box.y > 0 && pictureH === height)) {
+    return `${label} states the art at ${box.x},${box.y} in a ${got} picture, which is only the art`;
   }
   return null;
 }
 
-describe("a composed crop is the crop's own box", () => {
+describe("a composed crop is the union of its art and its layers", () => {
   it("holds for every composable species, against the committed table", async () => {
     const wrong = [];
     for (const [species, row] of Object.entries(CROP_ART)) {
@@ -218,6 +243,115 @@ describe("a composed crop is the crop's own box", () => {
     assert.deepEqual(wrong, [], `${wrong.length} of ${Object.keys(CROP_ART).length * REACHABLE_SETS.length} (species, set) pairs wrong:\n${wrong.join("\n")}`);
   });
 
+  it("states a box that is not degenerate for the pictures that grew", async () => {
+    // The clamped convention returned `0,0,width,height` for **every** response — even for the
+    // pictures whose union is bigger than the art — so the header carried no information at
+    // all. The counts below are measured, not guessed: over the live atlas and plant records
+    // of game 1192 the union is bigger than the art for 4,818 of the 6,210 (crop art,
+    // reachable set) pictures and 3,780 of them push the art's corner off the origin; the
+    // clamped composer answered 0 and 0 on both counts. Offline, without the live plant data
+    // that flags 20 species tall, this smaller sweep (69 arts × 6 sets) measures 217 and 130.
+    const sets = [[], ["Wet"], ["Frozen"], ["Ambercharged"], ["Dawnlit"], HEAVIEST_SET];
+    let offOrigin = 0;
+    let grew = 0;
+    for (const [species, row] of Object.entries(CROP_ART)) {
+      for (const mutations of sets) {
+        const composed = await composeSpriteWithBox(row[0], mutations);
+        assert.ok(composed, `${species} [${mutations.join("+") || "bare"}] composed nothing`);
+        const [, width, height] = row;
+        const picture = await dims(composed.buffer);
+        if (picture !== `${width}x${height}`) grew++;
+        if (composed.box.x > 0 || composed.box.y > 0) offOrigin++;
+      }
+    }
+    assert.equal(grew, 217, "the number of pictures bigger than their art changed — is the canvas clamped again?");
+    assert.equal(offOrigin, 130, "the number of pictures stating an art rectangle off the origin changed");
+  });
+
+  it("pins the union box and the art's rectangle for CloverThreeLeaf", async () => {
+    const [artKey, width, height] = CROP_ART.Clover; // 116x169
+    assert.equal(`${width}x${height}`, "116x169");
+
+    // `Frozen,Thunderstruck` is **not a set a garden can hold**: both are `group: "Hydro"`,
+    // and a plant wears at most one mutation per group, so the bake never produces it. It is
+    // still the pair the correction was measured against, so it is pinned, labelled.
+    //
+    // The arithmetic, in picture pixels (the art's own frame is 116x169, anchor
+    // (0.491379, 0.934911)):
+    //   * species key: the composer reads it off the art key — "CloverThreeLeaf" —
+    //     so the game's `MUT_ICON_Y_EXCEPT["Clover"] = 0.30` does not apply here (plan items
+    //     19-22 own placement; see `src/assets/sprites/cropBox.js`). targetX = 0.491379,
+    //     targetY = 0.4 (169 is not > 116 * 1.5);
+    //   * scale = 0.5 * min(1.5, 116/256) = 0.2265625;
+    //   * Thunderstruck (363x565) -> 82x128 at x = round(116*0.491379 - 82/2) = 16,
+    //     y = round(169*0.934911 + (0.4 - 0.934911)*169 - 128*0.512472) = 2;
+    //   * Frozen (290x232) -> 66x53 at (24, 42).
+    // Both rectangles sit inside the art, so the tight union **is** the art: 116x169, and
+    // the art's rectangle is the whole picture. The viewer answers 116x206 for the same crop
+    // because its box is species-wide by design (`@mg.js/art` unions every mutation its tables
+    // state, worn or not); its union over the *worn* pair would be 116x184 once the anchor
+    // above is keyed by species. Different conventions, neither a bug.
+    const union = await composeSpriteWithBox(artKey, ["Frozen", "Thunderstruck"]);
+    assert.equal(await dims(union.buffer), "116x169");
+    assert.deepEqual(union.box, { x: 0, y: 0, width: 116, height: 169 });
+
+    // Reachable pairs, and the reachable pair of the same art that does grow. `Rainbow,
+    // Thunderstruck,Ambershine` is one mutation per group; Thunderstruck lands at y = 2 and
+    // Ambershine at (4, 6), so this one also unions to the art.
+    const reachable = await composeSpriteWithBox(artKey, ["Rainbow", "Thunderstruck", "Ambershine"]);
+    assert.equal(await dims(reachable.buffer), "116x169");
+    assert.deepEqual(reachable.box, { x: 0, y: 0, width: 116, height: 169 });
+
+    // `Gold,Frozen,Ambercharged` is reachable (Growth + Hydro + Lunar) and does grow:
+    // Ambercharged (389x488 -> 88x111 here) lands at x = round(116*0.491379 - 88*(0.501285))
+    // = 13 and y = round(158.0 - 90.4 - 111*0.795082) = -21, so the union is 116 x (169 + 21).
+    const grown = await composeSpriteWithBox(artKey, ["Gold", "Frozen", "Ambercharged"]);
+    assert.equal(await dims(grown.buffer), "116x190");
+    assert.deepEqual(grown.box, { x: 0, y: 21, width: 116, height: 169 });
+  });
+
+  it("holds the art a mutation draws past the crop's frame", async () => {
+    // The clamped canvas threw these pixels away: they sit above the art's frame, so no
+    // picture sized to that frame could hold them. Measured on the fixture's flat blocks,
+    // BabyCarrot + Ambercharged has 6,380 opaque pixels in the 50 rows above the art, and
+    // Dawnlit reaches 8 px to the left of it as well. Asserted as "some", not as that exact
+    // count, because the count is a property of the fixture's blocks rather than of the
+    // union; the sizes and the box below are the union's own numbers.
+    const above = async (artKey, mutations, expected, box) => {
+      const composed = await composeSpriteWithBox(artKey, mutations);
+      assert.equal(await dims(composed.buffer), expected, `${artKey} [${mutations.join("+")}]`);
+      assert.deepEqual(composed.box, box, `${artKey} [${mutations.join("+")}]`);
+
+      const { data, info } = await sharp(composed.buffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+      let overhang = 0;
+      for (let y = 0; y < box.y; y++) {
+        for (let x = 0; x < info.width; x++) if (data[(y * info.width + x) * info.channels + 3] > 0) overhang++;
+      }
+      for (let y = 0; y < info.height; y++) {
+        for (let x = 0; x < box.x; x++) if (data[(y * info.width + x) * info.channels + 3] > 0) overhang++;
+      }
+      assert.ok(overhang > 0, `${artKey} [${mutations.join("+")}] grew but draws nothing outside the art's frame`);
+    };
+
+    // Ambercharged reaches 50 px above BabyCarrot's 191x238 art (145 px wide at x = 8, so it
+    // stays inside horizontally).
+    await above("sprite/plant/BabyCarrot", ["Ambercharged"], "191x288", { x: 0, y: 50, width: 191, height: 238 });
+    // Dawnlit reaches 8 px left and 4 px above the same art.
+    await above("sprite/plant/BabyCarrot", ["Dawnlit"], "199x242", { x: 8, y: 4, width: 191, height: 238 });
+    // Sunflower wears it too: 66 px above its 256x256 art.
+    await above("sprite/plant/Sunflower", ["Ambercharged"], "256x322", { x: 0, y: 66, width: 256, height: 256 });
+  });
+
+  it("draws the bare crop at its own size, with nothing to union", async () => {
+    // With no layer to union, the tight union is the art itself, so the box must be the whole
+    // picture — the one case where the old degenerate answer was also the right one.
+    for (const [species, [artKey, width, height]] of Object.entries(CROP_ART)) {
+      const bare = await composeSpriteWithBox(artKey, []);
+      assert.equal(await dims(bare.buffer), `${width}x${height}`, `${species} bare`);
+      assert.deepEqual(bare.box, { x: 0, y: 0, width, height }, `${species} bare box`);
+    }
+  });
+
   it("still draws the crop, so the box is not an empty promise", async () => {
     const [artKey, width, height] = CROP_ART.Clover;
     const bare = await composeSprite(artKey, []);
@@ -228,11 +362,18 @@ describe("a composed crop is the crop's own box", () => {
 
     const wet = await composeSprite(artKey, ["Wet"]);
     assert.notEqual(wet.equals(bare), true, "a mutation changed nothing at all");
+    // Wet's decal is inside Clover's art, so this picture is the art — and the box says so.
+    const composed = await composeSpriteWithBox(artKey, ["Wet"]);
     assert.equal(await dims(wet), `${width}x${height}`);
+    assert.deepEqual(composed.box, { x: 0, y: 0, width, height });
   });
 
   it("states the same box on the endpoint, as a header and as JSON", async () => {
-    const [artKey, width, height] = CROP_ART.Clover;
+    // A pair whose picture is bigger than the art, so the header is the real rectangle rather
+    // than the degenerate one: BabyCarrot + Ambercharged is 191x288 with the art at y = 50.
+    const [artKey, width, height] = CROP_ART.Carrot;
+    const expectedPicture = "191x288";
+    const expectedBox = { x: 0, y: 50, width, height };
     // The same nesting the server uses (`src/api/server.js` mounts the assets router at
     // `/assets`, `src/api/routes/assets.js` mounts this one at `/sprites/composed`), with
     // only this route mounted.
@@ -243,20 +384,20 @@ describe("a composed crop is the crop's own box", () => {
     const server = app.listen(0);
     try {
       const base = `http://127.0.0.1:${server.address().port}/assets/sprites/composed`;
-      const query = `key=${encodeURIComponent(artKey)}&mutations=Wet,Dawnlit`;
+      const query = `key=${encodeURIComponent(artKey)}&mutations=Ambercharged`;
 
       const png = await fetch(`${base}?${query}`);
       assert.equal(png.status, 200);
       assert.equal(png.headers.get("content-type"), "image/png");
-      assert.equal(png.headers.get("x-mg-sprite-box"), `0,0,${width},${height}`);
-      assert.equal(await dims(Buffer.from(await png.arrayBuffer())), `${width}x${height}`);
+      assert.equal(png.headers.get("x-mg-sprite-box"), `0,50,${width},${height}`);
+      assert.equal(await dims(Buffer.from(await png.arrayBuffer())), expectedPicture);
 
       const layout = await fetch(`${base}?${query}&format=layout`);
       assert.equal(layout.status, 200);
       assert.match(layout.headers.get("content-type"), /application\/json/);
-      assert.equal(layout.headers.get("x-mg-sprite-box"), `0,0,${width},${height}`);
+      assert.equal(layout.headers.get("x-mg-sprite-box"), `0,50,${width},${height}`);
       const body = await layout.json();
-      assert.deepEqual(body.box, { x: 0, y: 0, width, height });
+      assert.deepEqual(body.box, expectedBox);
       assert.equal(body.key, artKey);
     } finally {
       await new Promise((resolve) => server.close(resolve));
