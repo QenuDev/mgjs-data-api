@@ -57,16 +57,21 @@ function appLevelRoutes(expressApp) {
   return routes;
 }
 
-/** Capacité déclarée -> chemin qui la porte, pour que le contrat ne réclame rien d'absent. */
+/**
+ * Capacité déclarée -> chemin qui la porte **et les verbes qu'il sert**, pour que le contrat ne
+ * réclame rien d'absent. Les verbes sont ceux qu'un client utilisera : `compose` est un `POST`
+ * (`GET /compose` dit ce que l'endpoint prend), tout le reste est un `GET`.
+ */
 const CAPABILITY_PATHS = {
-  data: "/data",
-  sprites: "/assets/sprites",
-  "sprites.composed": "/assets/sprites/composed",
-  "sprites.data": "/assets/sprite-data",
-  "live.weather": "/live/weather",
-  "live.shops": "/live/shops",
-  animations: "/assets/animations",
-  rive: "/assets/rive",
+  data: { path: "/data", verbs: ["GET"] },
+  sprites: { path: "/assets/sprites", verbs: ["GET"] },
+  "sprites.composed": { path: "/assets/sprites/composed", verbs: ["GET"] },
+  "sprites.data": { path: "/assets/sprite-data", verbs: ["GET"] },
+  "live.weather": { path: "/live/weather", verbs: ["GET"] },
+  "live.shops": { path: "/live/shops", verbs: ["GET"] },
+  animations: { path: "/assets/animations", verbs: ["GET"] },
+  rive: { path: "/assets/rive", verbs: ["GET"] },
+  compose: { path: "/compose", verbs: ["GET", "POST"] },
 };
 
 test("/schema.json et /docs/openapi.json annoncent le même contrat", async (t) => {
@@ -146,19 +151,20 @@ test("le contrat ne réclame que des capacités que le serveur a", async (t) => 
 
   const schema = await (await api.get("/schema.json")).json();
 
-  // Le composeur de scènes (POST /compose, item 20 du plan) n'existe pas
-  // encore : le contrat ne doit pas l'annoncer. À retirer quand il arrivera.
-  assert.ok(!schema.capabilities.includes("compose"), "compose n'est pas implémenté");
-
   for (const capability of schema.capabilities) {
-    const path = CAPABILITY_PATHS[capability];
-    assert.ok(path, `capacité déclarée sans chemin connu : ${capability}`);
-    assert.ok(schema.paths.includes(path), `${capability} : ${path} absent du contrat`);
-    assert.equal(
-      (await api.get(path, { method: "OPTIONS" })).status,
-      200,
-      `${capability} : ${path} n'est pas monté`
-    );
+    const declared = CAPABILITY_PATHS[capability];
+    assert.ok(declared, `capacité déclarée sans chemin connu : ${capability}`);
+    assert.ok(schema.paths.includes(declared.path), `${capability} : ${declared.path} absent du contrat`);
+    const options = await api.get(declared.path, { method: "OPTIONS" });
+    assert.equal(options.status, 200, `${capability} : ${declared.path} n'est pas monté`);
+    const allow = options.headers.get("allow") ?? "";
+    for (const verb of declared.verbs) {
+      assert.match(
+        allow,
+        new RegExp(`\\b${verb}\\b`),
+        `${capability} : ${declared.path} ne sert pas ${verb} (Allow: ${allow})`
+      );
+    }
   }
 });
 

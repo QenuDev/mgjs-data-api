@@ -41,6 +41,12 @@ export function declaration() {
     capabilities: [...(contract.capabilities ?? [])],
     data: [...(contract.data ?? [])],
     paths: Object.keys(document.paths ?? {}),
+    // La scène que `POST /compose` accepte : la version du format de spec et ses limites. Elles
+    // sont déclarées ici plutôt que dans le code du composeur pour la même raison que le reste du
+    // contrat : le document et la route lisent le même fichier, donc un client qui vérifie avant
+    // d'envoyer lit ce que l'instance applique vraiment. Le composeur les relit et
+    // `tests/compose-spec.test.js` compare les deux.
+    compose: { ...(contract.compose ?? {}) },
   };
 }
 
@@ -190,6 +196,7 @@ export async function buildRuntimeContract({ unavailable = {} } = {}) {
     unavailable: Object.fromEntries(
       declared.data.filter((category) => category in unavailable).map((c) => [c, unavailable[c]])
     ),
+    compose: declared.compose,
     gameVersion,
     artVersion,
     generatedAt,

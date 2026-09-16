@@ -203,6 +203,21 @@ test("le profil data démarre, sert /data, et refuse les routes d'images", async
       assert.match(body.error.message, /SPRITES_PROFILE=data/);
     }
 
+    // Le composeur de scènes est une route d'images comme les autres : il lit l'atlas et écrit une
+    // image, donc le profil `data` le refuse de la même façon, par un 503 qui nomme le profil plutôt
+    // que par un 404 qui dirait que la route n'existe pas.
+    const composed = await fetch(`${api.baseUrl}/compose`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ spec: 1, items: [{ id: "a", kind: "crop", species: "Clover" }] }),
+    });
+    assert.equal(composed.status, 503, `POST /compose doit répondre 503, vu ${composed.status}`);
+    assert.equal((await composed.json()).error.code, "SPRITES_PROFILE");
+
+    const composedFile = await fetch(`${api.baseUrl}/compose/${"0".repeat(40)}.png`);
+    assert.equal(composedFile.status, 503, `GET /compose/<clé>.png doit répondre 503, vu ${composedFile.status}`);
+    assert.equal((await composedFile.json()).error.code, "SPRITES_PROFILE");
+
     // 4. Ce qui n'est pas une image n'est pas concerné : le catalogue dérivé du
     //    bundle et le contrat restent servis.
     //
