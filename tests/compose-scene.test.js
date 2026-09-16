@@ -31,6 +31,7 @@ process.env.COMPOSE_CACHE_MAX = "2";
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
+import path from "node:path";
 import sharp from "sharp";
 
 import { installOfflineGame, plantFixture, artTablesFixture } from "./helpers/offlineGame.js";
@@ -241,6 +242,16 @@ test("POST /compose répond un PNG dont les dimensions sont le canevas de la dis
   assert.equal(bare.scene.width, bare.box.width);
   assert.equal(bare.scene.height, bare.box.height);
   assert.ok(Math.abs(scale - 1.84) < 1e-9, "l'échelle de la courbe du jeu pour une taille de 71");
+
+  // Et le fond de la revendication ci-dessus, qui n'était asserté nulle part : la boîte de la scène
+  // est celle de la recomposition décalée de la tuile elle-même. `pictureBox(…, {x:0,y:0})` place
+  // l'ancre de l'art à son point, donc si la boîte de la scène vaut `tuile + cette boîte`, c'est bien
+  // l'ancre qui est sur la tuile. Le composeur, lui, alignait le **coin de la boîte** sur la tuile :
+  // tant que l'origine d'une tuile était son coin, les deux lectures tombaient au même endroit et
+  // seule celle du composeur était fausse — la clover paraissait bien placée par accident.
+  const bareTile = { x: (spec().items[2].at.column + 0.5) * 256, y: (spec().items[2].at.row + 0.5) * 256 };
+  assert.equal(bare.scene.x, Math.round(bareTile.x + bareBox.box.left), "l'ancre de l'art est sur la tuile (x)");
+  assert.equal(bare.scene.y, Math.round(bareTile.y + bareBox.box.top), "l'ancre de l'art est sur la tuile (y)");
 });
 
 test("la disposition porte l'art du paquet, à sa place dans la boîte", async (t) => {
@@ -309,7 +320,11 @@ test("la disposition porte l'art du paquet, à sa place dans la boîte", async (
       // c'est la branche que ce test peut exercer hors ligne. Sa boîte doit être le rectangle de cet
       // art, décalé de sa tuile, et tenir ses pixels (vérifié par le test précédent).
       const plantFrame = frames.get(recipe.art);
-      const tile = { x: item.at.column * 256, y: item.at.row * 256 };
+      // La tuile est le **milieu** de la case, pas son coin : le jeu pose ce qui est sur une case à
+      // `position.set(i * 256 + 256 / 2, a * 256 + 256 / 2)` et dessine le contour de la case en
+      // `roundRect(-128, -128, 256, 256)`, centre sur l'origine. Recomputé ici avec le coin, ce test
+      // passe sur une disposition décalée d'une demi-case — ce qu'il faisait.
+      const tile = { x: (item.at.column + 0.5) * 256, y: (item.at.row + 0.5) * 256 };
       const box = {
         left: tile.x - plantFrame.anchorX * plantFrame.width,
         top: tile.y - plantFrame.anchorY * plantFrame.height,
@@ -493,7 +508,11 @@ test("GET /compose/<clé>.png sert le fichier composé", async (t) => {
   assert.ok(fetchedBytes.equals(postedBytes), "le fichier est le même PNG");
   assert.equal(composeCount(), 1, "servir le fichier ne compose pas");
 
-  const onDisk = await fs.readFile(new URL(`${key}.png`, CACHE_DIR));
+  // Le fichier est lu par le module de cache plutôt qu'en composant le chemin ici : le nom du
+  // répertoire porte le segment de disposition (`SCENE_LAYOUT`), et un test qui le réécrirait
+  // passerait encore le jour où ce segment change — c'est-à-dire le jour où il devient faux.
+  const { cacheDirectory } = await import("../src/assets/compose/sceneCache.js");
+  const onDisk = await fs.readFile(path.join(cacheDirectory(), `${key}.png`));
   assert.ok(onDisk.equals(postedBytes), "le fichier est sur le disque sous son nom de contenu");
 
   const missing = await api.get(`/compose/${"0".repeat(40)}.png`);

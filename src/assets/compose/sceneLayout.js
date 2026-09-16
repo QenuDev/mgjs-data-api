@@ -67,9 +67,29 @@ function sizeScale(size, maxSizeMultiplier) {
   return 1 + ((size - 50) / 50) * (maxSizeMultiplier - 1);
 }
 
-/** One tile position in the scene's own coordinates. */
+/**
+ * One tile position in the scene's own coordinates: where on the scene the tile an item names is.
+ *
+ * It is the tile's **centre**, not its top-left corner, and that is the game's own convention rather
+ * than a choice made here. Three places in the game's own chunks say so, and they agree in both the
+ * 1176 capture this repo's fixture comes from and the 1192 one it serves:
+ *
+ *   * a tile's outline is drawn as `e.roundRect(-128, -128, 256, 256, 16)` — a 256x256 rectangle
+ *     centred on the local origin, so the origin of the space a tile is drawn in is its middle;
+ *   * anything pinned to a tile is positioned `position.set(i * 256 + 256 / 2, a * 256 + 256 / 2)`
+ *     (the hover marker and the route marker), which is the tile's centre in world pixels;
+ *   * `getFallbackOriginWorldPosition` converts a dirt tile the same way, `(n.x + .5) * 256`.
+ *
+ * This function used to return `column * TILE_STEP_PX, row * TILE_STEP_PX` — the corner — which put
+ * every item exactly half a tile up and to the left of the tile it named, and nothing caught it
+ * because the layout test asserted the same rule the code used. Measured on a five-by-four dirt
+ * background before the fix: a sunflower at column 1 had its box at x=175, which is `1 * 256 - 167/2`
+ * with a centre anchor — the art's centre on the tile's left edge — where the tile's centre is 384.
+ */
 function tileOrigin(at) {
-  return { x: (at?.column ?? 0) * TILE_STEP_PX, y: (at?.row ?? 0) * TILE_STEP_PX };
+  const column = (at?.column ?? 0) + 0.5;
+  const row = (at?.row ?? 0) + 0.5;
+  return { x: column * TILE_STEP_PX, y: row * TILE_STEP_PX };
 }
 
 /** A scene-space rectangle, from a picture-space box and the point the picture is pinned by. */
@@ -116,7 +136,7 @@ function pictureOf(recipe, scale) {
   const box = boxOf(
     layers.map((layer) => ({ left: layer.left, top: layer.top, width: layer.width, height: layer.height })),
   );
-  return { recipe, layers, box, anchor: { x: atX, y: atY }, frame };
+  return { recipe, layers, box, frame };
 }
 
 /**
@@ -124,7 +144,8 @@ function pictureOf(recipe, scale) {
  *
  * The picture's corner is placed so that the **art's own anchor** lands on the tile's origin — the
  * point the crop stands on — which is the point the package laid every layer out against. The tile's
- * origin is `column × step, row × step`, so it does not depend on how large any item's art is.
+ * origin is its **centre** (`(column + .5) × step`), which is the game's own convention; see
+ * `tileOrigin`, so it does not depend on how large any item's art is.
  */
 async function layOutCrop(item) {
   const [recipe, multiplier] = await Promise.all([
@@ -137,12 +158,15 @@ async function layOutCrop(item) {
   const picture = pictureOf(recipe, scale);
   if (picture === null) return null;
 
-  // The picture's corner is the tile origin moved by whatever the recipe reaches before its art's
-  // anchor — a mutation's icon above the art, a decal under it — so the art lands on the tile. The
-  // recipe is in the art's own coordinates, where the art's anchor is the origin, so the picture is
-  // placed by that anchor and not by its corner: the corner is `origin + box`.
+  // The picture's layers are already in the space whose origin is the art's anchor — `pictureOf` puts
+  // the art's own rectangle at `-anchor × size` — so the tile is added as it stands and the art's
+  // anchor lands on the tile. This used to subtract `picture.anchor` first, and that field is the
+  // art's *top-left* in this space rather than its anchor, so what landed on the tile was the
+  // picture's bounding-box corner. It was invisible while the tile origin was the tile's own corner
+  // (both readings put the clover inside its tile, one of them by accident) and it stopped being
+  // invisible the moment the origin moved to the tile's middle, which is where the game puts it.
   const tile = tileOrigin(item.at);
-  const at = { x: tile.x - picture.anchor.x, y: tile.y - picture.anchor.y };
+  const at = { x: tile.x, y: tile.y };
   const layers = picture.layers.map((layer) => ({ ...layer, left: layer.left + at.x, top: layer.top + at.y }));
 
   return {
@@ -226,7 +250,7 @@ async function layOutPlant(item) {
   if (recipe === null) return null;
 
   // The package laid every part out with the plant's own anchor as its origin, so the tile's origin
-  // is where that anchor lands: the plant stands on the tile it names.
+  // is where that anchor lands: the plant stands on the middle of the tile it names.
   const origin = tileOrigin(item.at);
   /** Which crop each nested picture belongs to, in the order the package placed them. */
   const cropOfLayer = new Map();
@@ -423,9 +447,10 @@ export async function layOutScene(rawSpec) {
   });
 
   /**
-   * The same rectangle in the scene's own coordinates, where `column × step, row × step` is the tile
-   * a thing names. It is the frame the grid arithmetic is stated in, so a caller can check where its
-   * item landed against the tile it asked for without knowing the picture's own corner.
+   * The same rectangle in the scene's own coordinates, where `(column + .5) × step, (row + .5) × step`
+   * is the middle of the tile a thing names. It is the frame the grid arithmetic is stated in, so a
+   * caller can check where its item landed against the tile it asked for without knowing the
+   * picture's own corner.
    */
   const toScene = (box) => ({
     x: Math.round(box.left),
