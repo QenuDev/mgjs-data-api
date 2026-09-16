@@ -96,6 +96,7 @@ x-mg-contract:
     - live.shops
     - animations
     - rive
+    - compose
   data:
     - plants
     - pets
@@ -109,6 +110,16 @@ x-mg-contract:
     - enums
     - version
     - art
+  # La scène que `POST /compose` accepte : la version du *format* de spec, et les limites au-delà
+  # desquelles une spec est refusée par une erreur nommée plutôt que tronquée. Ce sont les mêmes
+  # nombres que `COMPOSE_LIMITS` (`src/assets/compose/spec.js`), et `tests/compose-spec.test.js`
+  # lit les deux et les compare : une limite qui bouge dans le code et pas ici refuserait un client
+  # que le contrat lui a dit acceptable.
+  compose:
+    spec: 1
+    maxItems: 256
+    maxCanvas: "4096x4096"
+    maxPixels: 16777216
   # Remplis à chaque réponse depuis l'instance qui sert : `null` dans ce fichier
   # veut dire « pas encore construit » (aucune synchronisation sur cet hôte).
   gameVersion: null
@@ -355,13 +366,29 @@ paths:
                   generatedAt:
                     type: string
                     nullable: true
+                  compose:
+                    type: object
+                    description: The scene spec `POST /compose` accepts, and its limits
+                    properties:
+                      spec:
+                        type: integer
+                        example: 1
+                      maxItems:
+                        type: integer
+                        example: 256
+                      maxCanvas:
+                        type: string
+                        example: "4096x4096"
+                      maxPixels:
+                        type: integer
+                        example: 16777216
               examples:
                 schema:
                   summary: Contract of the running instance
                   value:
                     contract: 1
                     api: 1
-                    capabilities: ["data", "sprites", "sprites.composed", "sprites.data", "live.weather", "live.shops", "animations", "rive"]
+                    capabilities: ["data", "sprites", "sprites.composed", "sprites.data", "live.weather", "live.shops", "animations", "rive", "compose"]
                     paths: ["/", "/health", "/schema.json", "/data", "/data/plants"]
                     data: ["plants", "pets", "items", "decors", "eggs", "abilities", "mutations", "weathers", "weather-groups", "enums"]
                     unavailable: {}
@@ -3109,6 +3136,275 @@ paths:
                       code: "NOT_FOUND"
                       message: "Sprite not found: sprite/plant/Unknown"
 
+  /compose:
+    get:
+      tags:
+        - Compose
+      summary: What the scene composer takes, and what it refuses
+      description: |
+        The collection of a `POST`-only route that has something to say about itself: the scene spec
+        version, the limits, and how a result is addressed. A client that reaches `/compose`
+        without a body is told how to use it rather than served a 404 that reads like the route is
+        missing.
+      responses:
+        '200':
+          description: The spec version, the limits and the cache's address
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  spec:
+                    type: integer
+                    example: 1
+                  method:
+                    type: string
+                    example: "POST"
+                  body:
+                    type: string
+                  formats:
+                    type: array
+                    items:
+                      type: string
+                  layout:
+                    type: string
+                    example: "?format=layout"
+                  itemKinds:
+                    type: array
+                    items:
+                      type: string
+                  limits:
+                    $ref: '#/components/schemas/ComposeLimits'
+                  cache:
+                    type: object
+                  result:
+                    type: string
+                    example: "/compose/9f2c1d1b2a3c4d5e6f708192a3b4c5d6e7f80912.png"
+    post:
+      tags:
+        - Compose
+      summary: Compose a scene from a spec, and answer one picture plus its layout
+      description: |
+        A **scene** in, one picture and the layout of what is in it out.
+
+        The spec names things the way the game does and **never in pixels**: a species, a tile column
+        and row, a mutation by name, a crop's own `size` on the game's 50-to-100 band. The API owns
+        the math — the reference tile, the slot offsets, the tile scale, the pot anchors, the size
+        curve, the rotation and the z-order ladder — so a caller does not have to reproduce a curve
+        the game owns.
+
+        **The layout comes from `@mg.js/art`.** The recipes and the frames are that package's; this
+        endpoint adds a rasteriser, a cache and a host, and re-implements none of the placement
+        math. A browser consumer running the same package against a canvas gets the same boxes.
+
+        **Each item's box is the tight union of what that item actually draws** — its art plus the
+        mutation layers that reach past it — which is this API's convention
+        (`src/assets/sprites/cropBox.js` states it for the single-picture path). It is deliberately
+        **not** `@mg.js/art`'s own species-wide box, which reserves room for every mutation the
+        tables state, worn or not: the two differ by design and a consumer must not expect them to
+        match.
+
+        **Cached by content.** The key is the SHA-256 of the normalised spec, so item order and
+        whitespace do not change it, and two requests for the same scene compose once. The answer is
+        served back as `GET /compose/<key>.png`, so a client or a CDN can link it without posting
+        the spec again. The cache is capped and evicts least-recently-used.
+
+        **A spec over a limit is refused, not truncated** — truncating a scene would silently return
+        a wrong picture, which is the one failure this design exists to prevent. The limits are
+        declared in `x-mg-contract.compose` and re-served by `/schema.json`, so a client can check
+        before it sends.
+
+        **Caching:** `public, max-age=86400, stale-while-revalidate=3600` on the POST; the
+        content-addressed `GET` is `immutable` for a year.
+      parameters:
+        - name: format
+          in: query
+          required: false
+          description: |
+            `layout` (case-insensitive) answers the same boxes as a JSON body and encodes no image
+            at all — the form that can be asserted as numbers without decoding a PNG. Omitted, the
+            answer is the picture. Any other value is a `400`.
+          schema:
+            type: string
+            enum: ["layout"]
+          example: "layout"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ComposeSpec'
+            examples:
+              twoPlantsAndABareCrop:
+                summary: Two plants and a bare crop
+                value:
+                  spec: 1
+                  canvas:
+                    fit: content
+                    padding: 0
+                  items:
+                    - id: clover
+                      kind: plant
+                      species: Clover
+                      at:
+                        column: 0
+                        row: 0
+                      crops:
+                        - slot: 0
+                          size: 88
+                          mutations: ["Wet"]
+                    - id: cactus
+                      kind: plant
+                      species: Cactus
+                      at:
+                        column: 1
+                        row: 0
+                    - id: bare
+                      kind: crop
+                      species: Clover
+                      at:
+                        column: 0
+                        row: 1
+                      size: 71
+                      mutations: ["Wet"]
+              tiledGround:
+                summary: A ground of the game's own tile art
+                value:
+                  spec: 1
+                  canvas:
+                    fit: content
+                    padding: 16
+                  background:
+                    kind: tiles
+                    ground: Dirt_A
+                    columns: 6
+                    rows: 4
+                  items:
+                    - id: a
+                      kind: crop
+                      species: Clover
+                      size: 71
+      responses:
+        '200':
+          description: The composed picture, or the layout as JSON with `format=layout`
+          headers:
+            X-MG-Compose-Key:
+              $ref: '#/components/headers/ComposeKey'
+            X-MG-Game-Version:
+              $ref: '#/components/headers/GameVersion'
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SceneLayout'
+              examples:
+                layout:
+                  summary: The same boxes the picture was drawn into
+                  value:
+                    spec: 1
+                    key: "9f2c1d1b2a3c4d5e6f708192a3b4c5d6e7f80912"
+                    canvas:
+                      width: 792
+                      height: 1786
+                      origin:
+                        x: 321
+                        y: 1219
+                      grid:
+                        step: 256
+                        columns: null
+                        rows: null
+                      fit: content
+                      padding: 0
+                    items:
+                      - id: bare
+                        kind: crop
+                        species: Clover
+                        box:
+                          x: 296
+                          y: 1475
+                          width: 258
+                          height: 311
+                        scene:
+                          x: -24
+                          y: 256
+                          width: 258
+                          height: 311
+                        z: 2
+                        sprites: ["sprite/plant/CloverThreeLeaf", "sprite/mutation/Wet"]
+                        crops: []
+                    background: null
+        '400':
+          description: |
+            The spec is malformed, over a declared limit, or names a spec version this instance does
+            not implement. The code names which.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                versionUnsupported:
+                  summary: A spec version this instance does not implement
+                  value:
+                    error:
+                      code: "COMPOSE_SPEC_VERSION_UNSUPPORTED"
+                      message: "spec 7 is not supported; this instance implements spec 1"
+                      limit: 1
+                      saw: 7
+                overTheItemCount:
+                  summary: More items than the declared maximum
+                  value:
+                    error:
+                      code: "COMPOSE_LIMIT_EXCEEDED"
+                      message: "items: 257 items is over the limit of 256"
+                      limit: "maxItems"
+                      saw: 257
+
+  /compose/{key}.png:
+    get:
+      tags:
+        - Compose
+      summary: Serve a composed scene straight from the cache
+      description: |
+        The content-addressed result: `X-MG-Compose-Key` from a `POST /compose` is the key, and the
+        answer is the same PNG that request returned. A key the cache does not hold is a `404` that
+        says so — the scene cannot be reconstructed from a hash, so a miss is a real miss rather than
+        a cold compose. Immutable, because the key is the content.
+      parameters:
+        - name: key
+          in: path
+          required: true
+          description: The 40-hex content key a `POST /compose` answered
+          schema:
+            type: string
+          example: "9f2c1d1b2a3c4d5e6f708192a3b4c5d6e7f80912"
+      responses:
+        '200':
+          description: The composed PNG
+          headers:
+            X-MG-Compose-Key:
+              $ref: '#/components/headers/ComposeKey'
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: The path is not a content key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: No composed scene is cached under that key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+
   /live:
     get:
       tags:
@@ -4861,6 +5157,261 @@ paths:
 
 components:
   schemas:
+    ComposeLimits:
+      description: |
+        The limits a scene spec is held to. Declared in `x-mg-contract.compose`, re-served by
+        `/schema.json`, and applied by `POST /compose`: a spec over one is refused with a named error
+        rather than truncated.
+      type: object
+      properties:
+        spec:
+          type: integer
+          description: The scene spec version this instance implements
+          example: 1
+        maxItems:
+          type: integer
+          description: The most items one spec may state, and the most tiles a background may lay
+          example: 256
+        maxCanvas:
+          type: string
+          description: The largest canvas, `<width>x<height>`
+          example: "4096x4096"
+        maxPixels:
+          type: integer
+          description: The largest canvas by area
+          example: 16777216
+
+    ComposeSpec:
+      description: |
+        A scene: what to draw, and where. Every value names something the game names — a species, a
+        tile column and row, a mutation, a crop's own size on the game's 50-to-100 band. **No field
+        is a pixel coordinate**: the API owns the reference tile, the slot offsets, the size curve,
+        the rotation and the z-order.
+      type: object
+      required: [spec, items]
+      properties:
+        spec:
+          type: integer
+          description: The spec version; this instance implements `1`
+          example: 1
+        canvas:
+          type: object
+          properties:
+            fit:
+              type: string
+              enum: ["content"]
+              description: Crop the picture to the content plus the padding
+            padding:
+              type: integer
+              minimum: 0
+              description: The room left around the content, in the game's own pixels
+              example: 16
+        background:
+          type: object
+          description: Tile art the game itself draws, laid out on the tile grid
+          properties:
+            kind:
+              type: string
+              enum: ["tiles"]
+            ground:
+              type: string
+              description: A tile's own name in the game's atlas (`Dirt_A`, `Grass_C`, …)
+              example: "Dirt_A"
+            columns:
+              type: integer
+              minimum: 1
+            rows:
+              type: integer
+              minimum: 1
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/ComposeItem'
+
+    ComposeItem:
+      description: |
+        One thing in the scene. `kind: "plant"` draws the species' plant with its pot and the crops
+        in its slots; `kind: "crop"` is a bare crop — a menu picture, a seed packet. Both take an
+        optional `at`, the tile the thing occupies; without one the item flows with the rest of the
+        content.
+      type: object
+      required: [id, species]
+      properties:
+        id:
+          type: string
+          description: The caller's own name for the item, echoed in the layout
+        kind:
+          type: string
+          enum: ["plant", "crop"]
+          default: "crop"
+        species:
+          type: string
+          description: The plant table's key, as `/data/plants` states it
+          example: "Clover"
+        at:
+          type: object
+          properties:
+            column:
+              type: integer
+              minimum: 0
+            row:
+              type: integer
+              minimum: 0
+        size:
+          type: integer
+          minimum: 50
+          maximum: 100
+          description: |
+            The crop's own number, exactly as the wire carries it. The API converts it with the
+            game's own curve against the species' multiplier; a spec that states none asks for the
+            ripe picture.
+        mutations:
+          type: array
+          items:
+            type: string
+          description: Mutation names the thing wears. Order is not meaningful and duplicates are dropped.
+        potted:
+          type: boolean
+          default: false
+          description: A plant in the game's planter pot
+        matured:
+          type: boolean
+          default: false
+          description: A plant that has grown up (its celestial arts and front layer are drawn)
+        crops:
+          type: array
+          description: The crops standing on a `kind: "plant"` item
+          items:
+            type: object
+            properties:
+              slot:
+                type: integer
+                minimum: 0
+                description: The slot on the plant, which is what places the crop
+              size:
+                type: integer
+                minimum: 50
+                maximum: 100
+              mutations:
+                type: array
+                items:
+                  type: string
+        startTime:
+          type: integer
+          description: When a still-growing crop started; the API applies the growth window
+        endTime:
+          type: integer
+        ready:
+          type: boolean
+          description: Ask for the ripe picture whatever the window says
+
+    SceneLayout:
+      description: |
+        The boxes the picture was drawn into, in the picture's own pixels (`box`) and in the scene's
+        own coordinates (`scene`), where `column × grid.step, row × grid.step` is the tile an item
+        named. A consumer keeps its interactivity from these: a countdown ring, a hover target and a
+        detail dialog each need a box.
+      type: object
+      properties:
+        spec:
+          type: integer
+          example: 1
+        key:
+          type: string
+          description: The same value the response states in `X-MG-Compose-Key`
+        canvas:
+          type: object
+          properties:
+            width:
+              type: integer
+            height:
+              type: integer
+            origin:
+              type: object
+              description: Where the scene's own origin (column 0, row 0) sits in the picture
+              properties:
+                x:
+                  type: integer
+                y:
+                  type: integer
+            grid:
+              type: object
+              properties:
+                step:
+                  type: integer
+                  example: 256
+                columns:
+                  type: integer
+                  nullable: true
+                rows:
+                  type: integer
+                  nullable: true
+            fit:
+              type: string
+            padding:
+              type: integer
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              kind:
+                type: string
+              species:
+                type: string
+              box:
+                $ref: '#/components/schemas/Box'
+              scene:
+                $ref: '#/components/schemas/Box'
+              z:
+                type: integer
+              sprites:
+                type: array
+                items:
+                  type: string
+              crops:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    slot:
+                      type: integer
+                    scale:
+                      type: number
+                    box:
+                      $ref: '#/components/schemas/Box'
+                    scene:
+                      $ref: '#/components/schemas/Box'
+        background:
+          type: object
+          nullable: true
+          properties:
+            ground:
+              type: string
+            columns:
+              type: integer
+            rows:
+              type: integer
+            sprite:
+              type: string
+
+    Box:
+      description: A rectangle in the picture's own pixels
+      type: object
+      required: [x, y, width, height]
+      properties:
+        x:
+          type: integer
+        y:
+          type: integer
+        width:
+          type: integer
+        height:
+          type: integer
+
     PlantData:
       type: object
       description: Complete plant lifecycle data (seed → plant → crop)
@@ -5685,6 +6236,16 @@ components:
   # Un seul en-tête, référencé par chaque chemin de `/data` sous son nom réel
   # (`GAME_VERSION_HEADER` dans `src/api/routes/data.js`).
   headers:
+    ComposeKey:
+      description: |
+        The content key of the composed scene: the SHA-256 of the **normalised** spec, first 40 hex
+        characters. Two specs that ask for the same picture have the same key, which is what makes
+        the cache a hit and what `GET /compose/<key>.png` is addressed by. Item order and whitespace
+        do not change it.
+      schema:
+        type: string
+        example: "9f2c1d1b2a3c4d5e6f708192a3b4c5d6e7f80912"
+
     GameVersion:
       description: |
         Game version the body was built from: the same version as the `?v=` of the
