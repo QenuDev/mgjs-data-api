@@ -603,7 +603,9 @@ export async function composeSpriteWithBox(baseKey, mutationIds = []) {
     return ops.filter(Boolean);
   }
 
-  // 1. Start with transparent canvas (expanded to fit all layers)
+  // 1. Start with a transparent canvas the size of the crop's own art. It does *not* expand to fit
+  // the layers: an icon that reaches past this box is cut to it by `iconOps`, because a canvas sized
+  // to the union of every layer is a picture nobody can place on a tile.
   let canvas = await sharp({
     create: { width: canvasW, height: canvasH, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
   }).png().toBuffer();
