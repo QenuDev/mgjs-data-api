@@ -17,8 +17,13 @@
 //   * **the scene's own coordinates** — a content union plus `padding`, and a tile grid whose step
 //     is stated once (`TILE_STEP_PX`, with why);
 //   * **the spec's conversions** — a crop's wire `size` through the game's own curve
-//     (`1 + (size − 50)/50 × (maxSizeMultiplier − 1)`, `garden-viewer/garden.mjs:77-81`), and a
-//     `plant`'s slot number to its place on the plant, from the published `slotOffsets`;
+//     (`1 + (size − 50)/50 × (maxSizeMultiplier − 1)`), a `plant`'s slot number to its place on the
+//     plant, the tilt a crop's `startTime` gives it, the shift its `plantTransform` pivot needs, and
+//     the depth the game stacks a crop and a tile at. All of that is the renderer's own arithmetic and
+//     it lives in one file, `cropPlacement.js`, with each number quoted from the bundle: the package is
+//     handed a place and lays a frame out on it, and *which* place a slot gets is not a question a
+//     recipe can answer. The split is the game's own (`PlantBody.createCrops` reads the blueprint and
+//     `PlantCrop`/`CropVisual` draw) and the same one `garden-viewer/garden.mjs:271-341` makes;
 //   * **the flattening** — the package answers a *recipe* (a crop's picture, a plant's parts), and a
 //     rasteriser wants a painted list: every layer in picture coordinates, in the package's own
 //     order, which is the game's (`plant.ts:1-30` states the ladder).
@@ -47,6 +52,15 @@ import {
 import { assertWithinCanvas, ComposeSpecError, normalizeSpec, SPEC_VERSION } from "./spec.js";
 import { scatterPlaces } from "./sceneScatter.js";
 import { materialKindOf } from "./materials.js";
+import {
+  iconPlace,
+  placedInPatch,
+  placedOnPlant,
+  PLANT_MIDDLE,
+  sizeScale,
+  slotOffsetAt,
+  slotSpecies,
+} from "./cropPlacement.js";
 
 /**
  * The pixels one tile is worth on the scene's own grid.
@@ -62,12 +76,6 @@ export const TILE_STEP_PX = REFERENCE_TILE_PX;
 
 /** The pot every potted plant stands in, as the game's atlas names it. */
 const POT_NAME = "PlanterPot";
-
-/** A crop's drawn scale from the size the wire carries, through the game's own curve. */
-function sizeScale(size, maxSizeMultiplier) {
-  if (size === null) return 1;
-  return 1 + ((size - 50) / 50) * (maxSizeMultiplier - 1);
-}
 
 /**
  * One tile position in the scene's own coordinates: where on the scene the tile an item names is.
@@ -219,31 +227,79 @@ async function layOutPlant(item) {
   if (art === null) return null;
 
   const record = records[item.species] ?? {};
-  const offsets = Array.isArray(record?.plant?.slotOffsets) ? record.plant.slotOffsets : [];
-  const multiplier = await cropMultiplier(item.species);
+  // A single-harvest species is a **patch**: it has no body, and its crops are the plant. One crop
+  // per slot, and a species that states no `slotCapacity` holds exactly one — the game's own ceiling,
+  // the number its patch UI counts (`Ks(filled, capacity)`), and the same one the `patch` kind
+  // refuses on. Two ubes on a tile is a picture the game never draws, so it is refused rather than
+  // drawn.
+  const single = record?.plant?.harvestType === "Single";
+  const capacity = integerOrNull(record?.plant?.slotCapacity) ?? 1;
+  if (single && item.crops.length > capacity) {
+    throw new ComposeSpecError(
+      "COMPOSE_PLANT_OVER_CAPACITY",
+      `items: ${item.species} holds at most ${capacity} crops on a tile, and this plant states ` +
+        `${item.crops.length}; ${item.species} states ` +
+        `${record?.plant?.slotCapacity === undefined ? "no slotCapacity, so a tile of it holds one crop" : `a slotCapacity of ${capacity}`}`,
+      { limit: "slotCapacity", saw: item.crops.length },
+    );
+  }
 
+  // Where a single-harvest plant's sprigs stand: the one the spec states, or the game's own scatter
+  // for the sprigs that state none — the reading a `patch` makes, and the generator the game lays a
+  // cluster out with when nothing places it (`sceneScatter.js`).
+  const places = single ? scatterPatch(item) : [];
+
+  const artBySpecies = { [item.species]: art };
   const sceneCrops = [];
   const cropPictures = [];
-  const patch = record?.plant?.harvestType === "Single";
   for (let index = 0; index < item.crops.length; index += 1) {
     const crop = item.crops[index];
-    const recipe = await cropRecipe(item.species, crop.mutations);
+    // A multi-harvest plant's crop is placed by the slot its own `slotId` names, and the game draws
+    // none for a slot its blueprint does not place (`s && r.push(...)`) — a smaller picture rather
+    // than a wrong one, which is what this API refuses.
+    const offset = single ? null : slotOffsetAt(record, crop.slot);
+    if (!single && offset === null) {
+      return {
+        error:
+          `${item.id}: ${item.species} states no slot offset for slot ${crop.slot}, so the game ` +
+          `draws no crop there (the blueprint holds ${record?.plant?.slotOffsets?.length ?? 0} slots)`,
+      };
+    }
+    // A slot may state the species it draws as (the game's own `speciesOverride`): the stormcaps on a
+    // ThunderCelestial are a species of their own, with their own art and their own curve.
+    const cropSpecies = single ? item.species : slotSpecies(item.species, offset);
+    if (artBySpecies[cropSpecies] === undefined) artBySpecies[cropSpecies] = await plantArt(cropSpecies);
+    const cropArt = artBySpecies[cropSpecies];
+    if (cropArt === null || cropArt === undefined) {
+      return { error: `${item.id}: ${cropSpecies} has no picture the tables and the atlas both state` };
+    }
+    // The crop's own species' record, with the frame the atlas draws its art at: the multiplier and
+    // the `plantTransform` are the species the crop is *drawn as*, while the tilt flag is the
+    // plant's (`cropPlacement.js` states each of those readings).
+    const speciesRecord = {
+      ...(records[cropSpecies] ?? {}),
+      crop: { ...(records[cropSpecies]?.crop ?? {}), frame: cropArt.crop.frame },
+    };
+    const placement = single
+      ? placedInPatch({
+          crop,
+          place: item.potted
+            ? iconPlace({ place: PLANT_MIDDLE, index, count: item.crops.length })
+            : places[index],
+          speciesRecord,
+        })
+      : placedOnPlant({ crop, offset, plantRecord: record, cropSpecies, speciesRecord });
+    const recipe = await cropRecipe(cropSpecies, crop.mutations);
     if (recipe === null) return null;
-    const picture = pictureOf(recipe, sizeScale(crop.size, multiplier));
+    const picture = pictureOf(recipe, placement.scale);
     if (picture === null) return null;
-    const at = offsets.length === 0 ? { x: 0, y: 0, rotation: 0 } : offsets[crop.slot % offsets.length] ?? {};
-    const x = typeof at.x === "number" ? at.x : 0;
-    const y = typeof at.y === "number" ? at.y : 0;
-    // The game's own crop `zIndex` without the band the crops share: a patch stacks by its y place,
-    // a plant by its slot id (`plant.ts`'s `PlantCrop.depth` states both).
-    const depth = patch ? Math.round((y + 1) * 10) : 2 + crop.slot;
     sceneCrops.push({
-      species: item.species,
-      x,
-      y,
-      rotation: typeof at.rotation === "number" ? at.rotation : 0,
-      scale: sizeScale(crop.size, multiplier),
-      depth,
+      species: cropSpecies,
+      x: placement.x,
+      y: placement.y,
+      rotation: placement.rotation,
+      scale: placement.scale,
+      depth: placement.depth,
       // The composition `plantPicture` carries through and hangs off the crop's own frame, in the
       // shape it states: a box and the layers inside it, in the crop art's own pixels. `index` is the
       // composer's own key back to this crop — the package sorts the layers by `depth`, so the layer
@@ -252,11 +308,13 @@ async function layOutPlant(item) {
     });
     cropPictures.push({
       slot: crop.slot,
-      scale: sizeScale(crop.size, multiplier),
-      depth,
+      species: cropSpecies,
+      scale: placement.scale,
+      depth: placement.depth,
       picture,
       recipe,
-      at: { x, y },
+      at: { x: placement.x, y: placement.y },
+      rotation: placement.rotation,
       // A crop's own mutations, for `cropLayersOf`: `Rainbow` and `Gold` are materials, and each crop in a
       // pot wears its own.
       material: materialKindOf(crop.mutations),
@@ -265,7 +323,7 @@ async function layOutPlant(item) {
 
   const pot = item.potted ? await potFrame() : null;
   const scene = { species: item.species, mature: item.matured === true, weather: null, crops: sceneCrops };
-  let recipe = plantPicture(scene, { [item.species]: art }, pot);
+  let recipe = plantPicture(scene, artBySpecies, pot);
   // A single-harvest species is a **patch**: it has no body of its own, so `plantPicture` draws its
   // crops and nothing else — and a patch with no crops in it has nothing to draw at all, which the
   // package refuses with `null`. The game does not: a patch is a tile of that art whether or not a
@@ -476,6 +534,9 @@ function laidItem(item, { box, layers, sprites, descriptors = [] }) {
     sprites,
     crops: descriptors.map((crop) => ({
       slot: crop.slot,
+      // The species the crop is drawn as, which is the item's own unless the slot overrides it (the
+      // game's `speciesOverride`: ThunderCelestial's stormcaps are drawn as a species of their own).
+      species: crop.species ?? null,
       place: placeOfCrop(crop),
       depth: crop.depth,
       scale: crop.scale,
@@ -484,7 +545,16 @@ function laidItem(item, { box, layers, sprites, descriptors = [] }) {
   };
 }
 
-/** A crop's place as the layout reports it: the in-tile fields the spec or the scatter stated. */
+/**
+ * A crop's place as the layout reports it: the point the crop's art **anchor** is drawn at, in tile
+ * fractions, and the degrees it is turned by.
+ *
+ * That is the place `plantPicture` laid the frame out on (`plant.ts`'s `cropLayer` puts the frame's
+ * anchor at `centre + place × 256`), so it already carries the two things the game adds to a slot
+ * offset: the plant body's own middle, which the package adds, and the crop's pivot shift, which
+ * `cropPlacement.js` computed before handing the place over. A caller checking where a crop stands
+ * down to the pixel has `scene` for the frame's own rectangle and this for the point it hangs from.
+ */
 function placeOfCrop(crop) {
   const place = { x: crop.at.x, y: crop.at.y };
   const rotation = crop.at.rotation ?? crop.rotation;
@@ -521,7 +591,6 @@ async function layOutPatch(item) {
   const record = (await plantRecords())[item.species] ?? {};
   assertPatchSpecies(record, item);
 
-  const multiplier = await cropMultiplier(item.species);
   const places = scatterPatch(item);
   const origin = placedPoint(item);
 
@@ -530,10 +599,10 @@ async function layOutPatch(item) {
   for (let index = 0; index < item.crops.length; index += 1) {
     const crop = item.crops[index];
     const place = places[index];
-    const scale = sizeScale(crop.size, multiplier);
-    // The game's own crop `zIndex` on a patch: the layer stacks by its y place, so a sprig lower in
-    // the tile is drawn over one higher up (`resources-D_3Zwcn-.js`'s `createCrops`).
-    const depth = Math.round((place.y + 1) * 10);
+    // Where the sprig stands, how large it is drawn and where it sits in the stack: the game's own
+    // `zIndex` on a patch, which is its y place, so a sprig lower in the tile is drawn over one
+    // higher up (`cropPlacement.js`).
+    const { scale, depth } = placedInPatch({ crop, place, speciesRecord: record });
     const recipe = await cropRecipe(item.species, crop.mutations);
     if (recipe === null) return null;
     const picture = pictureOf(recipe, scale);
@@ -549,6 +618,7 @@ async function layOutPatch(item) {
     });
     cropAt.push({
       slot: crop.slot,
+      species: item.species,
       scale,
       depth,
       at: { x: place.x, y: place.y },
@@ -763,6 +833,9 @@ export async function layOutScene(rawSpec) {
         : item.kind === "plant"
           ? await layOutPlant(item)
           : await layOutCrop(item);
+    // A path may refuse an item with a reason of its own — a species with no picture, a slot the
+    // blueprint does not place — which is a 400 with the reason rather than a picture missing a crop.
+    if (laid !== null && laid.error !== undefined) return { error: laid.error };
     if (laid === null) {
       return { error: `${item.id}: ${item.species} has no picture the tables and the atlas both state` };
     }
@@ -854,6 +927,9 @@ export async function layOutScene(rawSpec) {
       sprites: item.sprites,
       crops: item.crops.map((crop) => ({
         slot: crop.slot,
+        // The species the crop is drawn as, which is the item's own unless the slot overrides it
+        // (the game's `speciesOverride`: ThunderCelestial's stormcaps are a species of their own).
+        species: crop.species ?? null,
         place: crop.place,
         depth: crop.depth,
         scale: Number(crop.scale.toFixed(6)),

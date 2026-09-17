@@ -85,8 +85,19 @@ import { config } from "../../config/index.js";
  * rim along every sprig of every patch. And a wash is a plain straight-alpha mix, which is the same picture
  * the game's premultiplied colour-overlay shader shows. Both change pixels for a spec that has not moved, on
  * every sprite in the picture rather than on turned ones alone.
+ *
+ * v9 -> v10 is **where a crop stands**, which is `cropPlacement.js`'s whole subject: the place a slot's
+ * `slotOffsets` gives it (read by `slotId`, not by the crop's rank in the list, and refused by name when
+ * the blueprint places no such slot), the species a slot draws as when it overrides one, the tilt a crop's
+ * `startTime` gives it (`35 − startTime % 70`, on the species whose blueprint sets
+ * `rotateSlotOffsetsRandomly` — every multi-harvest crop of every picture composed before this was drawn
+ * at its slot's angle alone), the shift the crop's `plantTransform` pivot needs so that a size-100 fruit
+ * attaches where a size-50 one does, and the stack the crops inside one tile sit in (`2 + slotId` on a
+ * plant, the sprig's own y place on a patch). A picture composed before it is the same spec drawn with its
+ * crops in the wrong place, which is the wrong picture rather than an old one — and a wrong picture is the
+ * one thing this segment exists for.
  */
-export const SCENE_LAYOUT = "v9";
+export const SCENE_LAYOUT = "v10";
 
 /**
  * The scene tree's own directory, beside the bake under the sprite export root.

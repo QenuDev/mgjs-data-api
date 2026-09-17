@@ -152,6 +152,9 @@ test("spec 2 normalise une place et une patch, et spec 1 reste acceptée", () =>
     size: 100,
     mutations: [],
     flipped: false,
+    // Le moment où le brin a été planté, qui est ce dont le jeu tire l'inclinaison d'une culture
+    // multi-récolte (`35 - startTime % 70`) : absent ici, et lu comme `0` par le placement.
+    startTime: null,
     at: { x: null, y: null, rotation: null },
   });
   assert.deepEqual(patch.items[0].crops[1].at, { x: 0.1, y: 0.2, rotation: 5 });

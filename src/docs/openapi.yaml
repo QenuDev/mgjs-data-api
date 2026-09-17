@@ -3197,6 +3197,15 @@ paths:
         endpoint adds a rasteriser, a cache and a host, and re-implements none of the placement
         math. A browser consumer running the same package against a canvas gets the same boxes.
 
+        **Where a crop stands is the game's own rule, and it is not a spread.** A multi-harvest
+        plant's crop goes at the place its blueprint states for that slot — `slotOffsets[slot]`,
+        measured from the middle of the plant's own art, turned by the slot's angle and, for a
+        species whose table sets `rotateSlotOffsetsRandomly`, by `35 − startTime % 70` degrees. Such
+        a crop is also drawn with its species' `plantTransform` pivot, which is what keeps a size-100
+        fruit attached at the same point of its own art as a size-50 one. A single-harvest plant
+        states no places at all: its sprigs stand where the spec puts them, or where the game's own
+        scatter lays a cluster out when the spec states none.
+
         **Each item's box is the tight union of what that item actually draws** — its art plus the
         mutation layers that reach past it — which is this API's convention
         (`src/assets/sprites/cropBox.js` states it for the single-picture path). It is deliberately
@@ -5309,14 +5318,25 @@ components:
           description: A plant that has grown up (its celestial arts and front layer are drawn)
         crops:
           type: array
-          description: The crops standing on a `kind: "plant"` item
+          description: |
+            The crops standing on a `kind: "plant"` item, in the order the save lists them. A
+            species whose plant table states `harvestType: "Single"` is a **patch**: its crops are
+            the plant, one per slot, and a species that states no `slotCapacity` holds exactly one —
+            a second crop on such a tile is a `400` (`COMPOSE_PLANT_OVER_CAPACITY`) rather than a
+            pile of two, because that is a picture the game never draws. A `"Single"` species with a
+            capacity places its crops by the same scatter a `kind: "patch"` item uses, or squeezes
+            them towards the middle when the item is `potted`.
           items:
             type: object
             properties:
               slot:
                 type: integer
                 minimum: 0
-                description: The slot on the plant, which is what places the crop
+                description: |
+                  The slot on the plant, which is what places the crop: the species' plant table
+                  gives `slotOffsets[slot]` as the place, and a slot the table does not place is
+                  refused by name. A slot may name the species the crop is drawn as
+                  (`speciesOverride`), which is how `ThunderCelestial`'s stormcaps are drawn.
               size:
                 type: integer
                 minimum: 50
@@ -5325,6 +5345,21 @@ components:
                 type: array
                 items:
                   type: string
+              startTime:
+                type: integer
+                description: |
+                  When the crop was planted, in milliseconds. A species whose plant table sets
+                  `rotateSlotOffsetsRandomly` draws each of its crops at
+                  `slotRotation + 35 − startTime % 70` degrees, so two tomatoes on one vine sit at
+                  different angles and the same crop looks the same every time it is drawn. Absent is
+                  read as `0`.
+              flipped:
+                type: boolean
+                default: false
+                description: |
+                  A mirrored crop. The game turns it the other way and moves its pivot the other
+                  way, which the layout applies; the mirror of the art itself is not drawn yet, so
+                  the geometry is the game's and the pixels are not.
         startTime:
           type: integer
           description: When a still-growing crop started; the API applies the growth window
@@ -5402,11 +5437,46 @@ components:
                   type: string
               crops:
                 type: array
+                description: |
+                  The crops standing on the item, in the order the game stacks them — a patch by each
+                  sprig's own `y` place, a plant by the slot it grew in (`2 + slotId`), which is the
+                  `depth` below. A plant's crop is placed by its slot: its place is the blueprint's
+                  `slotOffsets[slot]` moved by the crop's pivot, and `species` says which species it
+                  is drawn as, which a slot may override (`ThunderCelestial`'s stormcaps).
                 items:
                   type: object
                   properties:
                     slot:
                       type: integer
+                      description: The crop's own `slotId`, which is the key into the blueprint's `slotOffsets`
+                    species:
+                      type: string
+                      nullable: true
+                      description: |
+                        The species the crop is drawn as: the item's own, or the one the slot's
+                        `speciesOverride` names. Its art, its `maxSizeMultiplier` and its
+                        `plantTransform` are that species', while the tilt is the plant's.
+                    place:
+                      type: object
+                      description: |
+                        Where the crop's art **anchor** lands in the tile, as tile fractions, and the
+                        degrees it is turned by. That is the point `plantPicture` laid the frame out
+                        on — the tile's middle, the blueprint's slot offset, the crop's pivot shift,
+                        and whatever the scatter gave a patch sprig — so it is the number to read to
+                        check an anchor without decoding a pixel.
+                      properties:
+                        x:
+                          type: number
+                        y:
+                          type: number
+                        rotation:
+                          type: number
+                    depth:
+                      type: integer
+                      description: |
+                        The crop's turn in the stack inside its item, which is the game's own crop
+                        `zIndex`: `2 + slotId` on a plant, `Math.round((y + 1) * 10)` on a patch.
+                        Tiles themselves stack by the game's world depth key, lowest drawn last.
                     scale:
                       type: number
                     box:

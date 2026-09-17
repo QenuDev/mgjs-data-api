@@ -315,6 +315,11 @@ function cropOf(crop, where, cropIndex, kind) {
     size: sizeOf(crop.size, where),
     mutations: mutationsOf(crop.mutations, where),
     flipped: booleanOf(crop.flipped, false),
+    // When the crop was planted, which is what the game turns a multi-harvest crop by: a species that
+    // sets `rotateSlotOffsetsRandomly` draws each of its crops at `35 − startTime % 70` degrees off its
+    // slot's own angle, so two tomatoes on one vine sit at different angles. Absent is read as `0`,
+    // the same way the game's own client reads a slot whose time it cannot see.
+    startTime: integerOf(crop.startTime),
     // A place inside the tile, when the crop states one; three nulls mean "let the composer place
     // me", which for a patch is the game's own scatter.
     at: kind === "patch" ? placeOf(crop.at, where) : null,
