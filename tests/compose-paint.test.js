@@ -13,6 +13,12 @@
 //     `resources-D_3Zwcn-.js` écrit `mix(c.rgb, uColor * c.a, uAlpha)` et rend `c.a` inchangé : le
 //     rastériseur doit donner exactement ces octets, y compris sur un pixel à demi transparent, où le
 //     `* c.a` se voit (l'ancien mélange CSS `color` y donnait une autre valeur).
+//   * **le pivot de la rotation voyage avec le rectangle.** La disposition donne à un brin tourné un
+//     rectangle en coordonnées *image* et un pivot qu'elle calcule en coordonnées *scène* ; sans le
+//     décalage du coin de l'image, le rastériseur tourne chaque brin autour d'un point qui n'est pas dans
+//     l'image — un quart de tour ne dessinait plus rien du tout, et un tour faible glissait le brin hors
+//     de sa tuile. La preuve est un brin tourné **à côté d'une autre culture**, sans quoi le canevas est
+//     la boîte du brin lui-même et le décalage se cache dans le coin ;
 //
 // Hors ligne : `installOfflineGame()` sert l'atlas et le bundle capturés.
 
@@ -42,6 +48,7 @@ const { SPEC_VERSION } = await import("../src/assets/compose/spec.js");
 const { REFERENCE_TILE_PX } = await import("@mg.js/art");
 const { initSprites } = await import("../src/assets/sprites/sprites.js");
 const { clearScenePainterCache, washedPng } = await import("../src/assets/compose/scenePainter.js");
+const { drawnFrame } = await import("../src/assets/compose/artBridge.js");
 const { materialPng } = await import("../src/assets/compose/materials.js");
 const { clearSceneCaches } = await import("../src/assets/compose/sceneService.js");
 
@@ -75,6 +82,15 @@ async function compose(api, spec) {
   });
   if (response.status !== 200) assert.fail(`${response.status} ${await response.text()}`);
   return Buffer.from(await response.arrayBuffer());
+}
+
+/** La même composition, en boîtes : `?format=layout` répond le corps que l'image dessine. */
+async function layoutOf(api, spec) {
+  return api.get("/compose?format=layout", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(spec),
+  });
 }
 
 test("un brin de patch est dessiné une seule fois : la même image qu'une culture nue identique", async (t) => {
@@ -211,6 +227,104 @@ test("un brin tourné est tourné : l'art occupe le rectangle tourné, et le can
     Math.abs(measured.width - crop.scene.width) > 10 || Math.abs(measured.height - crop.scene.height) > 10,
     "l'image n'est pas celle d'un art non tourné",
   );
+});
+
+test("le pivot d'un brin tourné est le point où il se tient, même loin du coin de l'image", async (t) => {
+  await cleanCache();
+  const api = await startTestApp();
+  t.after(async () => {
+    await api.close();
+    await cleanCache();
+  });
+
+  // La disposition publie un pivot en coordonnées **scène** et un rectangle en coordonnées **image**.
+  // Tant que le pivot ne suivait pas le rectangle, le rastériseur tournait le brin autour d'un point
+  // décalé du coin de l'image — d'autant plus loin que le brin est à droite de la scène. La première
+  // culture, non tournée, est là pour que le canevas ne soit pas la boîte du brin : sans elle, le coin
+  // de l'image *est* le coin du brin, et le décalage se cache dans l'arrondi du collage.
+  const degrees = 30;
+  const place = { x: 0, y: 0 };
+  const spec = {
+    spec: SPEC_VERSION,
+    canvas: { fit: "content", padding: 0 },
+    items: [
+      { id: "anchor", kind: "crop", species: "Clover", at: { column: 0, row: 0 }, size: 100 },
+      {
+        id: "turned",
+        kind: "patch",
+        species: "Clover",
+        at: { column: 4, row: 0 },
+        crops: [{ size: 100, at: { ...place, rotation: degrees } }],
+      },
+    ],
+  };
+
+  const layout = await (await layoutOf(api, spec)).json();
+  const png = await compose(api, spec);
+  const origin = layout.canvas.origin;
+  const frame = drawnFrame("sprite/plant/CloverThreeLeaf").box;
+  const crop = layout.items[1].crops[0];
+  const tile = { x: (4 + 0.5) * REFERENCE_TILE_PX, y: (0 + 0.5) * REFERENCE_TILE_PX };
+  const pivot = { x: tile.x + place.x * REFERENCE_TILE_PX, y: tile.y + place.y * REFERENCE_TILE_PX };
+
+  // Le rectangle de l'art **avant** le tour, puis le même tourné autour du pivot : ce que le jeu
+  // dessine. Aucun nombre du jeu n'est écrit ici — la frame vient de l'atlas, l'échelle de la disposition.
+  const radians = (degrees * Math.PI) / 180;
+  const cos = Math.cos(radians);
+  const sin = Math.sin(radians);
+  const unturned = {
+    left: tile.x + place.x * REFERENCE_TILE_PX - frame.anchorX * frame.width * crop.scale,
+    top: tile.y + place.y * REFERENCE_TILE_PX - frame.anchorY * frame.height * crop.scale,
+  };
+  const corners = [
+    [unturned.left, unturned.top],
+    [unturned.left + frame.width * crop.scale, unturned.top],
+    [unturned.left, unturned.top + frame.height * crop.scale],
+    [unturned.left + frame.width * crop.scale, unturned.top + frame.height * crop.scale],
+  ].map(([x, y]) => {
+    const dx = x - pivot.x;
+    const dy = y - pivot.y;
+    return { x: pivot.x + dx * cos - dy * sin, y: pivot.y + dx * sin + dy * cos };
+  });
+  const xs = corners.map((corner) => corner.x);
+  const ys = corners.map((corner) => corner.y);
+  const want = {
+    left: Math.min(...xs),
+    top: Math.min(...ys),
+    width: Math.max(...xs) - Math.min(...xs),
+    height: Math.max(...ys) - Math.min(...ys),
+  };
+
+  // Les pixels du brin : tout ce qui est opaque à droite de la première culture, dont les deux tuiles
+  // (512 px) séparent les deux items.
+  const { data, info } = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const box = { minX: Infinity, minY: Infinity, maxX: -1, maxY: -1 };
+  let opaque = 0;
+  for (let y = 0; y < info.height; y += 1) {
+    for (let x = 512; x < info.width; x += 1) {
+      if (data[(y * info.width + x) * info.channels + 3] <= 8) continue;
+      opaque += 1;
+      if (x < box.minX) box.minX = x;
+      if (y < box.minY) box.minY = y;
+      if (x > box.maxX) box.maxX = x;
+      if (y > box.maxY) box.maxY = y;
+    }
+  }
+  assert.ok(opaque > 1000, `le brin tourné n'est pas dessiné : ${opaque} pixels opaques à droite de la première culture`);
+  // `origin` est le coin de l'image dans le repère scène, donc l'image est la scène *moins* ce coin.
+  const measured = {
+    left: box.minX - origin.x,
+    top: box.minY - origin.y,
+    width: box.maxX - box.minX + 1,
+    height: box.maxY - box.minY + 1,
+  };
+  for (const [axis, delta] of [["left", 4], ["top", 4], ["width", 5], ["height", 5]]) {
+    assert.ok(
+      Math.abs(measured[axis] - want[axis]) <= delta,
+      `${axis} de l'art tourné : ${measured[axis].toFixed(1)} au lieu de ${want[axis].toFixed(1)} ` +
+        `(rotation ${degrees}° autour de ${pivot.x},${pivot.y}) — le pivot doit voyager avec le rectangle`,
+    );
+  }
 });
 
 test("la teinture d'une mutation est celle du shader du jeu, pas un mélange de luminosité", async () => {

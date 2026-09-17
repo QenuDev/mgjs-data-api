@@ -131,8 +131,12 @@ export async function paintScene({ width, height, layers }) {
     .filter((operation) => operation.placed !== null)
     .map((operation) => ({
       input: operation.placed.input,
-      left: Math.max(0, Math.round(operation.placed.left)),
-      top: Math.max(0, Math.round(operation.placed.top)),
+      // Rounded, not clamped: a turned picture's own bounding box has fractional corners, so a rectangle
+      // can land half a pixel outside the canvas, and `composite` clips what hangs over the edge instead
+      // of moving it. Clamping to 0 slid the whole sprite inwards by that fraction — a 1 px lie about
+      // where the art is, which is the sort of thing this file exists to get right.
+      left: Math.round(operation.placed.left),
+      top: Math.round(operation.placed.top),
     }));
 
   return sharp({ create: { width, height, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })

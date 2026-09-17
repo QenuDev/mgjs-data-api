@@ -807,6 +807,17 @@ export async function layOutScene(rawSpec) {
     ...layer,
     left: layer.left - origin.x,
     top: layer.top - origin.y,
+    // The point a turn happens about travels with the rectangle it turns. The rasteriser reads a layer's
+    // `left`/`top` in picture coordinates and turns the sprite about `pivot`, so a pivot left in scene
+    // coordinates is a turn about a point that is not in the picture at all: a crop at column 8 of a
+    // sheet turned about the scene's own origin 4,000 px to its left, which threw it off the canvas
+    // entirely (a quarter turn painted zero pixels) or slid it down the picture, where `paintScene`'s
+    // clamp hid the rest. `drawnBox` still turns about the scene pivot, because that is where the box
+    // arithmetic is stated; only the copy handed to the rasteriser is moved.
+    pivot:
+      layer.pivot === null || layer.pivot === undefined
+        ? (layer.pivot ?? null)
+        : { x: layer.pivot.x - origin.x, y: layer.pivot.y - origin.y },
     nested:
       layer.nested === null || layer.nested === undefined
         ? null

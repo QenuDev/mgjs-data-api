@@ -72,8 +72,14 @@ import { config } from "../../config/index.js";
  * v6 -> v7 is the **materials** (`materials.js`): `Rainbow` and `Gold` have no colour overlay in the
  * game's mutation table — they are shaders — so every picture composed before this drew them as
  * unmutated art.
+ *
+ * v7 -> v8 is where the **pivot** travels. `sceneLayout.js` hands the rasteriser a layer's rectangle in
+ * picture coordinates, but it handed it the turn's pivot in *scene* coordinates, so every turned crop was
+ * turned about a point outside the picture it was drawn in: a quarter turn composed nothing at all (the
+ * sprite landed off the canvas) and a shallow one slid down the picture, where the painter's clamp hid
+ * the rest. v7 pictures of a turned spec are the wrong picture, and the spec has not moved.
  */
-export const SCENE_LAYOUT = "v7";
+export const SCENE_LAYOUT = "v8";
 
 /**
  * The scene tree's own directory, beside the bake under the sprite export root.
