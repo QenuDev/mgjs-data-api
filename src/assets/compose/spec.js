@@ -253,10 +253,13 @@ function itemOf(raw, index, seenIds) {
       size,
       mutations: mutationsOf(raw.mutations, where),
       flipped: booleanOf(raw.flipped, false),
-      // A crop that is still growing states its window, and the API applies the growth the way the
-      // game animates it. `ready: true` asks for the ripe picture whatever the window says.
+      // A crop that is still growing states its window and how much of it is left, and the API applies
+      // the growth the way the game animates it — the window is `startTime` to `endTime`, and the moment
+      // is `endTime − remainingMs`, which is the pair of fields the wire itself carries for a crop.
+      // `ready: true` asks for the ripe picture whatever the window says.
       startTime: integerOf(raw.startTime),
       endTime: integerOf(raw.endTime),
+      remainingMs: integerOf(raw.remainingMs),
       ready: booleanOf(raw.ready, null),
     };
   }
@@ -315,11 +318,18 @@ function cropOf(crop, where, cropIndex, kind) {
     size: sizeOf(crop.size, where),
     mutations: mutationsOf(crop.mutations, where),
     flipped: booleanOf(crop.flipped, false),
-    // When the crop was planted, which is what the game turns a multi-harvest crop by: a species that
-    // sets `rotateSlotOffsetsRandomly` draws each of its crops at `35 − startTime % 70` degrees off its
-    // slot's own angle, so two tomatoes on one vine sit at different angles. Absent is read as `0`,
-    // the same way the game's own client reads a slot whose time it cannot see.
+    // When the crop was planted, which is two of the game's own readings at once: the turn a species
+    // that sets `rotateSlotOffsetsRandomly` gives each of its crops (`35 − startTime % 70` degrees off
+    // the slot's own angle, so two tomatoes on one vine sit at different angles), and the start of the
+    // window its growth is measured across. Absent is read as `0` for the turn, the same way the game's
+    // own client reads a slot whose time it cannot see.
     startTime: integerOf(crop.startTime),
+    // The rest of the growth window, which is the same pair a bare crop states: the window's end, how
+    // much of it is left (the moment is `endTime − remainingMs`), and the wire's own ripe flag. A crop
+    // that states none of them is drawn ripe, which is what every spec did before growth existed.
+    endTime: integerOf(crop.endTime),
+    remainingMs: integerOf(crop.remainingMs),
+    ready: booleanOf(crop.ready, null),
     // A place inside the tile, when the crop states one; three nulls mean "let the composer place
     // me", which for a patch is the game's own scatter.
     at: kind === "patch" ? placeOf(crop.at, where) : null,

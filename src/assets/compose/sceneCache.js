@@ -97,6 +97,13 @@ import { config } from "../../config/index.js";
  * crops in the wrong place, which is the wrong picture rather than an old one — and a wrong picture is the
  * one thing this segment exists for.
  *
+ * v11 -> v12 is **growth**, which the contract had promised since spec 2 and nothing had applied: a crop
+ * states its window (`startTime` to `endTime`) and how much of it is left (`remainingMs`), and the drawn
+ * scale is now the size curve times the game's own ramp — 0.7 of the way up by the time the window ends,
+ * and 1 once it has, with a single-harvest crop blended from a fifth of its size like the game's `Ec`
+ * (`growth.js` states the curve and where each number comes from). Every picture of a growing crop
+ * composed before this is that crop drawn ripe, which the game never shows.
+ *
  * v10 -> v11 is the stack **between** tiles: the picture's layers are now painted in the game's own world
  * order (`worldDepthSortKey-BXUHHrP0.js`'s `lg`, fed as a garden tile's object feeds it) instead of the
  * order the spec happened to list its items in, so a thing standing lower on the screen is painted after —
@@ -104,7 +111,7 @@ import { config } from "../../config/index.js";
  * different picture from this on, while a scene's own spec has not moved, which is what this segment is
  * for.
  */
-export const SCENE_LAYOUT = "v11";
+export const SCENE_LAYOUT = "v12";
 
 /**
  * The scene tree's own directory, beside the bake under the sprite export root.

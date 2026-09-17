@@ -3197,6 +3197,13 @@ paths:
         endpoint adds a rasteriser, a cache and a host, and re-implements none of the placement
         math. A browser consumer running the same package against a canvas gets the same boxes.
 
+        **A crop is drawn where and when it is.** Its `size` is the game's 50-to-100 band and its
+        growth is the game's own curve over the window it states (`startTime` to `endTime`, with
+        `remainingMs` saying where in it the picture is): a multi-harvest crop grows from nothing and
+        is 0.7 of the way up by the time its window ends, while a single-harvest crop is the plant
+        itself and starts at a fifth of its size. A crop that states no window, or one with no moment
+        in it, is drawn ripe — which is what every spec did before the window was read.
+
         **Where a crop stands is the game's own rule, and it is not a spread.** A multi-harvest
         plant's crop goes at the place its blueprint states for that slot — `slotOffsets[slot]`,
         measured from the middle of the plant's own art, turned by the slot's angle and, for a
@@ -5350,11 +5357,23 @@ components:
               startTime:
                 type: integer
                 description: |
-                  When the crop was planted, in milliseconds. A species whose plant table sets
-                  `rotateSlotOffsetsRandomly` draws each of its crops at
-                  `slotRotation + 35 − startTime % 70` degrees, so two tomatoes on one vine sit at
-                  different angles and the same crop looks the same every time it is drawn. Absent is
-                  read as `0`.
+                  When the crop was planted, in milliseconds. Two of the game's own readings come off
+                  it: the turn a species that sets `rotateSlotOffsetsRandomly` gives each of its crops
+                  (`slotRotation + 35 − startTime % 70` degrees, so two tomatoes on one vine sit at
+                  different angles and the same crop looks the same every time it is drawn), and the
+                  start of the window its growth is measured across. Absent is read as `0`.
+              endTime:
+                type: integer
+                description: The end of that window, in the same clock as `startTime`
+              remainingMs:
+                type: integer
+                description: |
+                  How much of the window is left, which is where the crop is *now*: the API reads the
+                  moment as `endTime − remainingMs` and draws the crop at `size × growth`. A crop that
+                  states a window and no `remainingMs` is drawn ripe, because nothing says when it is.
+              ready:
+                type: boolean
+                description: The crop has ripened, whatever the arithmetic says. Wins over the window.
               flipped:
                 type: boolean
                 default: false
@@ -5364,9 +5383,18 @@ components:
                   the geometry is the game's and the pixels are not.
         startTime:
           type: integer
-          description: When a still-growing crop started; the API applies the growth window
+          description: |
+            When a still-growing crop started. Its own growth window is `startTime` to `endTime`, and
+            where it is *now* is `remainingMs`: the API draws it at `size × growth` on the game's own
+            curve (`growth.js`), 0.7 of the way up by the time the window ends and 1 once it has.
         endTime:
           type: integer
+          description: When the window ends
+        remainingMs:
+          type: integer
+          description: |
+            How much of the window is left. Without it (and without `ready`) a crop is drawn ripe:
+            there is nothing to say about when it is.
         ready:
           type: boolean
           description: Ask for the ripe picture whatever the window says

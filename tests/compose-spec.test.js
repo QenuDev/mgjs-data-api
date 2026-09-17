@@ -53,6 +53,9 @@ test("une spec minimale est normalisée et prend ses défauts", () => {
       flipped: false,
       startTime: null,
       endTime: null,
+      // La croissance : la fenêtre (`startTime` -> `endTime`) et le moment qu'elle en est
+      // (`remainingMs`). Absents, la culture est dessinée mûre.
+      remainingMs: null,
       ready: null,
     },
   ]);
@@ -155,6 +158,12 @@ test("spec 2 normalise une place et une patch, et spec 1 reste acceptée", () =>
     // Le moment où le brin a été planté, qui est ce dont le jeu tire l'inclinaison d'une culture
     // multi-récolte (`35 - startTime % 70`) : absent ici, et lu comme `0` par le placement.
     startTime: null,
+    // La fenêtre de croissance, qui est la même paire qu'une culture nue déclare : la fin, ce qu'il en
+    // reste (le moment est `endTime - remainingMs`) et le drapeau « mûr » de la ligne. Aucun n'est
+    // déclaré ici, donc le brin est dessiné mûr.
+    endTime: null,
+    remainingMs: null,
+    ready: null,
     at: { x: null, y: null, rotation: null },
   });
   assert.deepEqual(patch.items[0].crops[1].at, { x: 0.1, y: 0.2, rotation: 5 });

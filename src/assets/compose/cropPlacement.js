@@ -83,6 +83,8 @@
 // within one tile row it is the body that reaches lowest that wins. `worldDepthKey` below is that
 // function, with the tile's own middle and the item's own box standing in for world position and body.
 
+import { growthOf } from "./growth.js";
+
 /** One tile, in the sprites' own pixels. The game's own `256` in every `e.x * 256` above. */
 export const TILE_PIXELS = 256;
 
@@ -192,7 +194,11 @@ export function pivotShift({ plantTransform, rotation, scale, pixelRatio, flippe
  * read for the multiplier and the `plantTransform`, while the tilt flag is the plant's own.
  */
 export function placedOnPlant({ crop, offset, plantRecord, cropSpecies, speciesRecord }) {
-  const scale = sizeScale(crop.size, speciesRecord?.crop?.maxSizeMultiplier);
+  // How large it is drawn is the size it reached times how far it has grown, and the growth is the
+  // crop's own species' harvest type's (`growth.js`: a fruit grows from nothing, a sprout starts at a
+  // fifth). The pivot below is scaled by the same number, because the game scales the container the
+  // pivot lives in — which is what keeps the pinned point on the slot's place at every size.
+  const scale = sizeScale(crop.size, speciesRecord?.crop?.maxSizeMultiplier) * growthOf(crop, speciesRecord?.plant?.harvestType);
   const rotation = turnedDegrees({
     offset,
     plantRecord,
@@ -239,7 +245,8 @@ export function placedInPatch({ crop, place, speciesRecord }) {
     x: typeof place.x === "number" ? place.x : 0,
     y,
     rotation: typeof place.rotation === "number" ? place.rotation : 0,
-    scale: sizeScale(crop.size, speciesRecord?.crop?.maxSizeMultiplier),
+    // A patch is a single-harvest species, so its sprigs carry the sprout blend on top of the ramp.
+    scale: sizeScale(crop.size, speciesRecord?.crop?.maxSizeMultiplier) * growthOf(crop, speciesRecord?.plant?.harvestType),
     depth: Math.round((y + 1) * 10),
   };
 }

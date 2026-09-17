@@ -54,6 +54,7 @@ import {
 import { assertWithinCanvas, ComposeSpecError, normalizeSpec, SPEC_VERSION } from "./spec.js";
 import { scatterPlaces } from "./sceneScatter.js";
 import { materialKindOf } from "./materials.js";
+import { growthOf } from "./growth.js";
 import {
   CROP_LAYER,
   iconPlace,
@@ -192,13 +193,16 @@ function placedPoint(item) {
  * `turn` is carried the same way).
  */
 async function layOutCrop(item) {
-  const [recipe, multiplier] = await Promise.all([
+  const [recipe, multiplier, records] = await Promise.all([
     cropRecipe(item.species, item.mutations),
     cropMultiplier(item.species),
+    plantRecords(),
   ]);
   if (recipe === null) return null;
 
-  const scale = sizeScale(item.size, multiplier);
+  // The size it reached times how far it has grown: a bare crop is the same picture a crop on a plant
+  // is, laid out on its own, and the growth is its own species' harvest type's (`growth.js`).
+  const scale = sizeScale(item.size, multiplier) * growthOf(item, records[item.species]?.plant?.harvestType);
   const picture = pictureOf(recipe, scale);
   if (picture === null) return null;
 
