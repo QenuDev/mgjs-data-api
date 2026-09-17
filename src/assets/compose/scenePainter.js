@@ -15,19 +15,27 @@
 // ## The wash
 //
 // `@mg.js/art`'s recipe states a crop's wash as `rgba(r, g, b, a)` — the game's own filter colour and its
-// opacity, in the order the game mixes it (`crop.ts`'s `washes`). How it mixes is the game's shader, and
-// this file runs the shader's own two lines rather than an approximation of them (`resources-D_3Zwcn-.js`,
-// the `ColorOverlayFilter` fragment shader, present there as both GLSL and WGSL):
+// opacity, in the order the game mixes it (`crop.ts`'s `washes`). How it mixes is the game's shader, a
+// Pixi colour-overlay filter (`resources-D_3Zwcn-.js`, present there as both GLSL and WGSL):
 //
 //     vec4 c = texture(uTexture, vTextureCoord);
 //     finalColor = vec4(mix(c.rgb, uColor * c.a, uAlpha), c.a);
 //
-// Read exactly: the overlay colour is **multiplied by the sprite's own alpha** before the mix, so a
-// semi-transparent edge darkens toward the colour rather than merely blending with it, and the sprite's
-// alpha comes back unchanged. This used to run a CSS `color`-style luminosity blend —
-// `setLum(blend, lum(base)) * a + base * (1 - a)`, the `spriteComposer.js` bake path's arithmetic — which
-// meant every mutation in a composed scene was tinted by the wrong formula. The mutation *colours* were
-// never in question: they come off the recipe, which read the game's `colorOverlay` table.
+// `uColor * c.a` is what a **premultiplied** filter looks like: the shader's input is a texture uploaded
+// with `alphaMode: "premultiply-alpha-on-upload"` (`lib-Bxsd013j.js`), so `c.rgb` is already the colour
+// times the alpha and the overlay has to be multiplied by the same alpha to stay in that space. Written
+// out for straight colour `S` and alpha `a`, the shader's output is
+//
+//     a·[(1 − u)·S + u·uColor]   with alpha `a`
+//
+// so the picture it shows is a plain mix of the art's own colour and the overlay's, with the art's alpha
+// untouched. That is what this file mixes. Applying the shader's literal text to *straight* pixels instead
+// — the previous reading — multiplied the overlay by the pixel's alpha a second time, so the antialiased
+// edge of a mutated crop kept more of its base colour than the game's edge does: at half alpha, a red
+// overlay at 0.5 landed 32 of 255 short of the game's red. This replaced a CSS `color`-style luminosity
+// blend — `setLum(blend, lum(base)) * a + base * (1 - a)`, the `spriteComposer.js` bake path's arithmetic
+// — which meant every mutation in a composed scene was tinted by the wrong formula. The mutation
+// *colours* were never in question: they come off the recipe, which read the game's `colorOverlay` table.
 
 import sharp from "sharp";
 import { spritePng } from "./atlasPixels.js";
@@ -48,7 +56,9 @@ function parseWash(wash) {
  *
  * The washes are applied in the order the recipe states, each one onto the result of the last, which is
  * the order the game mixes the group it washes last (`crop.ts`'s `washesOf`) — and the arithmetic is the
- * shader's own `mix(c.rgb, uColor * c.a, uAlpha)`, with the sprite's alpha returned unchanged.
+ * shader's `mix(c.rgb, uColor * c.a, uAlpha)` read in the space this buffer is in: straight alpha, where
+ * the same picture is `mix(base, uColor, uAlpha)` (see "The wash" above). The sprite's alpha comes back
+ * untouched, which is the shader's `, c.a)`.
  */
 export async function washedPng(buffer, washes) {
   const parsed = washes.map(parseWash).filter(Boolean);
@@ -57,12 +67,10 @@ export async function washedPng(buffer, washes) {
   for (const { colour, alpha } of parsed) {
     for (let i = 0; i < info.width * info.height; i += 1) {
       const offset = i * info.channels;
-      const pixelAlpha = data[offset + 3] / 255;
-      if (pixelAlpha === 0) continue;
+      if (data[offset + 3] === 0) continue;
       for (let channel = 0; channel < 3; channel += 1) {
         const base = data[offset + channel] / 255;
-        const overlay = colour[channel] * pixelAlpha;
-        const value = base * (1 - alpha) + overlay * alpha;
+        const value = base * (1 - alpha) + colour[channel] * alpha;
         data[offset + channel] = Math.max(0, Math.min(255, Math.round(value * 255)));
       }
       // The fourth channel is the sprite's own alpha, and the shader hands it back untouched.
@@ -76,6 +84,40 @@ export async function washedPng(buffer, washes) {
 /** A sprite drawn at one size, memoised: a scene repeats the same art on many tiles. */
 const sized = new Map();
 
+/**
+ * One sprite's pixels, sampled the way the game's own sampler samples them.
+ *
+ * Two things here are the game's, not this file's taste, and the second one cost a detour worth recording.
+ *
+ * **The interpolation is premultiplied.** Every image the game loads becomes a texture with `alphaMode:
+ * "premultiply-alpha-on-upload"` (`lib-Bxsd013j.js`, the image parser), i.e. WebGL's
+ * `UNPACK_PREMULTIPLY_ALPHA_WEBGL`, so the sampler that scales and turns a crop interpolates colour already
+ * multiplied by alpha and a transparent pixel contributes nothing. `sharp` does that itself around `resize`
+ * and `rotate` (`pipeline.cc`: `shouldPremultiplyAlpha = image.has_alpha() && (shouldResize || …)`, then
+ * `premultiply()` before the transform and `unpremultiply()` after) — so this file must **not** do it
+ * again. It did, briefly: premultiplying by hand and unpremultiplying after sharp had already
+ * unpremultiplied divided the colour by its alpha a second time, and a leaf edge of `89,169,50` came out
+ * `156,255,66` — brighter than anything in the atlas. The grey rim had become a white one, and it was this
+ * file's own arithmetic, not the sampler's. Lesson: `sharp`'s `premultiplied` handling is not something to
+ * reimplement on top of it.
+ *
+ * **The interpolator is `linear`.** `sharp`'s default upsampler is cubic (`resize.js`: "when upsampling,
+ * these kernels map to `nearest`, `linear` and `cubic` interpolators") — a kernel with negative lobes,
+ * which overshoots at the hard edge between the art's dark outline and the transparent pixels beside it.
+ * That overshoot was the grey rim itself: measured on the clover drawn at scale 3, the outermost opaque
+ * ring came out `52,147,29` where the atlas' own ring is `64,152,36`, and on a synthetic 200-valued edge a
+ * `lanczos3` upscale reaches 224. The game's textures are `scaleMode: "linear"` — Pixi's `TextureStyle`
+ * default, the sampler every loaded image gets — which is convex: it can never produce a colour the art did
+ * not have, in either direction, and at the 0.5x this atlas is halved at it is exactly the 2×2 box average
+ * a mip level is.
+ *
+ * One transform per pipeline: with `resize` and `rotate` in the same `sharp()` chain sharp's own
+ * premultiply/unpremultiply pair leaks (measured, a 25° turn after a resize reaches 152 on an art of 73),
+ * so the turn is a second call on the already-resized PNG — see `turnedPlacement`.
+ *
+ * `washedPng` and `materialPng` are untouched by this: they read every pixel once and mix, which is
+ * arithmetic rather than interpolation.
+ */
 async function sizedPng(sprite, width, height) {
   const key = `${sprite}|${width}x${height}`;
   if (sized.has(key)) return sized.get(key);
@@ -86,7 +128,7 @@ async function sizedPng(sprite, width, height) {
       : await sharp(source)
           .resize(Math.max(1, Math.round(width)), Math.max(1, Math.round(height)), {
             fit: "fill",
-            kernel: "lanczos3",
+            kernel: "linear",
           })
           .png()
           .toBuffer();
@@ -160,10 +202,11 @@ async function turnedPlacement(operation, washed) {
   if (!turn || pivot === null || pivot === undefined) {
     return { input: washed, left: operation.left, top: operation.top };
   }
-  const rotated = await sharp(washed)
-    .rotate(turn, { background: { r: 0, g: 0, b: 0, alpha: 0 } })
-    .png()
-    .toBuffer();
+  // No kernel to choose and no premultiplication to do: `sharp.rotate` resamples through libvips'
+  // bilinear interpolator over the premultiplied pixels sharp prepared itself, which is convex — measured
+  // on a 200-valued edge, a 25° turn keeps every pixel of alpha ≥ 60 within 199..200 — so a turn here is
+  // already the game's sampler, while `resize`'s default is not.
+  const rotated = await sharp(washed).rotate(turn, { background: { r: 0, g: 0, b: 0, alpha: 0 } }).png().toBuffer();
   const meta = await sharp(rotated).metadata();
   const radians = (turn * Math.PI) / 180;
   const centre = { x: operation.left + operation.width / 2, y: operation.top + operation.height / 2 };

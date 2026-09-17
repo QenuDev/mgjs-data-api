@@ -10,15 +10,23 @@
 //     à la même place et à la même taille, déclarée `kind: "crop"` (aucune frame, donc rien à doubler)
 //     et déclarée `kind: "patch"` d'un seul brin, doit composer **la même image** ;
 //   * **la teinture est celle du shader du jeu**, pas un mélange de luminosité. Le fragment shader de
-//     `resources-D_3Zwcn-.js` écrit `mix(c.rgb, uColor * c.a, uAlpha)` et rend `c.a` inchangé : le
-//     rastériseur doit donner exactement ces octets, y compris sur un pixel à demi transparent, où le
-//     `* c.a` se voit (l'ancien mélange CSS `color` y donnait une autre valeur).
+//     `resources-D_3Zwcn-.js` écrit `mix(c.rgb, uColor * c.a, uAlpha)` et rend `c.a` inchangé : c'est un
+//     filtre **prémultiplié** (le `* c.a` garde sa sortie dans l'espace où son entrée est), donc ce qu'il
+//     montre en couleur droite est `mix(base, uColor, uAlpha)` — et c'est là que les deux lectures
+//     divergent, sur un pixel à demi transparent ;
 //   * **le pivot de la rotation voyage avec le rectangle.** La disposition donne à un brin tourné un
 //     rectangle en coordonnées *image* et un pivot qu'elle calcule en coordonnées *scène* ; sans le
 //     décalage du coin de l'image, le rastériseur tourne chaque brin autour d'un point qui n'est pas dans
 //     l'image — un quart de tour ne dessinait plus rien du tout, et un tour faible glissait le brin hors
 //     de sa tuile. La preuve est un brin tourné **à côté d'une autre culture**, sans quoi le canevas est
 //     la boîte du brin lui-même et le décalage se cache dans le coin ;
+//   * **l'interpolation est prémultipliée.** Le jeu téléverse chaque image avec
+//     `alphaMode: "premultiply-alpha-on-upload"` : son échantillonneur mélange la couleur *déjà
+//     multipliée par l'alpha*, alors que `resize` et `rotate` de sharp mélangent des pixels droits. Cet
+//     atlas garde du noir sous sa transparence (11233 des 11237 pixels transparents d'un trèfle), donc
+//     chaque bord anti-aliasé de chaque sprite redimensionné ou tourné sortait plus sombre que l'art —
+//     la frange grise. La preuve compare l'image composée à un redimensionnement prémultiplié fait dans
+//     le test, et exige que le redimensionnement droit, lui, en diffère.
 //
 // Hors ligne : `installOfflineGame()` sert l'atlas et le bundle capturés.
 
@@ -48,6 +56,7 @@ const { SPEC_VERSION } = await import("../src/assets/compose/spec.js");
 const { REFERENCE_TILE_PX } = await import("@mg.js/art");
 const { initSprites } = await import("../src/assets/sprites/sprites.js");
 const { clearScenePainterCache, washedPng } = await import("../src/assets/compose/scenePainter.js");
+const { spritePng } = await import("../src/assets/compose/atlasPixels.js");
 const { drawnFrame } = await import("../src/assets/compose/artBridge.js");
 const { materialPng } = await import("../src/assets/compose/materials.js");
 const { clearSceneCaches } = await import("../src/assets/compose/sceneService.js");
@@ -327,11 +336,101 @@ test("le pivot d'un brin tourné est le point où il se tient, même loin du coi
   }
 });
 
-test("la teinture d'une mutation est celle du shader du jeu, pas un mélange de luminosité", async () => {
-  // Le shader : `finalColor = vec4(mix(c.rgb, uColor * c.a, uAlpha), c.a)`. Un pixel opaque et un pixel
-  // à demi transparent, sur une art de deux pixels, avec un lavage connu — les deux termes qui comptent
-  // sont `uColor * c.a` (le pixel transparent tire vers la moitié de la couleur, pas vers la couleur) et
-  // l'alpha rendu inchangé.
+test("un sprite redimensionné garde les bords de son art : l'échantillonneur est celui du jeu", async (t) => {
+  await cleanCache();
+  const api = await startTestApp();
+  t.after(async () => {
+    await api.close();
+    await cleanCache();
+  });
+
+  // Une culture nue, sans fond, sans mutation et sans rotation : l'image composée *est* le sprite
+  // redimensionné à l'échelle publiée, pixel pour pixel. Deux choses s'y lisent, et chacune peut échouer :
+  //
+  //   * **aucun pixel ne sort des couleurs de l'art.** L'échantillonneur du jeu est linéaire
+  //     (`scaleMode: "linear"`, le défaut de `TextureStyle`), donc chaque pixel dessiné est une moyenne
+  //     pondérée des pixels source qui le touchent : il ne peut être ni plus clair que le plus clair de
+  //     l'art, ni plus sombre que le plus sombre. Un noyau à lobes négatifs — le cubic que `sharp` choisit
+  //     par défaut en agrandissement, et donc pour `lanczos3` — dépasse des deux côtés : c'est la frange
+  //     grise (et, une fois le reste réparé, la frange claire) ;
+  //   * **et c'est bien le redimensionnement `linear`**, pas un autre : la comparaison octet à octet contre
+  //     le même redimensionnement fait ici, plus l'exigence que le cubic, lui, sorte des bornes — sans quoi
+  //     l'assertion de convexité ne mesurerait rien.
+  const spec = {
+    spec: SPEC_VERSION,
+    canvas: { fit: "content", padding: 0 },
+    items: [{ id: "one", kind: "crop", species: "Clover", at: { column: 1, row: 0 }, size: 100 }],
+  };
+  const layout = await (await layoutOf(api, spec)).json();
+  const png = await compose(api, spec);
+  const box = layout.items[0].box;
+  const source = await spritePng("sprite/plant/CloverThreeLeaf");
+  assert.ok(source !== null, "le trèfle est dans l'atlas");
+
+  const resize = (buffer, kernel) =>
+    sharp(buffer).resize(box.width, box.height, { fit: "fill", kernel }).png().toBuffer();
+  const wanted = await resize(source, "linear");
+  const cubic = await resize(source, "lanczos3");
+
+  const [composed, good, ringing, art] = await Promise.all(
+    [png, wanted, cubic, source].map(async (buffer) =>
+      sharp(buffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true }),
+    ),
+  );
+  assert.equal(composed.info.width, box.width);
+  assert.equal(composed.info.height, box.height);
+
+  // Les bornes de l'art lui-même, par canal, sur ses pixels visibles.
+  const bounds = [
+    [255, 0],
+    [255, 0],
+    [255, 0],
+  ];
+  for (let index = 0; index < art.data.length; index += art.info.channels) {
+    if (art.data[index + 3] <= 8) continue;
+    for (let channel = 0; channel < 3; channel += 1) {
+      bounds[channel][0] = Math.min(bounds[channel][0], art.data[index + channel]);
+      bounds[channel][1] = Math.max(bounds[channel][1], art.data[index + channel]);
+    }
+  }
+  const beyond = (data, info) => {
+    let count = 0;
+    for (let index = 0; index < data.length; index += info.channels) {
+      if (data[index + 3] <= 8) continue;
+      for (let channel = 0; channel < 3; channel += 1) {
+        if (data[index + channel] < bounds[channel][0] - 3 || data[index + channel] > bounds[channel][1] + 3) count += 1;
+      }
+    }
+    return count;
+  };
+
+  let worst = 0;
+  let edge = 0;
+  for (let index = 0; index < composed.data.length; index += 1) {
+    const delta = Math.abs(composed.data[index] - good.data[index]);
+    if (delta > worst) worst = delta;
+    if (index % 4 === 3 && composed.data[index] > 8 && composed.data[index] < 247) edge += 1;
+  }
+  assert.ok(edge > 500, `l'art a ${edge} pixels de bord anti-aliasés, de quoi mesurer`);
+  assert.equal(
+    beyond(composed.data, composed.info),
+    0,
+    `le sprite dessiné sort des couleurs de l'art sur ${beyond(composed.data, composed.info)} canaux (bornes ${JSON.stringify(bounds)}) : l'échantillonneur doit être convexe`,
+  );
+  assert.ok(
+    beyond(ringing.data, ringing.info) > 0,
+    "le cubic doit sortir des bornes, sinon la convexité ne prouve rien",
+  );
+  assert.ok(worst <= 2, `le sprite dessiné doit être le redimensionnement linéaire : écart maximal ${worst}`);
+});
+
+test("la teinture d'une mutation est un mélange droit, la lecture droite du shader prémultiplié du jeu", async () => {
+  // Le shader : `finalColor = vec4(mix(c.rgb, uColor * c.a, uAlpha), c.a)`, sur une texture que le jeu
+  // téléverse prémultipliée (`alphaMode: "premultiply-alpha-on-upload"`). En couleur droite, ce qu'il
+  // montre est `(1 - uAlpha) x base + uAlpha x uColor`, alpha inchangé : le `* c.a` du shader est ce qui
+  // garde sa sortie prémultipliée, pas un second facteur d'alpha sur la teinture. Un pixel opaque et un
+  // pixel à demi transparent le montrent : au demi-alpha, l'ancienne lecture donnait 164 de rouge là où
+  // le jeu en donne 227.
   const pixels = Buffer.from([200, 100, 50, 255, 200, 100, 50, 128]);
   const source = await sharp(pixels, { raw: { width: 2, height: 1, channels: 4 } }).png().toBuffer();
   const wash = "rgba(255, 0, 0, 0.5)";
@@ -342,7 +441,7 @@ test("la teinture d'une mutation est celle du shader du jeu, pas un mélange de 
 
   // L'attendu est écrit en 0..255, avec un octet de tolérance : le shader calcule en 0..1 et l'arrondi
   // d'un demi-octet (`227,5`) tombe d'un côté ou de l'autre selon l'ordre des opérations flottantes.
-  const shader = (base, colour, alpha, pixelAlpha) => base * (1 - alpha) + colour * pixelAlpha * alpha;
+  const shown = (base, colour, alpha) => base * (1 - alpha) + colour * alpha;
 
   for (const [index, pixelAlpha] of [1, 128 / 255].entries()) {
     const offset = index * 4;
@@ -352,22 +451,23 @@ test("la teinture d'une mutation est celle du shader du jeu, pas un mélange de 
       [2, 50, 0],
     ]) {
       const actual = data[offset + channel];
-      const expected = shader(base, colour, 0.5, pixelAlpha);
+      const expected = shown(base, colour, 0.5);
       assert.ok(
         Math.abs(actual - expected) <= 1,
-        `canal ${channel} du pixel ${index} : ${actual}, attendu ${expected.toFixed(2)} (shader : mix(c.rgb, uColor * c.a, uAlpha))`,
+        `canal ${channel} du pixel ${index} (alpha ${Math.round(pixelAlpha * 255)}) : ${actual}, attendu ${expected.toFixed(2)}`,
       );
     }
     assert.equal(data[offset + 3], index === 0 ? 255 : 128, `le shader rend l'alpha de l'art inchangé (pixel ${index})`);
   }
 
-  // Le pixel à demi transparent est celui où les deux formules divergent le plus, et c'est là que le
-  // `* c.a` du shader se voit : vert = 100 x 0,5 + 0 x 0,502 x 0,5 = 50. Le mélange CSS `color` (celui
-  // du chemin de *bake*, `spriteComposer.js`) aurait gardé la luminosité de l'art et donné 82 ici, et
-  // 228 au rouge au lieu de 164.
+  // Le pixel à demi transparent est celui où les deux lectures divergent, et la teinture n'y dépend pas
+  // de l'alpha : vert = 100 x 0,5 = 50, rouge = 200 x 0,5 + 255 x 0,5 = 227,5. La lecture littérale du
+  // shader appliquée à des pixels droits y donnait 164, et le mélange CSS `color` du chemin de *bake*
+  // (`spriteComposer.js`) y donnait 228 au rouge pour 82 au vert — la luminosité de l'art, pas sa teinte.
   assert.ok(Math.abs(data[5] - 50) <= 1, `vert du pixel à demi transparent : ${data[5]}, attendu 50`);
-  assert.ok(Math.abs(data[4] - 164) <= 1, `rouge du pixel à demi transparent : ${data[4]}, attendu 164`);
-  assert.ok(Math.abs(data[4] - 228) > 10, "le rouge n'est pas celui du mélange de luminosité (228)");
+  assert.ok(Math.abs(data[4] - 227.5) <= 1, `rouge du pixel à demi transparent : ${data[4]}, attendu 227,5`);
+  assert.ok(Math.abs(data[4] - 164) > 10, "le rouge n'est pas celui du `* c.a` appliqué à des pixels droits (164)");
+  assert.ok(data[4] === data[0] && data[5] === data[1] && data[6] === data[2], "un pixel teinté ne dépend pas de son alpha : les deux pixels ont la même couleur");
 });
 /** La luminosité du jeu : `surface_material_luma`, `dot(color, (0.3, 0.59, 0.11))`. */
 const gameLuma = (rgb) => (0.3 * rgb[0] + 0.59 * rgb[1] + 0.11 * rgb[2]) / 255;

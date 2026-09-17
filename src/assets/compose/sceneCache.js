@@ -78,8 +78,15 @@ import { config } from "../../config/index.js";
  * turned about a point outside the picture it was drawn in: a quarter turn composed nothing at all (the
  * sprite landed off the canvas) and a shallow one slid down the picture, where the painter's clamp hid
  * the rest. v7 pictures of a turned spec are the wrong picture, and the spec has not moved.
+ *
+ * v8 -> v9 is **how a sprite is sampled** (`scenePainter.js`), two changes to one reading of the game.
+ * The resize kernel is `linear`, which is the game's own `scaleMode`: `sharp`'s default upsampler is cubic,
+ * a kernel with negative lobes that overshoots at the art's own outline, and that overshoot was the grey
+ * rim along every sprig of every patch. And a wash is a plain straight-alpha mix, which is the same picture
+ * the game's premultiplied colour-overlay shader shows. Both change pixels for a spec that has not moved, on
+ * every sprite in the picture rather than on turned ones alone.
  */
-export const SCENE_LAYOUT = "v8";
+export const SCENE_LAYOUT = "v9";
 
 /**
  * The scene tree's own directory, beside the bake under the sprite export root.
