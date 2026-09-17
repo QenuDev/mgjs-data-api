@@ -3204,7 +3204,9 @@ paths:
         a crop is also drawn with its species' `plantTransform` pivot, which is what keeps a size-100
         fruit attached at the same point of its own art as a size-50 one. A single-harvest plant
         states no places at all: its sprigs stand where the spec puts them, or where the game's own
-        scatter lays a cluster out when the spec states none.
+        scatter lays a cluster out when the spec states none. Tiles are painted in the game's world
+        order — a thing lower on the screen is drawn in front — whatever order the spec listed them
+        in; `layout.items` stays in the normalised (id) order so a caller has both.
 
         **Each item's box is the tight union of what that item actually draws** — its art plus the
         mutation layers that reach past it — which is this API's convention
@@ -5431,6 +5433,13 @@ components:
                 $ref: '#/components/schemas/Box'
               z:
                 type: integer
+                description: |
+                  The game's own layer for this kind of thing: `3` (`OccludingObject`) for a plant or
+                  a patch standing on a tile, `2` (the `mounted crop` rung) for a bare crop. It is one
+                  term of the world depth key the painting order comes from — a thing lower on the
+                  screen is painted in front of one behind it — so it is not the order by itself;
+                  `layout.items` is in the spec's normalised (id) order, and the order the picture was
+                  painted in is the world key over `z` and the item's tile.
               sprites:
                 type: array
                 items:

@@ -25,8 +25,10 @@
 //     recipe can answer. The split is the game's own (`PlantBody.createCrops` reads the blueprint and
 //     `PlantCrop`/`CropVisual` draw) and the same one `garden-viewer/garden.mjs:271-341` makes;
 //   * **the flattening** — the package answers a *recipe* (a crop's picture, a plant's parts), and a
-//     rasteriser wants a painted list: every layer in picture coordinates, in the package's own
-//     order, which is the game's (`plant.ts:1-30` states the ladder).
+//     rasteriser wants a painted list: every layer in picture coordinates, in the game's own order.
+//     Inside an item that order is the package's (`plant.ts:1-30` states the ladder); between items it
+//     is the world's, `cropPlacement.js`'s `worldDepthKey`, so a tile lower on the screen is painted
+//     after — and so in front of — one behind it, whatever order the spec listed them in.
 //
 // ## The box convention, and which one this is
 //
@@ -53,13 +55,16 @@ import { assertWithinCanvas, ComposeSpecError, normalizeSpec, SPEC_VERSION } fro
 import { scatterPlaces } from "./sceneScatter.js";
 import { materialKindOf } from "./materials.js";
 import {
+  CROP_LAYER,
   iconPlace,
   placedInPatch,
   placedOnPlant,
+  PLANT_LAYER,
   PLANT_MIDDLE,
   sizeScale,
   slotOffsetAt,
   slotSpecies,
+  worldDepthKey,
 } from "./cropPlacement.js";
 
 /**
@@ -920,10 +925,12 @@ export async function layOutScene(rawSpec) {
       at: stripNullPlace(item.at),
       box: toPicture(item.box),
       scene: toScene(item.box),
-      // A tile-standing thing — a plant's body, a patch's cluster — is drawn before the bare crops
-      // (menu pictures, seed packets) a spec puts in the same scene. Inside one item the sprigs stack
-      // by the `depth` below, which is the game's own crop `zIndex`.
-      z: item.kind === "crop" ? 2 : 0,
+      // The game's own layer for this kind of thing, which is one term of the world depth key the
+      // painting order comes from (`cropPlacement.js`): a tile-standing object is an
+      // `OccludingObject` (3), a bare crop — a menu picture, a seed packet — the game's `mounted
+      // crop` rung (2). It is not the paint order on its own: `layout.layers` is, and `items` stays
+      // in the normalised (id) order so a caller has both.
+      z: item.kind === "crop" ? CROP_LAYER : PLANT_LAYER,
       sprites: item.sprites,
       crops: item.crops.map((crop) => ({
         slot: crop.slot,
@@ -948,7 +955,40 @@ export async function layOutScene(rawSpec) {
           },
   };
 
-  const layers = [...(background === null ? [] : background.tiles), ...items.flatMap((item) => item.layers)].map(shift);
+  const layers = [
+    ...(background === null ? [] : background.tiles),
+    // The tiles are painted in the game's own world order, not the order the spec listed them in: an
+    // object lower on the screen is drawn later, and so in front of one behind it
+    // (`cropPlacement.js`'s `worldDepthKey`, which is `worldDepthSortKey-BXUHHrP0.js`'s `lg` fed the
+    // way a garden tile's object feeds it). A caller that wants a list rather than a stack reads
+    // `layout.items`, which stays in the normalised order.
+    ...paintedOrder(items).flatMap((item) => item.layers),
+  ].map(shift);
 
   return { spec, layout, layers, canvas, origin };
+}
+
+/**
+ * The scene's items, in the order the game paints tiles: by the world depth key, ties broken by the
+ * normalised order the items arrived in, so one spec always composes one picture.
+ *
+ * The key is the game's, and it is why the order here is not the spec's: `floor(depthYPixels × 1e4)`
+ * is the tile's own row, the layer says what kind of thing it is, and the body's reach below the
+ * tile's middle breaks a tie inside one row — so a plant drawn lower on the screen covers one behind
+ * it instead of the other way round.
+ */
+function paintedOrder(items) {
+  return items
+    .map((item, index) => ({
+      item,
+      index,
+      key: worldDepthKey({
+        tileCentreY: ((item.at?.row ?? 0) + 0.5) * TILE_STEP_PX,
+        bodyBottomPixels: item.box.top + item.box.height,
+        layer: item.kind === "crop" ? CROP_LAYER : PLANT_LAYER,
+        columnX: ((item.at?.column ?? 0) + 0.5) * TILE_STEP_PX,
+      }),
+    }))
+    .sort((left, right) => left.key - right.key || left.index - right.index)
+    .map((one) => one.item);
 }

@@ -96,8 +96,15 @@ import { config } from "../../config/index.js";
  * plant, the sprig's own y place on a patch). A picture composed before it is the same spec drawn with its
  * crops in the wrong place, which is the wrong picture rather than an old one — and a wrong picture is the
  * one thing this segment exists for.
+ *
+ * v10 -> v11 is the stack **between** tiles: the picture's layers are now painted in the game's own world
+ * order (`worldDepthSortKey-BXUHHrP0.js`'s `lg`, fed as a garden tile's object feeds it) instead of the
+ * order the spec happened to list its items in, so a thing standing lower on the screen is painted after —
+ * and so in front of — one behind it. Every picture of a scene with two items on different rows is a
+ * different picture from this on, while a scene's own spec has not moved, which is what this segment is
+ * for.
  */
-export const SCENE_LAYOUT = "v10";
+export const SCENE_LAYOUT = "v11";
 
 /**
  * The scene tree's own directory, beside the bake under the sprite export root.

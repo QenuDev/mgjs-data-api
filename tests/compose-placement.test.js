@@ -60,6 +60,8 @@ await initSprites();
 
 const { plantArt } = await import("../src/assets/compose/artBridge.js");
 const {
+  CROP_LAYER,
+  PLANT_LAYER,
   iconPlace,
   pivotShift,
   placedInPatch,
@@ -68,6 +70,7 @@ const {
   slotOffsetAt,
   slotSpecies,
   turnedDegrees,
+  worldDepthKey,
 } = await import("../src/assets/compose/cropPlacement.js");
 const { SPEC_VERSION } = await import("../src/assets/compose/spec.js");
 const { resetSceneCache } = await import("../src/assets/compose/sceneCache.js");
@@ -280,6 +283,40 @@ test("l'icône d'une plante à récolte unique resserre et éventaille ses brins
     assert.equal(one.x, 0.3 * 0.4);
     assert.equal(one.y, -0.2 * 0.15 + 0.05);
   }
+});
+
+test("la pile d'une tuile est celle du monde : plus bas est dessiné plus tard", () => {
+  // `worldDepthSortKey-BXUHHrP0.js` :
+  //
+  //     function lg({depthYPixels: e, layer: t, bodyBottomYPixels: n, band: r = 0}) {
+  //       let i = (n ?? e) - e;
+  //       return (r === 1 ? 9e11 : 0) + Math.floor(e * 1e4) + t + (i <= 0 ? 0 : i / (i + 256)) }
+  //
+  // alimenté par une tuile de jardin (`installWorldSystems-2I5vu80Q.js`) : la clé monte avec l'y de
+  // la tuile, la couche d'un objet de jardin est `OccludingObject` (3), et dans une même rangée
+  // c'est ce qui descend le plus bas qui passe devant.
+  const upper = worldDepthKey({ tileCentreY: 128, bodyBottomPixels: 300 });
+  const lower = worldDepthKey({ tileCentreY: 384, bodyBottomPixels: 556 });
+  assert.ok(lower > upper, "une tuile plus basse a une clé plus grande");
+
+  const shallow = worldDepthKey({ tileCentreY: 384, bodyBottomPixels: 400 });
+  const deep = worldDepthKey({ tileCentreY: 384, bodyBottomPixels: 700 });
+  assert.ok(deep > shallow, "dans une rangée, ce qui descend le plus bas passe devant");
+
+  // La couche : une culture nue (2) passe avant un objet de jardin (3) à la même profondeur.
+  assert.ok(
+    worldDepthKey({ tileCentreY: 384, layer: CROP_LAYER }) <
+      worldDepthKey({ tileCentreY: 384, layer: PLANT_LAYER }),
+  );
+  assert.equal(PLANT_LAYER, 3);
+  assert.equal(CROP_LAYER, 2);
+
+  // La clé est `floor(y x 1e4)` : deux tuiles d'une même rangée ont la même bande, et deux rangées
+  // ne peuvent pas s'y confondre — l'écart entre les deux bandes est la distance entre les tuiles,
+  // quelle que soit la portée des corps.
+  const row0 = worldDepthKey({ tileCentreY: 128, bodyBottomPixels: 128 });
+  const row1 = worldDepthKey({ tileCentreY: 384, bodyBottomPixels: 384 });
+  assert.equal(Math.floor(row1) - Math.floor(row0), (384 - 128) * 1e4);
 });
 
 test("la pile d'une culture à récolte multiple est `2 + slotId`, pas le rang dans la liste", () => {
@@ -554,5 +591,60 @@ test("une patch laisse sa place à chaque brin, et empile par la profondeur du b
   assert.equal(
     placedInPatch({ crop: { size: 50 }, place: { x: 0, y: 0, rotation: 0 }, speciesRecord: PLANTS.Clover }).depth,
     10,
+  );
+});
+
+test("les tuiles d'une scène sont peintes de haut en bas, pas dans l'ordre de la spec", async (t) => {
+  await cleanCache();
+  const api = await startTestApp();
+  t.after(async () => {
+    await api.close();
+    await cleanCache();
+  });
+
+  // Les identifiants sont choisis pour que l'ordre normalisé (`normalizeSpec` trie par `id`) soit
+  // l'**inverse** de l'ordre de profondeur : `a-lower` est la tuile du bas et passe donc en premier
+  // dans la spec, alors qu'elle doit être peinte en dernier. Sans le tri, l'épreuve échoue. Les deux
+  // espèces sont des plantes à récolte unique sans brin : ce qui est comparé ici est le corps de la
+  // tuile, et ces deux corps sont dans l'atlas hors ligne.
+  //
+  // Les couches peintes ne sortent pas d'une requête `?format=layout` — elles vont au rasteriseur —
+  // donc c'est `layOutScene` qui est appelé ici, la même fonction que la route appelle.
+  const { layOutScene } = await import("../src/assets/compose/sceneLayout.js");
+  const laid = await layOutScene({
+    spec: SPEC_VERSION,
+    items: [
+      {
+        id: "a-lower",
+        kind: "plant",
+        species: "PineTree",
+        at: { column: 1, row: 1 },
+        crops: [],
+      },
+      {
+        id: "z-upper",
+        kind: "plant",
+        species: "Cactus",
+        at: { column: 1, row: 0 },
+        crops: [],
+      },
+    ],
+  });
+  assert.equal(laid.error, undefined);
+  const layout = laid.layout;
+  const lower = await plantArt("PineTree");
+  const upper = await plantArt("Cactus");
+  const firstIndexOf = (sprite) => laid.layers.findIndex((layer) => layer.sprite === sprite);
+  const lowerAt = firstIndexOf(lower.plant.sprite);
+  const upperAt = firstIndexOf(upper.plant.sprite);
+  assert.ok(lowerAt >= 0 && upperAt >= 0, "les deux corps sont dans la scène");
+  assert.ok(lowerAt > upperAt, "la tuile du bas est peinte après celle du haut");
+
+  // Le layout, lui, publie les items dans l'ordre **normalisé** — `normalizeSpec` trie par `id`, ce
+  // qui est ce qui rend la clé de contenu stable — donc `a-lower` d'abord : l'ordre de la disposition
+  // et l'ordre de peinture sont deux choses différentes, et c'est voulu.
+  assert.deepEqual(
+    layout.items.map((item) => item.id),
+    ["a-lower", "z-upper"],
   );
 });
