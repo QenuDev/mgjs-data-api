@@ -61,8 +61,12 @@ async function atlasEntry(url) {
 export async function spritePng(key, { rotate = false } = {}) {
   const cacheKey = rotate ? `${key}|rotate` : key;
   if (spriteCache.has(cacheKey)) return spriteCache.get(cacheKey);
+  // `lookupSprite` answers **`null`** for a key the index does not hold (`sprites.js`), so this used to
+  // test for `undefined` and never once reach the Rive frames: a portrait — a pet, whose art left the
+  // atlas for `rive/pets.riv` — came back as no pixels at all, and every layer that named one was
+  // skipped. The fallback is the point of this line, so it is the `null` that is tested.
   const meta = lookupSprite(key);
-  const found = meta === undefined ? (await rivePng(key)) : (await atlasPng(meta, rotate));
+  const found = meta === null ? (await rivePng(key)) : (await atlasPng(meta, rotate));
   spriteCache.set(cacheKey, found);
   return found;
 }

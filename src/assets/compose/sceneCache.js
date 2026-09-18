@@ -110,8 +110,35 @@ import { config } from "../../config/index.js";
  * and so in front of — one behind it. Every picture of a scene with two items on different rows is a
  * different picture from this on, while a scene's own spec has not moved, which is what this segment is
  * for.
+ * v13 -> v14 is **the Rive pixels**: `atlasPixels.js`'s `spritePng` tested `lookupSprite`'s answer for
+ * `undefined`, and `sprites.js` answers **`null`** for a key the index does not hold — so the fallback the
+ * line exists for (the export's own PNGs, which is where every pet's art went when the game moved pets to
+ * `rive/pets.riv`) never ran, and a layer that named one was skipped. A pet icon composed before this is
+ * an empty square, and a pet icon is the whole reason an `icon` item may name a portrait; the pixels of a
+ * spec that has not moved are different pixels, which is this segment's own case. The same segment covers
+ * the centring of an `icon` that composes: a produce entry wearing mutations is the species' crop composed
+ * and then contained, and the first cut of that shift measured the picture's box as if it began at the
+ * origin, which is the art's **anchor** — every mutated produce icon sat half an art high and to the left
+ * until the box's own `left`/`top` were subtracted too.
+ *
+ * v12 -> v13 is the **new kinds**: a spec can now hold an egg, a crystal and a decoration, and the layout
+ * reports one more field on every item (`depthOffsetYPixels`, the half tile a hanging decoration is moved
+ * by). No picture of a plant or a crop changes — the mapping they are drawn with and their depth offset
+ * (zero) are the ones v12 painted them with — but the answer cached beside every picture does: a
+ * `<key>.json` written before this names no `depthOffsetYPixels`, and a caller that read one would read a
+ * layout this version no longer writes. The segment is bumped for the answer rather than for the pixels,
+ * which is the one case where the two disagree.
+ *
+ * v14 -> v15 is **a potted plant's crops keeping their own places**. The icon branch of a single-harvest
+ * plant handed the game's `iconPlace` the pot's middle (`PLANT_MIDDLE`) whatever the spec stated, because
+ * a `plant`'s crops had no place to hand it — `cropOf` read `at` only for a `patch`. The game's own branch
+ * is the crop's own place (`PlantBody.createCrops`' `vi(e, t, n)`, where `e` is the slot's `x`/`y`/
+ * `rotation`), so every potted single-harvest icon composed before this piled its crops at one point, fanned
+ * by index and turned by the fan alone: the wrong picture, of a spec that has not moved. The same version
+ * covers the answer: a `plant`'s crops now carry the `at` they stated, so a `<key>.json` written before it
+ * states three nulls where this one states a place.
  */
-export const SCENE_LAYOUT = "v12";
+export const SCENE_LAYOUT = "v15";
 
 /**
  * The scene tree's own directory, beside the bake under the sprite export root.

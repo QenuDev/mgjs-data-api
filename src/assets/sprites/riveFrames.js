@@ -23,6 +23,22 @@ import { getStoredVersionCached } from "../../core/game/versionStorage.js";
 // routeur de sprites n'accepte que des noms en `.png`, il n'est jamais servi).
 export const RIVE_FRAMES_FILE = "_rive-frames.json";
 
+/**
+ * Rapproche un nom d'artboard d'un identifiant de données.
+ *
+ * Le `.riv` et les données du jeu ne nomment pas toujours une espèce pareil : l'artboard du Red Fox
+ * s'appelle `Red Fox`, là où les données l'appellent `RedFox` — même écart que
+ * `StoneBirdBath`/`StoneBirdbath` côté décors. L'art est rangé sous le nom de l'artboard (le PNG rendu,
+ * les boucles WebP, la clé du sidecar), donc tout lecteur qui part d'un identifiant de données doit
+ * passer par cette clé pour retrouver l'art : `/data/pets` (`petTransformer.js`, qui sans elle sortait
+ * l'espèce deux fois) et l'icône d'un animal composée par cette API (`artBridge.js`, qui sans elle
+ * refusait `RedFox` faute de portrait).
+ *
+ * Un seul endroit pour la règle : deux copies dériveraient, et c'est précisément l'écart qu'elle existe
+ * pour couvrir.
+ */
+export const artboardKey = (name) => String(name).toLowerCase().replace(/[^a-z0-9]/g, "");
+
 // Catégories dont une partie des sprites vient de Rive et non d'un atlas.
 // `pets` : toutes les créatures (le jeu les a sorties des atlas).
 // `decor` : uniquement les décors que les atlas ne fournissent pas encore.

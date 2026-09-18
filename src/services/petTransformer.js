@@ -3,7 +3,7 @@
 import { gameDataService } from "./gameData.js";
 import { transformDataWithSprites } from "./dataTransformer.js";
 import { getAnimations, buildAnimationLinks } from "../assets/sprites/riveAnimations.js";
-import { getRiveFrames } from "../assets/sprites/riveFrames.js";
+import { getRiveFrames, artboardKey } from "../assets/sprites/riveFrames.js";
 import { buildRiveSource, getPetsRiveUrl } from "../assets/sprites/riveSource.js";
 import { buildSpriteUrl } from "../utils/spriteUrlBuilder.js";
 
@@ -20,19 +20,6 @@ import { buildSpriteUrl } from "../utils/spriteUrlBuilder.js";
  * 3. Les **espèces pas encore sorties** : le `.riv` contient des artboards que
  *    les données du jeu ne mentionnent pas encore. Voir ci-dessous.
  */
-
-/**
- * Rapproche un nom d'artboard d'un identifiant de données.
- *
- * Le `.riv` et les données du jeu ne nomment pas toujours une espèce pareil :
- * l'artboard du Red Fox s'appelle `Red Fox`, là où les données l'appellent
- * `RedFox` — même écart que `StoneBirdBath`/`StoneBirdbath` côté décors. Sans
- * ce rapprochement l'espèce sort **deux fois** de `/data/pets` : l'entrée de
- * données, privée de son PNG (rangé sous le nom de l'artboard) et de ses
- * animations, et un faux `released: false` qui porte tout l'art mais aucune
- * statistique.
- */
-const artboardKey = (name) => name.toLowerCase().replace(/[^a-z0-9]/g, "");
 
 /**
  * Index clé normalisée -> nom d'artboard réel, sur tout ce que Rive fournit.

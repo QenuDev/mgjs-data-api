@@ -54,6 +54,7 @@ import {
 } from "@mg.js/art";
 
 import { gameDataService } from "../../services/gameData.js";
+import { artboardKey, getRiveFrames } from "../sprites/riveFrames.js";
 import { getArtData } from "../../core/game/art/index.js";
 import { initSprites, lookupSprite } from "../sprites/sprites.js";
 
@@ -63,11 +64,22 @@ let tablesCache = null;
 /** The plants table: the game's own records, which is where `slotOffsets` and `baseTileScale` live. */
 let plantsCache = null;
 
+/**
+ * The items table: the game's own records, which is where a tool's `sprite` is stated.
+ *
+ * An item id is not always the name of its art — `HungerShard` is drawn as `HungerCrystalShard` — so the
+ * table that states the hop is the one to read rather than a name built out of the id.
+ */
+let itemsCache = null;
+
 /** The adapter's inputs, dropped when a test (or a resync) changes the data underneath. */
 export function clearArtBridgeCache() {
   tablesCache = null;
   plantsCache = null;
+  itemsCache = null;
   framesCache = null;
+  portraitsCache = null;
+  frames.clear();
 }
 
 let framesCache = null;
@@ -87,6 +99,53 @@ export async function artTables() {
 export async function plantRecords() {
   if (plantsCache === null) plantsCache = await gameDataService.getPlants();
   return plantsCache;
+}
+
+/** `/data/items`, which is the game's own item table — the one that states what each item id is drawn with. */
+export async function itemRecords() {
+  if (itemsCache === null) itemsCache = await gameDataService.getItems();
+  return itemsCache;
+}
+
+/**
+ * The sprite path a decoration's art is filed under, or `null`.
+ *
+ * The sprite-name table's `Decor` category is keyed by the **artboard's** name, and eight of the game's
+ * decorations are Rive artboards whose name is not their data id: `StoneBirdbath` against `StoneBirdBath`,
+ * and `RockBirdbath`/`RockBirdBath` the same way — a disagreement `primePortraits`' own comment already notes.
+ * So the id is asked for exact first, and then under `riveFrames.js`'s `artboardKey`, which is the rule
+ * `/data/pets` and `decorTransformer.js` reconcile the two spellings by ("le rapprochement se fait donc sans
+ * tenir compte de la casse"). The game's decor table states the same hop as `art.artboardName`, and
+ * `dataTransformer.js` reads it there for `/data/decors`; this table is the one the compose path already has.
+ *
+ * Two keys that normalise alike are left unresolved rather than chosen between, because a decoration drawn
+ * from the wrong artboard is a picture of some other decoration.
+ */
+export async function decorArtPath(decorId) {
+  const decor = (await artTables())?.spriteNames?.Decor ?? null;
+  if (decor === null || typeof decorId !== "string" || decorId === "") return null;
+  const exact = decor[decorId];
+  if (typeof exact === "string" && exact !== "") return exact;
+  const key = artboardKey(decorId);
+  if (key === "") return null;
+  const matches = Object.keys(decor).filter((name) => artboardKey(name) === key);
+  return matches.length === 1 ? decor[matches[0]] : null;
+}
+
+/**
+ * The art one tool is drawn with, as the game's own item table states it, or `null`.
+ *
+ * `items[toolId].sprite`: the game states each item's art rather than deriving it from the id, and for the
+ * three pet-effect shards the two disagree — `HungerShard` is drawn from `sprite/item/HungerCrystalShard`.
+ * This is the *uncharged* tool's own art; a charged shard is drawn as the crystal it holds instead
+ * (`tileObjects.js`'s `chargedToolArtName`, which is the game's other hop for the same id). A tool whose
+ * record states nothing, or an id the table does not hold, is `null` so the caller can fall back to looking
+ * the id up in the sprite-name table by name.
+ */
+export async function toolArtName(toolId) {
+  if (typeof toolId !== "string" || toolId === "") return null;
+  const stated = (await itemRecords())?.[toolId]?.sprite;
+  return typeof stated === "string" && stated !== "" ? stated : null;
 }
 
 /** An atlas frame, the size the package draws it at, and the atlas rectangle its pixels come from. */
@@ -131,9 +190,71 @@ const frames = new Map();
  */
 export function drawnFrame(key) {
   if (frames.has(key)) return frames.get(key);
-  const entry = frameEntry(key);
+  // A key the atlas does not hold may still be one this API draws: the portraits the game bakes from
+  // Rive are exported to disk and keyed `sprite/pet/<name>` (`exportPetsFromRive.js`), and
+  // `atlasPixels.js`'s `spritePng` already falls back to those PNGs for their pixels. This is the
+  // rectangle to draw them in, and it is null until `primePortraits()` has read the sidecars.
+  const entry = frameEntry(key) ?? portraitsCache?.byKey.get(key) ?? null;
   frames.set(key, entry);
   return entry;
+}
+
+/**
+ * The portraits this API exported from Rive, as frames and by name.
+ *
+ * `sprites.js` merges the Rive entries into the sprite **catalogue** (`/assets/sprites`) but not into
+ * the index `lookupSprite` searches, so a portrait has no frame in `drawnFrame`'s own terms. The
+ * sidecar the export writes carries the two numbers a frame needs — `sourceSize` and `anchor` — so
+ * nothing is measured or guessed here: the box is `frameBox`'s answer over them, at the ratio 1 the
+ * exported PNG is at.
+ *
+ * `byName` is the same table keyed the way an inventory entry names a pet, which is what makes the
+ * lookup a table read rather than a key built out of a name — and `byArtboard`, keyed the way the game's
+ * own data spells a species, because the two do not always agree: the artboard of `RedFox` is `Red Fox`,
+ * exactly as `RockBirdbath`/`RockBirdBath` disagree in the decor tables. The key is
+ * `riveFrames.js`'s `artboardKey`, the same rule `/data/pets` reconciles ids with artboards by.
+ */
+let portraitsCache = null;
+
+async function primePortraits() {
+  if (portraitsCache !== null) return portraitsCache;
+  const sidecars = await getRiveFrames().catch(() => null);
+  const byKey = new Map();
+  const byName = new Map();
+  const byArtboard = new Map();
+  for (const [key, meta] of Object.entries(sidecars ?? {})) {
+    const box = frameBox({
+      sourceSize: meta?.sourceSize ?? null,
+      sourcePixelRatio: 1,
+      anchor: meta?.anchor ?? null,
+    });
+    if (!(box.width > 0) || !(box.height > 0)) continue;
+    const frame = { key, box, pixelRatio: box.pixelRatio, rect: null, rotated: false, url: null };
+    byKey.set(key, frame);
+    if (typeof meta?.name === "string" && meta.name !== "") {
+      byName.set(meta.name, frame);
+      // First spelling wins, the way `petTransformer.js`'s own index takes the first it is given: two
+      // artboards that differ only in punctuation are one species under this rule, and the export writes
+      // one file per artboard, so there is nothing to choose between them but the order.
+      const normalised = artboardKey(meta.name);
+      if (!byArtboard.has(normalised)) byArtboard.set(normalised, frame);
+    }
+  }
+  portraitsCache = { byKey, byName, byArtboard };
+  return portraitsCache;
+}
+
+/**
+ * The portrait one pet is drawn from, or `null` when this API has not exported it.
+ *
+ * An inventory entry names a pet by its species, which is usually the name the export keys the portrait
+ * by (`sprite/pet/<name>`, and the sidecar's own `name`) — so this is a table read, first by the name as
+ * stated and then by the game's own spelling of an artboard (`artboardKey`), which is the only thing that
+ * finds `RedFox` in the file the export wrote as `Red Fox`.
+ */
+export async function portraitFrame(name) {
+  const { byName, byArtboard } = await primePortraits();
+  return byName.get(name) ?? byArtboard.get(artboardKey(name)) ?? null;
 }
 
 /**
