@@ -22,6 +22,37 @@ function transformPlantPart(partData, spriteVersion) {
 }
 
 /**
+ * Le `kind` à envoyer à `POST /compose` pour une tuile de cette espèce : `patch`, `plant` ou `crop`.
+ *
+ * C'est la règle du jeu, et elle n'est lisible nulle part en une fois : `harvestType: "Single"` **et** un
+ * `slotCapacity` font une **patch** (une grappe de brins, dont le nombre est ce que la capacité limite) ; une
+ * espèce `Single` sans capacité dont l'art de plant **est** l'art de crop n'a pas de plant à elle — la culture
+ * *est* la plante — donc sa tuile est dessinée comme cette **crop** seule ; tout le reste est un **plant**, une
+ * tige avec ses cultures dans ses slots.
+ *
+ * Elle est publiée ici parce que c'est cette API qui la fait respecter (`COMPOSE_PATCH_NOT_A_PATCH` nomme le
+ * kind à envoyer, `COMPOSE_PLANT_OVER_CAPACITY` le plafond d'une espèce sans capacité) : sans ce champ, chaque
+ * appelant devrait la reconstruire, et la comparaison des deux arts n'est concluante **qu'après** le test de
+ * capacité — 27 espèces sur 70 partagent leurs deux arts, dont quatre vraies patches (Cattail, Clover, Daisy,
+ * Snowdrop). Mesuré sur la table vivante : 5 patches, 23 crops, 6 plants Single, 35 Multiple.
+ */
+function speciesKind(plant, crop) {
+  const harvestType = plant?.harvestType;
+  if (typeof harvestType !== "string" || harvestType === "") {
+    return null;
+  }
+  if (harvestType !== "Single") {
+    return "plant";
+  }
+  if (Number.isInteger(plant.slotCapacity) && plant.slotCapacity > 0) {
+    return "patch";
+  }
+  return typeof plant.sprite === "string" && plant.sprite !== "" && plant.sprite === crop?.sprite
+    ? "crop"
+    : "plant";
+}
+
+/**
  * Transform a complete plant entry (seed, plant, crop).
  */
 function transformPlant(plantData, spriteVersion) {
@@ -41,6 +72,13 @@ function transformPlant(plantData, spriteVersion) {
 
   if (plantData.crop) {
     transformed.crop = transformPlantPart(plantData.crop, spriteVersion);
+  }
+
+  // Le kind se lit sur les arts **résolus**, pas sur les clés du bundle : c'est la même image que le jeu
+  // compare, et c'est elle que l'appelant enverra.
+  const kind = speciesKind(transformed.plant, transformed.crop);
+  if (kind !== null && transformed.plant) {
+    transformed.plant = { ...transformed.plant, kind };
   }
 
   return transformed;

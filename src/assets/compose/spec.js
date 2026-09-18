@@ -67,16 +67,51 @@ const CROP_SIZE_MIN = 50;
 const CROP_SIZE_MAX = 100;
 
 /**
- * The kinds a spec may state. `decor`, `egg` and `crystal` are the tile vocabulary's rest and are
- * not drawn yet.
+ * The kinds a spec may state: the three that carry a species, the three a garden tile can hold
+ * instead of one, and the one that draws an inventory icon.
  *
  * `patch` is a tile that holds a **cluster** of the species' own crops rather than one art: the
  * game draws a `harvestType: "Single"` species that way (its plant art *is* what stands on the
  * tile, and each crop on it is a sprig at its own place), and `crops` on a `plant` item has always
  * meant the same thing to the composer. The two are kept apart because they take different fields:
  * a `plant` has a pot, a maturity and a body of its own, a patch has neither.
+ *
+ * `egg`, `crystal` and `decor` are the rest of a garden tile's vocabulary, and none of them has a
+ * species: an egg tile states an `eggId` and the window it hatches on, a crystal tile states a
+ * `crystalType` and the charge it holds, a decoration states a `decorId`. All three are one sprite
+ * in a frame, drawn at the game's own scale, which is the whole of their picture — there is no
+ * placement to state and none is invented here.
+ *
+ * `icon` is the one kind that is not on a garden tile at all: it draws one inventory entry the way
+ * the game's own icon builder does — the entry's art contained in the game's 256-pixel icon square
+ * at the share that kind of entry fills (`ICON_FILL`), centred on both axes. It states an
+ * `itemType`, which is the game's own item-type literal, and the id that type's art is named by.
  */
-export const SUPPORTED_ITEM_KINDS = Object.freeze(["plant", "patch", "crop"]);
+export const SUPPORTED_ITEM_KINDS = Object.freeze(["plant", "patch", "crop", "egg", "crystal", "decor", "icon"]);
+
+/**
+ * The item types an `icon` item may state: the game's own item-type enum, which is what an inventory
+ * entry carries and what the game's icon builder switches on (`@mg.js/art`'s `IconType`, read from
+ * the extraction's `icon-fill-table` evidence).
+ *
+ * The two that are not one sprite are named here rather than left out, because a spec that asks for
+ * one is refused by name with the reason — a plant's icon is an assembled picture and a pet's is a
+ * portrait baked from Rive — instead of drawing nothing.
+ */
+export const ICON_ITEM_TYPES = Object.freeze(["Seed", "Produce", "Plant", "Tool", "Egg", "Decor", "Pet"]);
+
+/** The id field each item type's art is named by, as the game's own icon builder reads it. */
+const ICON_ID_FIELDS = Object.freeze({
+  Seed: "species",
+  Produce: "species",
+  Plant: "species",
+  Tool: "toolId",
+  Egg: "eggId",
+  Decor: "decorId",
+  // A pet is named by its species too, even though its icon is baked rather than drawn from a sprite:
+  // the bake is addressed by the species, which is why the field is stated rather than left out.
+  Pet: "species",
+});
 
 /**
  * A spec this instance refuses, with the reason named.
@@ -202,6 +237,49 @@ function numberOrNull(value) {
 }
 
 /**
+ * The id a tile object states — an `eggId`, a `crystalType`, a `decorId` — as the game's own tables
+ * spell it. Required, because an absent one names no art: there is no default egg.
+ */
+function idOf(value, where) {
+  const name = nameOf(value);
+  if (name === null) throw invalid(`${where} must be a non-empty string`);
+  return name;
+}
+
+/**
+ * How much of its own window a thing has left, which is the pair of fields the wire carries for a
+ * crop and for an egg alike.
+ *
+ * The window is `startTime` to `endTime`, and the moment a picture is drawn at is
+ * `endTime − remainingMs` — so the API needs no clock of its own and the same spec composes the same
+ * picture twice. `ready: true` asks for the ripe picture whatever the window says. Absent times are
+ * `null` rather than `0`: a thing that states no window is drawn full-size (`growth.js`), and reading
+ * an absent `startTime` as the epoch would draw it at nothing.
+ */
+function windowOf(raw) {
+  return {
+    startTime: integerOf(raw.startTime),
+    endTime: integerOf(raw.endTime),
+    remainingMs: integerOf(raw.remainingMs),
+    ready: booleanOf(raw.ready, null),
+  };
+}
+
+/**
+ * A duration in seconds that is not negative — the charge a crystal holds.
+ *
+ * `0` is a real answer (a spent crystal) and is not read as absent, which is the same rule the
+ * integers above follow.
+ */
+function secondsOf(value, where) {
+  if (value === undefined || value === null) return null;
+  const seconds = numberOrNull(value);
+  if (seconds === null) throw invalid(`${where} must be a finite number of seconds`);
+  if (seconds < 0) throw invalid(`${where} must not be negative`);
+  return seconds;
+}
+
+/**
  * A crop's own `size`, exactly as the wire carries it.
  *
  * The value is the game's own integer on its 50-to-100 band; the API converts it with the game's
@@ -238,11 +316,68 @@ function itemOf(raw, index, seenIds) {
       `${where}: kind ${JSON.stringify(kind)} is not one of ${SUPPORTED_ITEM_KINDS.join(", ")}`,
     );
   }
-  const species = nameOf(raw.species);
-  if (species === null) throw invalid(`${where}: species must be a non-empty string`);
-
   const at = positionOf(raw.at, where);
   const size = sizeOf(raw.size, where);
+
+  // An inventory entry: one art in the game's icon square, named by the id its item type carries.
+  if (kind === "icon") {
+    const itemType = idOf(raw.itemType, `${where}.itemType`);
+    if (!ICON_ITEM_TYPES.includes(itemType)) {
+      throw invalid(
+        `${where}: itemType ${JSON.stringify(itemType)} is not one of the game's inventory kinds ` +
+          `(${ICON_ITEM_TYPES.join(", ")})`,
+      );
+    }
+    const field = ICON_ID_FIELDS[itemType];
+    const named = idOf(raw[field], `${where}.${field}`);
+    // A produce entry carries the mutations the crop it is was picked with, and the game draws the
+    // composed crop rather than the plain art for one; a seed's icon is the seed art either way. A **charged
+    // tool** — a shard in the bag — is drawn as the crystal it holds rather than from its own name, which is
+    // the game's own predicate (`itemType: "Tool"` and the entry states `remainingActiveSeconds`).
+    return {
+      id,
+      kind,
+      itemType,
+      at,
+      [field]: named,
+      mutations: mutationsOf(raw.mutations, where),
+      charged: booleanOf(raw.charged, false),
+    };
+  }
+
+  // The three kinds a garden tile can hold instead of a species. None of them has one, and each states
+  // the id the game's own sprite-name table is keyed by, so nothing about the art is guessed from a name
+  // built here: a `decor` states a `decorId`, an `egg` an `eggId`, a `crystal` the type the item is named
+  // by (`Hunger` for `sprite/item/HungerCrystal`).
+  if (kind === "egg") {
+    return { id, kind, eggId: idOf(raw.eggId, `${where}.eggId`), at, ...windowOf(raw) };
+  }
+  if (kind === "crystal") {
+    return {
+      id,
+      kind,
+      crystalType: idOf(raw.crystalType, `${where}.crystalType`),
+      at,
+      // The charge the crystal holds, which is what the game draws it at: one shard is four hours and a
+      // crystal is three of them, and the save states the rest of it as `remainingActiveSeconds`.
+      remainingSeconds: secondsOf(raw.remainingSeconds, `${where}.remainingSeconds`),
+    };
+  }
+  if (kind === "decor") {
+    return {
+      id,
+      kind,
+      decorId: idOf(raw.decorId, `${where}.decorId`),
+      at,
+      // A decoration stacks by its own depth offset, which the game derives from the id and this rotation
+      // (`fr(decorId, rotation).y`, `cropPlacement.js`). Degrees, and `0` is what a tile that states none
+      // stands at.
+      rotation: numberOrNull(raw.rotation) ?? 0,
+    };
+  }
+
+  const species = nameOf(raw.species);
+  if (species === null) throw invalid(`${where}: species must be a non-empty string`);
 
   if (kind === "crop") {
     return {
@@ -253,14 +388,7 @@ function itemOf(raw, index, seenIds) {
       size,
       mutations: mutationsOf(raw.mutations, where),
       flipped: booleanOf(raw.flipped, false),
-      // A crop that is still growing states its window and how much of it is left, and the API applies
-      // the growth the way the game animates it — the window is `startTime` to `endTime`, and the moment
-      // is `endTime − remainingMs`, which is the pair of fields the wire itself carries for a crop.
-      // `ready: true` asks for the ripe picture whatever the window says.
-      startTime: integerOf(raw.startTime),
-      endTime: integerOf(raw.endTime),
-      remainingMs: integerOf(raw.remainingMs),
-      ready: booleanOf(raw.ready, null),
+      ...windowOf(raw),
     };
   }
 
@@ -270,12 +398,13 @@ function itemOf(raw, index, seenIds) {
     throw invalid(`${where}: crops must be an array`);
   }
 
-  const cropEntries = (raw.crops ?? []).map((crop, cropIndex) => cropOf(crop, `${where}.crops[${cropIndex}]`, cropIndex, kind));
+  const cropEntries = (raw.crops ?? []).map((crop, cropIndex) => cropOf(crop, `${where}.crops[${cropIndex}]`, cropIndex));
 
   if (kind === "patch") {
-    if (cropEntries.length === 0) {
-      throw invalid(`${where}: a patch needs at least one crop; "crops" is what the cluster is made of`);
-    }
+    // A patch with no sprigs is not refused: a cluster that has been harvested down to nothing is the plant
+    // itself, which is what the game draws on that tile, and `layOutPatch` already draws the plant's own art
+    // (`plantArt`) under the sprigs whether there are any or not. Refusing it made an empty tile a hole no
+    // caller could fill.
     return {
       id,
       kind,
@@ -306,8 +435,13 @@ function itemOf(raw, index, seenIds) {
  * a crop that states none is the next one. A `patch`'s sprigs are not placed by a slot table — the
  * game places them by the save's per-crop `x`/`y`/`rotation` — so a sprig may still state a slot (it
  * is the index in the game's own crop list) but nothing places it by one.
+ *
+ * `at` is read for both kinds, because the game places a crop by its own save in both: a patch's
+ * sprig stands where the save put it, and a single-harvest plant drawn as an **icon** (`potted`)
+ * squeezes that same place towards the plant's middle. A multi-harvest plant ignores it — its crops
+ * are placed by slot — so the field is read and unused, never an error.
  */
-function cropOf(crop, where, cropIndex, kind) {
+function cropOf(crop, where, cropIndex) {
   if (!isRecord(crop)) throw invalid(`${where}: a crop must be an object`);
   const slot = integerOf(crop.slot);
   if (crop.slot !== undefined && (slot === null || slot < 0)) {
@@ -323,16 +457,10 @@ function cropOf(crop, where, cropIndex, kind) {
     // the slot's own angle, so two tomatoes on one vine sit at different angles), and the start of the
     // window its growth is measured across. Absent is read as `0` for the turn, the same way the game's
     // own client reads a slot whose time it cannot see.
-    startTime: integerOf(crop.startTime),
-    // The rest of the growth window, which is the same pair a bare crop states: the window's end, how
-    // much of it is left (the moment is `endTime − remainingMs`), and the wire's own ripe flag. A crop
-    // that states none of them is drawn ripe, which is what every spec did before growth existed.
-    endTime: integerOf(crop.endTime),
-    remainingMs: integerOf(crop.remainingMs),
-    ready: booleanOf(crop.ready, null),
+    ...windowOf(crop),
     // A place inside the tile, when the crop states one; three nulls mean "let the composer place
-    // me", which for a patch is the game's own scatter.
-    at: kind === "patch" ? placeOf(crop.at, where) : null,
+    // me", which for a patch is the game's own scatter and for a potted plant the middle of the pot.
+    at: placeOf(crop.at, where),
   };
 }
 
@@ -424,8 +552,10 @@ export function normalizeSpec(raw) {
     canvas,
     background,
     items,
-    // Kept for the layout's own reporting: the species a spec names, in a canonical order.
-    species: sortedUnique([...items.map((item) => item.species)]),
+    // Kept for the layout's own reporting: the species a spec names, in a canonical order. The three
+    // kinds that carry no species — an egg, a crystal and a decoration — are named by their own ids
+    // instead, which the items above carry, so nothing here is padded with a species they do not have.
+    species: sortedUnique(items.map((item) => item.species).filter((name) => typeof name === "string")),
   };
 }
 

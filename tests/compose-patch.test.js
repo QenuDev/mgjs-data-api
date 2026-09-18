@@ -453,16 +453,47 @@ test("une patch au-dessus de la capacité de l'espèce est refusée par une erre
   assert.equal(notPatch.status, 400);
   assert.equal((await notPatch.json()).error.code, "COMPOSE_PATCH_NOT_A_PATCH");
 
-  // Hors ligne, la faute est dans le normalisateur pour `crops` et dans la mise en page pour la
-  // capacité : les deux passent par la même erreur nommée.
-  assert.throws(
-    () => normalizeSpec({ spec: SPEC_VERSION, items: [{ id: "a", kind: "patch", species: "Clover" }] }),
-    (error) => error instanceof ComposeSpecError && /at least one crop/.test(error.message),
-  );
-  assert.throws(
-    () => normalizeSpec({ spec: SPEC_VERSION, items: [{ id: "a", kind: "patch", species: "Clover", crops: [] }] }),
-    (error) => error instanceof ComposeSpecError && /at least one crop/.test(error.message),
-  );
+  // Une patch **sans** brins n'est pas une faute : c'est la plante seule, la tuile d'une grappe entièrement
+  // récoltée. Elle se normalise, et la mise en page dessine l'art de la plante sous les brins — il n'y en a
+  // aucun, donc elle le dessine seul.
+  for (const raw of [
+    { spec: SPEC_VERSION, items: [{ id: "a", kind: "patch", species: "Clover" }] },
+    { spec: SPEC_VERSION, items: [{ id: "a", kind: "patch", species: "Clover", crops: [] }] },
+  ]) {
+    const normalized = normalizeSpec(raw);
+    assert.equal(normalized.items[0].kind, "patch");
+    assert.deepEqual(normalized.items[0].crops, []);
+  }
+});
+
+test("une patch dont tous les brins sont récoltés dessine la plante seule", async (t) => {
+  await cleanCache();
+  const api = await startTestApp();
+  t.after(async () => {
+    await api.close();
+    await cleanCache();
+  });
+
+  // Le cas que l'API refusait : `kind: "patch"` avec `crops: []`. Le jeu ne laisse pas la tuile vide — la
+  // plante est là — donc la disposition doit rendre l'art de la plante, exactement comme un `plant` sans
+  // culture.
+  const empty = await layoutOf(api, {
+    spec: SPEC_VERSION,
+    items: [{ id: "empty", kind: "patch", species: "Clover" }],
+  });
+  assert.equal(empty.status, 200);
+  const bare = await layoutOf(api, {
+    spec: SPEC_VERSION,
+    items: [{ id: "bare", kind: "plant", species: "Clover", matured: true }],
+  });
+  assert.equal(bare.status, 200);
+
+  const laid = (await empty.json()).items[0];
+  const plant = (await bare.json()).items[0];
+  assert.equal(laid.kind, "patch", "la disposition dit quel chemin a dessiné");
+  assert.deepEqual(laid.crops, [], "aucun brin");
+  assert.deepEqual(laid.sprites, ["sprite/plant/CloverThreeLeaf"], "l'art de la plante, seul");
+  assert.deepEqual(laid.box, plant.box, "la même image qu'un plant sans culture");
 });
 
 test("la règle du sprite du jeu : une culture Single dessine l'art de la plante", async (t) => {

@@ -828,6 +828,7 @@ paths:
                       plant:
                         name: "Carrot Plant"
                         harvestType: "Single"
+                        kind: "plant"
                         sprite: "/assets/sprites/plants/BabyCarrot.png"
                       crop:
                         name: "Carrot"
@@ -3210,10 +3211,39 @@ paths:
         species whose table sets `rotateSlotOffsetsRandomly`, by `35 − startTime % 70` degrees. Such
         a crop is also drawn with its species' `plantTransform` pivot, which is what keeps a size-100
         fruit attached at the same point of its own art as a size-50 one. A single-harvest plant
-        states no places at all: its sprigs stand where the spec puts them, or where the game's own
-        scatter lays a cluster out when the spec states none. Tiles are painted in the game's world
+        states no places of its own: its sprigs stand where the spec puts them, or where the game's own
+        scatter lays a cluster out when the spec states none — and a single-harvest plant drawn as an
+        **icon** (`potted`) keeps each sprig's own place too, squeezed towards the middle of the pot and
+        fanned out by its index, which is the game's own `vi` layout (`0.4` across, `0.15` down, dropped
+        `0.05`, fanned `index × 137 % 30 − 15` degrees; a lone crop sits just below the middle unturned).
+        A sprig of a potted plant that states no place is the pot's middle, never the tile scatter's.
+        Tiles are painted in the game's world
         order — a thing lower on the screen is drawn in front — whatever order the spec listed them
         in; `layout.items` stays in the normalised (id) order so a caller has both.
+
+        **An inventory icon is the game's own 256-pixel square.** `kind: "icon"` draws one entry the way
+        the game's icon builder does: the art contained at `(256 × fill) / max(width, height)` — the
+        builder's own `targetSize / max(width, height, 1)` — and centred on both axes, which is what its
+        own `256/2 − (0.5 − anchor) × scaledSize` translation comes to. The shares are the extraction's
+        (`Seed`, `Tool`, `Egg`, `Decor` and `Pet` a whole square, `Produce` 0.4, `Plant` 0.6). A `Produce`
+        icon that states `mutations` is the species' crop **composed** with them (`crop.ts`'s recipe) and
+        then contained, which is the one item type the game's builder composes mutations for. A **tool**'s
+        art comes from the game's own item table (`/data/items`), which states it per id: an id is not always
+        the name of its art — `HungerShard` is drawn from `sprite/item/HungerCrystalShard` — and a charged
+        tool is the crystal it holds instead. One of the
+        seven is refused by name: a plant's icon is an assembled picture, which `kind: "plant"` with
+        `potted: true` draws. A pet's is its portrait, baked from Rive by the game and exported by this
+        API — one art in the same square at the same share, and refused by name when no portrait has been
+        exported.
+
+        **A tile can hold an egg, a crystal or a decoration, and each is drawn by the game's own
+        rule.** An `egg` is one art at `0.3 + 0.7 × 0.7 × progress` of its size before its window
+        ends and at its full art after it; a `crystal` is one art at
+        `0.85 × min(2, 0.3 + 0.7 × seconds / 14400)` times its size; a `decor` is one art at its own
+        size, moved half a tile by the six decorations the game hangs and stacked with that same
+        offset. All three land the art's **own anchor** on the tile's middle, because none of the
+        game's three views states an anchor of its own. The values and the chunks they were read from
+        are quoted in `src/assets/compose/tileObjects.js`.
 
         **Each item's box is the tight union of what that item actually draws** — its art plus the
         mutation layers that reach past it — which is this API's convention
@@ -3285,6 +3315,61 @@ paths:
                         row: 1
                       size: 71
                       mutations: ["Wet"]
+              tileObjects:
+                summary: An egg, a crystal and a decoration, each on its own tile
+                value:
+                  spec: 2
+                  canvas:
+                    fit: content
+                    padding: 8
+                  background:
+                    kind: tiles
+                    ground: Dirt_A
+                    columns: 3
+                    rows: 1
+                  items:
+                    - id: egg
+                      kind: egg
+                      eggId: CommonEgg
+                      startTime: 1789000000000
+                      endTime: 1789003600000
+                      remainingMs: 1800000
+                      at:
+                        column: 0
+                        row: 0
+                    - id: crystal
+                      kind: crystal
+                      crystalType: Hunger
+                      remainingSeconds: 14400
+                      at:
+                        column: 1
+                        row: 0
+                    - id: lantern
+                      kind: decor
+                      decorId: PaperLantern
+                      rotation: 180
+                      at:
+                        column: 2
+                        row: 0
+              inventoryIcons:
+                summary: Two inventory entries, each in the game's own icon square
+                value:
+                  spec: 2
+                  canvas:
+                    fit: content
+                    padding: 0
+                  items:
+                    - id: seed
+                      kind: icon
+                      itemType: Seed
+                      species: Aloe
+                    - id: produce
+                      kind: icon
+                      itemType: Produce
+                      species: Tomato
+                      at:
+                        column: 1
+                        row: 0
               tiledGround:
                 summary: A ground of the game's own tile art
                 value:
@@ -5255,14 +5340,31 @@ components:
 
     ComposeItem:
       description: |
-        One thing in the scene. `kind: "plant"` draws the species' plant with its pot and the crops in
-        its slots; `kind: "patch"` draws a cluster of the species' crops on one tile — a patch species
-        is one the plant table states `harvestType: "Single"` **and** a `slotCapacity` for, and its
-        `crops` are the sprigs, capped by that capacity; `kind: "crop"` is a bare crop — a menu
-        picture, a seed packet. Every kind takes an optional `at`, the tile the thing occupies; without
-        one the item flows with the rest of the content.
+        One thing in the scene. Three kinds carry a **species**: `kind: "plant"` draws the species'
+        plant with its pot and the crops in its slots; `kind: "patch"` draws a cluster of the species'
+        crops on one tile — a patch species is one the plant table states `harvestType: "Single"`
+        **and** a `slotCapacity` for, and its `crops` are the sprigs, capped by that capacity;
+        `kind: "crop"` is a bare crop — a menu picture, a seed packet. Those three require `species`
+        and take no id of their own.
+
+        Three kinds are the rest of a garden tile's vocabulary, and each is **one art** the game's own
+        sprite-name table names: `kind: "egg"` (an `eggId` and the hatch window it is drawn at),
+        `kind: "crystal"` (a `crystalType` and the charge it holds) and `kind: "decor"` (a `decorId`
+        and the rotation the game hangs it by). None has a species, so each requires its own id field
+        instead, and none states a scale: the API applies the game's own rule (see the route's
+        description).
+
+        One more kind is not on a garden tile at all: `kind: "icon"` draws one **inventory entry** the
+        way the game's own icon builder does — the entry's art contained in the game's 256-pixel icon
+        square at the share that kind of entry fills (0.4 for produce, 0.6 for a plant, the whole square
+        otherwise), centred on both axes. It states an `itemType` (the game's own item-type literal) and
+        the id that type's art is named by; a plant's icon is an assembled picture and a pet's a portrait
+        baked from Rive, and both are refused by name rather than drawn.
+
+        Every kind takes an optional `at`, the tile the thing occupies; without one the item flows
+        with the rest of the content.
       type: object
-      required: [id, species]
+      required: [id]
       properties:
         id:
           type: string
@@ -5272,12 +5374,68 @@ components:
             a content-addressed picture stable.
         kind:
           type: string
-          enum: ["plant", "patch", "crop"]
+          enum: ["plant", "patch", "crop", "egg", "crystal", "decor", "icon"]
           default: "crop"
+        itemType:
+          type: string
+          enum: ["Seed", "Produce", "Plant", "Tool", "Egg", "Decor", "Pet"]
+          description: |
+            `kind: "icon"`: the inventory entry's own item type, which is the game's enum and what its
+            icon builder switches on. Required by that kind and meaningless to the others. It decides
+            both the art (`Seed` is the species' seed sprite, `Produce` the species' crop art — which the
+            sprite-name table keeps under `Plant` — and a tool, an egg and a decoration the table's own
+            entry for the id) and the share of the 256-pixel square the art is fitted to.
+          example: "Produce"
+        toolId:
+          type: string
+          description: '`kind: "icon"`, `itemType: "Tool"`: the tool''s own id, as the sprite-name table holds it.'
         species:
           type: string
-          description: The plant table's key, as `/data/plants` states it
+          description: |
+            The plant table's key, as `/data/plants` states it. Required by `plant`, `patch` and
+            `crop`, and by an `icon` whose `itemType` is `Seed`, `Produce`, `Plant` or `Pet`; an
+            `egg`, a `crystal` and a `decor` state their own id below instead, as does an `icon` of a
+            tool.
           example: "Clover"
+        eggId:
+          type: string
+          description: |
+            `kind: "egg"`: the egg's own id, which the game's sprite-name table holds under `Pet`
+            (an egg draws the pet it hatches from). An id the table does not state is a `400`.
+          example: "CommonEgg"
+        crystalType:
+          type: string
+          description: |
+            `kind: "crystal"`: the crystal's type. The game draws it as the item that type names —
+            `Hunger` is `sprite/item/HungerCrystal`, `XP` is `XPCrystal` — so the type is looked up,
+            never spelled into a path here.
+          example: "Hunger"
+        remainingSeconds:
+          type: number
+          minimum: 0
+          description: |
+            `kind: "crystal"`: the charge it holds, in seconds — the save's own
+            `remainingActiveSeconds`. One shard is four hours (`14400`) and a full crystal three of
+            them, and the game draws it at `0.85 × min(2, 0.3 + 0.7 × seconds / 14400)` times its art.
+            Absent, the art is drawn at its own size.
+          example: 14400
+        decorId:
+          type: string
+          description: |
+            `kind: "decor"`: the decoration's own id, which the game's sprite-name table holds under
+            `Decor`. A decoration whose definition names a differently-spelled artboard
+            (`StoneBirdbath` → `StoneBirdBath`) is a `400` rather than a guess: that table is not
+            published yet.
+          example: "PetHutch"
+        rotation:
+          type: number
+          description: |
+            `kind: "decor"`: the angle the decoration is placed at, in degrees. The game hangs six
+            decorations half a tile off their tile at `0`, `90`, `180` and `270`, which moves both
+            the art and its place in the world stack; every other decoration is drawn at the tile's
+            middle whatever the angle.
+          default: 0
+          example: 180
         at:
           type: object
           description: |
@@ -5333,8 +5491,11 @@ components:
             the plant, one per slot, and a species that states no `slotCapacity` holds exactly one —
             a second crop on such a tile is a `400` (`COMPOSE_PLANT_OVER_CAPACITY`) rather than a
             pile of two, because that is a picture the game never draws. A `"Single"` species with a
-            capacity places its crops by the same scatter a `kind: "patch"` item uses, or squeezes
-            them towards the middle when the item is `potted`.
+            capacity places its crops by the same scatter a `kind: "patch"` item uses, or — when the
+            item is `potted` — squeezes each crop's **own** stated place towards the middle of the pot
+            and fans it out by its index, which is the layout the game draws a plant's icon with. A
+            crop that states no place is the pot's middle. A `"Multiple"` plant places its crops by
+            slot whatever they state, so a place on one of its crops is read and unused.
           items:
             type: object
             properties:
@@ -5346,6 +5507,23 @@ components:
                   gives `slotOffsets[slot]` as the place, and a slot the table does not place is
                   refused by name. A slot may name the species the crop is drawn as
                   (`speciesOverride`), which is how `ThunderCelestial`'s stormcaps are drawn.
+              at:
+                type: object
+                description: |
+                  Where the **save** put this crop, in the same units as an item's own `at`: `x` and
+                  `y` as fractions of a tile and `rotation` in degrees. It is the place a
+                  single-harvest plant's sprig is drawn at — the tile's scatter uses it, and a
+                  `potted` plant's icon squeezes it towards the middle of the pot — and a
+                  multi-harvest plant's crops ignore it, because their places are the blueprint's
+                  `slotOffsets`. Absent means the composer places the crop: the scatter on a tile, the
+                  middle of the pot in an icon.
+                properties:
+                  x:
+                    type: number
+                  y:
+                    type: number
+                  rotation:
+                    type: number
               size:
                 type: integer
                 minimum: 50
@@ -5578,6 +5756,26 @@ components:
               type: string
               enum: ["Single", "Multi"]
               description: Single harvest or multiple harvests
+            slotCapacity:
+              type: integer
+              description: |
+                How many crops a tile of this species holds, when the game states one. A `patch` species is
+                exactly the species that states both `harvestType: "Single"` and this field.
+            kind:
+              type: string
+              enum: [plant, patch, crop]
+              description: |
+                The `kind` to send `POST /compose` for a tile of this species.
+
+                - `patch` — `harvestType: "Single"` **and** a `slotCapacity`: a cluster of sprigs, each placed
+                  by the save. A patch with no sprigs left is the plant alone, and composes as one.
+                - `crop` — `Single`, no capacity, and this species' plant art **is** its crop art: it has no
+                  plant of its own, so its tile is drawn as that one crop.
+                - `plant` — everything else: a body with its crops in its slots.
+
+                Stated here because this API is what enforces the rule (`COMPOSE_PATCH_NOT_A_PATCH` names the
+                kind to send). The art comparison above is only conclusive **after** the capacity test: 27 of
+                the game's 70 species share their two art paths, and four of those are real patches.
               example: "Single"
             sprite:
               type: string

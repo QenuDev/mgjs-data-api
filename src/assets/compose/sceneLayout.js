@@ -39,22 +39,27 @@
 // box is 213×306 where the tight union is 116×169. The package's placement *inside* those boxes is
 // what is shared, and a test asserts that agreement where the two conventions coincide.
 
-import { boxOf, REFERENCE_TILE_PX } from "@mg.js/art";
+import { boxOf, iconArt, REFERENCE_TILE_PX } from "@mg.js/art";
 
 import { initSprites } from "../sprites/sprites.js";
 import {
   artTables,
   cropMultiplier,
   cropRecipe,
+  decorArtPath,
   drawnFrame,
   plantArt,
   plantRecords,
   plantPicture,
+  portraitFrame,
+  spriteFrames,
+  toolArtName,
 } from "./artBridge.js";
-import { assertWithinCanvas, ComposeSpecError, normalizeSpec, SPEC_VERSION } from "./spec.js";
+import { assertWithinCanvas, ComposeSpecError, ICON_ITEM_TYPES, normalizeSpec, SPEC_VERSION } from "./spec.js";
 import { scatterPlaces } from "./sceneScatter.js";
 import { materialKindOf } from "./materials.js";
 import { growthOf } from "./growth.js";
+import { chargedToolArtName, crystalScale, decorOffset, eggScale } from "./tileObjects.js";
 import {
   CROP_LAYER,
   iconPlace,
@@ -79,6 +84,33 @@ import {
  * `tests/compose-layout.test.js` pins it there — and it is a number no request can move.
  */
 export const TILE_STEP_PX = REFERENCE_TILE_PX;
+
+/**
+ * The game's own icon square, in the reference tile's pixels.
+ *
+ * It is the literal the game's icon builder is called with (`ji(…, 256)`) and the frame the texture it
+ * generates carries (`new Rectangle(0, 0, 256, 256)`), so an icon is composed at exactly one tile's
+ * size — which is why an `icon` item's `at` places it the way any other item's does.
+ */
+export const ICON_BOX_PX = 256;
+
+/** The field an icon item's art is named in, for an error that has to say which one was empty. */
+const ICON_ID_FIELDS = Object.freeze({
+  Seed: "species",
+  Produce: "species",
+  Plant: "species",
+  Tool: "toolId",
+  Egg: "eggId",
+  Decor: "decorId",
+  // A pet is named by its species too, even though its icon is baked rather than drawn from a sprite:
+  // the bake is addressed by the species, which is why the field is stated rather than left out.
+  Pet: "species",
+});
+
+/** The id field of one item type, or `id` for a type the game's own enum does not name. */
+function iconIdField(itemType) {
+  return ICON_ID_FIELDS[itemType] ?? "id";
+}
 
 /** The pot every potted plant stands in, as the game's atlas names it. */
 const POT_NAME = "PlanterPot";
@@ -230,8 +262,287 @@ async function layOutCrop(item) {
   });
 }
 
+/**
+ * One art standing on a tile: the sprite one of the game's own sprite-name tables states, drawn at
+ * the scale the kind's own rule gives, with the **art's own anchor** on the tile's middle.
+ *
+ * This is the whole picture an egg, a crystal or a decoration has. The game builds each of them the
+ * same way — one sprite from a name, no anchor and no pivot stated, so the frame's own anchor is the
+ * point that lands on the tile and the art scales about it — which is why they share this function
+ * and differ only in their sprite and their scale. `tileObjects.js` quotes the three rules.
+ *
+ * `offsetPixels` is the decoration's own: the game moves a hanging decoration half a tile and feeds
+ * the same y to its depth key, so it is added to the place rather than kept apart from it.
+ */
+async function tileObjectArt(item, { path, scale = 1, offsetPixels = null }) {
+  // The sprite index has to be loaded before a frame can be resolved, the same way `plantArt` loads it
+  // before `plantPicture` asks for a species' art.
+  await initSprites();
+  const frame = drawnFrame(path);
+  if (frame === null) return null;
+
+  const point = placedPoint(item);
+  const offset = offsetPixels ?? { x: 0, y: 0 };
+  // The art's anchor is the point the game pins to the tile, so the rectangle's corner is the anchor
+  // less the art's own size — the same arithmetic `pictureOf` does for a crop, with one layer.
+  const width = frame.box.width * scale;
+  const height = frame.box.height * scale;
+  const layer = {
+    sprite: path,
+    left: point.x + offset.x - frame.box.anchorX * width,
+    top: point.y + offset.y - frame.box.anchorY * height,
+    width,
+    height,
+  };
+  return laidItem(item, {
+    box: boxOf([layerBox(layer)]),
+    layers: [layer],
+    sprites: [path],
+    // The depth the world stack gives this kind is the kind's own (`objectLayer`), and the decoration's
+    // offset moves its place in that stack half a tile; `paintedOrder` reads this.
+    depthOffsetYPixels: offset.y,
+  });
+}
+
+/**
+ * An `egg` item: the art its `eggId` names, at the size its window says it has reached.
+ *
+ * The art is the game's own hop, not a name built here: an egg's tile object holds the egg
+ * blueprint's sprite, and that sprite is the sprite-name table's `Pet` entry for the id
+ * (`installWorldSystems-2I5vu80Q.js`'s `Ht[eggId].sprite`, `tileObjects.js`).
+ */
+async function layOutEgg(item) {
+  const tables = await artTables();
+  const path = tables?.spriteNames?.Pet?.[item.eggId] ?? null;
+  if (path === null) {
+    return { error: `items: ${item.id}: the game's sprite-name table states no egg art for ${item.eggId}` };
+  }
+  const laid = await tileObjectArt(item, { path, scale: eggScale(item) });
+  if (laid === null) return { error: `items: ${item.id}: the atlas holds no frame for ${path}` };
+  return laid;
+}
+
+/**
+ * A `crystal` item: the art its type names, at the size its charge says.
+ *
+ * The type names the sprite through the game's own table, which spells the crystal after the item it
+ * is drawn as (`Hunger` is `sprite/item/HungerCrystal`, `XP` is `XPCrystal`), and the charge is the
+ * save's `remainingActiveSeconds`.
+ */
+async function layOutCrystal(item) {
+  const tables = await artTables();
+  const path = tables?.spriteNames?.Item?.[`${item.crystalType}Crystal`] ?? null;
+  if (path === null) {
+    return { error: `items: ${item.id}: the game's sprite-name table states no crystal art for ${item.crystalType}` };
+  }
+  const laid = await tileObjectArt(item, { path, scale: crystalScale(item.remainingSeconds) });
+  if (laid === null) return { error: `items: ${item.id}: the atlas holds no frame for ${path}` };
+  return laid;
+}
+
+/**
+ * A `decor` item: the art its `decorId` names, at the art's own size, where the game puts it.
+ *
+ * The id is looked up in the sprite-name table's `Decor` category, which is the table the game's own decor
+ * definitions resolve to (`kn[decorId].art`, either the path itself or its `artboardName` in that category).
+ * Eight of the game's decorations are Rive artboards, and that category is keyed by the **artboard's** name,
+ * which is not the id (`StoneBirdbath` → `StoneBirdBath`) — so the lookup falls back to the artboard spelling
+ * (`artBridge.js`'s `decorArtPath`, the same reconciliation `decorTransformer.js` and `/data/pets` use).
+ *
+ * A decoration that resolves under neither spelling is refused by name: drawing one from a name built here
+ * would be a picture of some other decoration.
+ */
+async function layOutDecor(item) {
+  const path = await decorArtPath(item.decorId);
+  if (path === null) {
+    return {
+      error:
+        `items: ${item.id}: the game's sprite-name table states no decor art under the id ${item.decorId}, ` +
+        `nor under its artboard's own spelling`,
+    };
+  }
+  // The offset table stays keyed by the **id**: the game's own hanging set names six ids, and the artboard
+  // spelling must not travel into this lookup.
+  const laid = await tileObjectArt(item, { path, offsetPixels: decorOffset(item.decorId, item.rotation) });
+  if (laid === null) return { error: `items: ${item.id}: the atlas holds no frame for ${path}` };
+  return laid;
+}
+
+/**
+ * An `icon` item: one inventory entry, drawn the way the game's own icon builder draws it.
+ *
+ * The rule is the game's and this function only applies it (`@mg.js/art`'s `iconArt` answers which
+ * sprite and which share, out of the extraction's own `icon-fill` table, and
+ * `.logs/render/bundle-icon-fit.md` quotes the builder):
+ *
+ *   * the picture is the game's **256-pixel icon square** — the builder's `(0, 0, 256, 256)` frame;
+ *   * the entry's art is **contained** in it at `scale = (256 x fill) / max(width, height)`, in the
+ *     art's own logical pixels, which is the builder's own `targetSize / max(width, height, 1)`;
+ *   * it is **centred on both axes**, `256 / 2` from each edge — the anchor term cancels, because the
+ *     builder's own translation is `256/2 - (0.5 - anchor) x scaledSize`, so any anchor lands centred.
+ *
+ * The sprite per item type is the game's own hop rather than a name built here (`iconArt` states
+ * each): a seed is the species' seed art, a produce the species' crop art — which the sprite-name
+ * table keeps under `Plant` — and a tool, an egg and a decoration the table's own entry for the id
+ * the entry carries. A **tool** also has the game's item table to answer with, and it is read first:
+ * an item id is not always the name of its art (`HungerShard` is drawn from `HungerCrystalShard`), and
+ * that table is where the game states the hop. The two kinds that are not one sprite are refused by
+ * name: a plant's icon is an assembled picture and a pet's is a portrait baked from Rive.
+ */
+async function layOutIcon(item) {
+  const [records, tables, frames] = await Promise.all([plantRecords(), artTables(), spriteFrames()]);
+  // `tables` is the game's own `/data/art`, which is where every icon's sprite name is read from.
+  const art = iconArt(
+    {
+      itemType: item.itemType,
+      species: item.species,
+      toolId: item.toolId,
+      eggId: item.eggId,
+      decorId: item.decorId,
+    },
+    { plants: records, spriteNames: tables?.spriteNames ?? {}, frames, fills: tables?.iconFills },
+  );
+  // The two kinds that are not one art are answered first, before any art is resolved: a plant's icon is
+  // an assembled picture, which `kind: "plant"` already draws.
+  if (art.kind === "picture") {
+    return {
+      error:
+        `items: ${item.id}: a Plant icon is the plant's own assembled picture rather than one sprite; ` +
+        `state kind "plant" with potted: true for it`,
+    };
+  }
+  // A produce entry that wears mutations is not one sprite: the game draws the species' crop composed
+  // with them, which is the picture `cropRecipe` answers. So the whole picture is contained in the icon
+  // square by the same rule, layer for layer, rather than one art. A spec is held to this **before** any
+  // art is resolved, so a bad request is answered with the reason rather than with an atlas problem.
+  if (item.mutations.length > 0) {
+    if (item.itemType !== "Produce") {
+      return {
+        error:
+          `items: ${item.id}: a ${item.itemType} icon is one art in the game's own builder, which composes ` +
+          `mutations for a Produce entry only; ${item.mutations.length} mutation(s) were stated`,
+      };
+    }
+    const recipe = await cropRecipe(item.species, item.mutations);
+    if (recipe === null) {
+      return { error: `items: ${item.id}: ${item.species} has no composed picture the tables and the atlas both state` };
+    }
+    const picture = pictureOf(recipe, 1);
+    if (picture === null) return { error: `items: ${item.id}: no picture could be composed for ${item.species}` };
+    const point = tileOrigin(item.at);
+    const iconLeft = point.x - ICON_BOX_PX / 2;
+    const iconTop = point.y - ICON_BOX_PX / 2;
+    const fit = (ICON_BOX_PX * art.fill) / Math.max(picture.box.width, picture.box.height, 1);
+    // The picture's own box is measured about the art's **anchor**, which is the origin of the space its
+    // layers are in — so its `left`/`top` are usually negative, and the shift that centres it is the
+    // square's middle less the box's *middle*, not less half its size (`pictureOf` states the box; the
+    // anchor is the origin). The first cut of this used half the size, and every mutated produce icon sat
+    // an art's reach up and to the left of where it belongs.
+    const shiftX = ICON_BOX_PX / 2 - (picture.box.left + picture.box.width / 2) * fit;
+    const shiftY = ICON_BOX_PX / 2 - (picture.box.top + picture.box.height / 2) * fit;
+    const layers = picture.layers.map((layer) => ({
+      ...layer,
+      left: iconLeft + shiftX + layer.left * fit,
+      top: iconTop + shiftY + layer.top * fit,
+      width: layer.width * fit,
+      height: layer.height * fit,
+    }));
+    const composed = laidItem(item, {
+      box: boxOf(layers.map((layer) => layerBox(layer))),
+      layers,
+      sprites: [...new Set(layers.map((layer) => layer.sprite).filter(Boolean))],
+    });
+    return {
+      ...composed,
+      icon: { left: iconLeft, top: iconTop, width: ICON_BOX_PX, height: ICON_BOX_PX },
+    };
+  }
+
+  // A pet's icon is its portrait, baked from Rive by the game and exported to disk by this API: one art,
+  // in the same 256-pixel square, at the same share — only the frame comes from the export's own sidecar
+  // rather than from the atlas (`artBridge.js`'s `portraitFrame`, and `atlasPixels.js`'s `spritePng`,
+  // which already falls back to those PNGs for the pixels).
+  let sprite = art.sprite;
+  let frame;
+  if (art.kind === "baked") {
+    const portrait = await portraitFrame(item.species);
+    if (portrait === null) {
+      return {
+        error:
+          `items: ${item.id}: no portrait of ${item.species} has been exported from Rive, so this API has ` +
+          `no picture of it; the export writes one per pet under \`sprite/pet/<name>\``,
+      };
+    }
+    sprite = portrait.key;
+    frame = portrait;
+  } else if (item.itemType === "Tool" && item.charged === true) {
+    // A charged tool is drawn as the crystal it holds rather than from the shard's own name: the game maps
+    // the shard back to a crystal and draws *that* (`tileObjects.js` quotes `hn` and `pn`), so this is a
+    // table read on the name the entry carries, and a shard the game does not name is refused.
+    const artName = chargedToolArtName(item.toolId);
+    if (artName === null) {
+      return {
+        error:
+          `items: ${item.id}: ${item.toolId} is a charged tool, and the game's own shard-to-crystal switch ` +
+          `names no crystal for it, so this API has no art to draw`,
+      };
+    }
+    const path = tables?.spriteNames?.Item?.[artName] ?? null;
+    if (path === null) {
+      return { error: `items: ${item.id}: the game's sprite-name table states no art for ${artName}` };
+    }
+    sprite = path;
+    frame = drawnFrame(path);
+    if (frame === null) return { error: `items: ${item.id}: the atlas holds no frame for ${path}` };
+  } else {
+    // A tool's art is the one the game's own item table states for it, and the id is not always that art's
+    // name: the three pet-effect shards are `HungerShard`, `XPShard` and `StrengthShard`, and the items table
+    // draws them with `sprite/item/HungerCrystalShard`, `XPCrystalShard` and `StrengthCrystalShard` — an extra
+    // `Crystal` the id does not carry, which is why looking the id up by name refuses them. The hop is the
+    // table's own (`sprite: T.Item.<name>` in the game's item records), so it is read rather than built.
+    // A charged shard is the crystal it holds instead (the branch above); a tool with no record, or a record
+    // that states no sprite, keeps the name lookup's answer.
+    const stated = item.itemType === "Tool" ? await toolArtName(item.toolId) : null;
+    const path = stated ?? art.sprite;
+    if (path === null) {
+      return { error: `items: ${item.id}: the game's tables state no art for ${item.itemType} ${item[iconIdField(item.itemType)]}` };
+    }
+    sprite = path;
+    frame = drawnFrame(path);
+    if (frame === null) return { error: `items: ${item.id}: the atlas holds no frame for ${path}` };
+  }
+
+  const scale = (ICON_BOX_PX * art.fill) / Math.max(frame.box.width, frame.box.height, 1);
+  const width = frame.box.width * scale;
+  const height = frame.box.height * scale;
+  // The icon square sits on the tile the item names, exactly a reference tile across, with the art
+  // centred inside it.
+  const point = tileOrigin(item.at);
+  const left = point.x - ICON_BOX_PX / 2;
+  const top = point.y - ICON_BOX_PX / 2;
+  const layer = {
+    sprite,
+    left: left + (ICON_BOX_PX - width) / 2,
+    top: top + (ICON_BOX_PX - height) / 2,
+    width,
+    height,
+  };
+  const laid = laidItem(item, {
+    box: boxOf([layerBox(layer)]),
+    layers: [layer],
+    sprites: [sprite],
+  });
+  return {
+    ...laid,
+    // The square the canvas is measured from, which for an icon is the game's own icon box rather than
+    // the art inside it: `box` stays the tight union of what the item draws.
+    icon: { left, top, width: ICON_BOX_PX, height: ICON_BOX_PX },
+  };
+}
+
 /** A `plant` item: the package's recipe for the plant, its pot and the crops in its slots. */
 async function layOutPlant(item) {
+
   const [art, records] = await Promise.all([plantArt(item.species), plantRecords()]);
   if (art === null) return null;
 
@@ -293,7 +604,7 @@ async function layOutPlant(item) {
       ? placedInPatch({
           crop,
           place: item.potted
-            ? iconPlace({ place: PLANT_MIDDLE, index, count: item.crops.length })
+            ? pottedIconPlace(crop, index, item.crops.length)
             : places[index],
           speciesRecord,
         })
@@ -334,36 +645,11 @@ async function layOutPlant(item) {
   const scene = { species: item.species, mature: item.matured === true, weather: null, crops: sceneCrops };
   let recipe = plantPicture(scene, artBySpecies, pot);
   // A single-harvest species is a **patch**: it has no body of its own, so `plantPicture` draws its
-  // crops and nothing else — and a patch with no crops in it has nothing to draw at all, which the
-  // package refuses with `null`. The game does not: a patch is a tile of that art whether or not a
+  // crops and nothing else — and one with no crops in it has nothing to draw at all, which the
+  // package refuses with `null`. The game does not: a tile of that art is drawn whether or not a
   // crop is standing on it (a seed packet, a menu icon, an empty tile), so the species' own art is
-  // drawn once, at the point the plant stands on. That is the same art `plantPicture` would draw for
-  // a crop of this species, at the same anchor, which is why the recipe is not re-derived here.
-  if (recipe === null && sceneCrops.length === 0) {
-    recipe = {
-      species: item.species,
-      box: {
-        left: -art.plant.frame.anchorX * art.plant.frame.width,
-        top: -art.plant.frame.anchorY * art.plant.frame.height,
-        width: art.plant.frame.width,
-        height: art.plant.frame.height,
-      },
-      layers: [
-        {
-          kind: "plant",
-          sprite: art.plant.sprite,
-          left: -art.plant.frame.anchorX * art.plant.frame.width,
-          top: -art.plant.frame.anchorY * art.plant.frame.height,
-          width: art.plant.frame.width,
-          height: art.plant.frame.height,
-          anchorX: art.plant.frame.anchorX,
-          anchorY: art.plant.frame.anchorY,
-          turn: 0,
-          composition: null,
-        },
-      ],
-    };
-  }
+  // drawn once, at the point the plant stands on.
+  if (recipe === null && sceneCrops.length === 0) recipe = barePlantRecipe(item.species, art);
   if (recipe === null) return null;
 
   // The package laid every part out with the plant's own anchor as its origin, so the tile's middle
@@ -532,7 +818,7 @@ function cropLayersOf(recipe, origin, cropAt) {
  * decoding the picture: `place` says where it stands in the tile, `depth` says its turn in the stack.
  * The crop order is the draw order, because the package hands its layers back sorted by that depth.
  */
-function laidItem(item, { box, layers, sprites, descriptors = [] }) {
+function laidItem(item, { box, layers, sprites, descriptors = [], depthOffsetYPixels = 0 }) {
   return {
     id: item.id,
     kind: item.kind,
@@ -541,6 +827,9 @@ function laidItem(item, { box, layers, sprites, descriptors = [] }) {
     box,
     layers,
     sprites,
+    // Where the thing stands for the purpose of the world stack, which only a hanging decoration moves:
+    // the game's own `depthOffsetYPixels` (`cropPlacement.js`'s `worldDepthKey` reads it).
+    depthOffsetYPixels,
     crops: descriptors.map((crop) => ({
       slot: crop.slot,
       // The species the crop is drawn as, which is the item's own unless the slot overrides it (the
@@ -593,6 +882,39 @@ function placeOfCrop(crop) {
  * The sprigs' sizes come from the caller and are never generated: `size` is the game's own 50-to-100
  * band and the curve that turns it into a drawn scale is the species' `maxSizeMultiplier`.
  */
+/**
+ * The species' own art, drawn once at the point the item stands on — for a scene the package refuses to lay
+ * out because it holds no crop at all.
+ *
+ * A single-harvest species has no body of its own: `plantPicture` draws its crops and nothing else, and a tile
+ * of one with no crop standing on it is `null` from the package. The game draws the art anyway — a tile whose
+ * cluster has been harvested down to nothing is still that plant — so the art is drawn here, at the same
+ * anchor, which is why the recipe is not re-derived.
+ */
+function barePlantRecipe(species, art) {
+  const { frame } = art.plant;
+  const left = -frame.anchorX * frame.width;
+  const top = -frame.anchorY * frame.height;
+  return {
+    species,
+    box: { left, top, width: frame.width, height: frame.height },
+    layers: [
+      {
+        kind: "plant",
+        sprite: art.plant.sprite,
+        left,
+        top,
+        width: frame.width,
+        height: frame.height,
+        anchorX: frame.anchorX,
+        anchorY: frame.anchorY,
+        turn: 0,
+        composition: null,
+      },
+    ],
+  };
+}
+
 async function layOutPatch(item) {
   const [art] = await Promise.all([plantArt(item.species)]);
   if (art === null) return null;
@@ -638,7 +960,11 @@ async function layOutPatch(item) {
   }
 
   const scene = { species: item.species, mature: true, weather: null, crops: sceneCrops };
-  const recipe = plantPicture(scene, { [item.species]: art }, null);
+  // A cluster with no sprigs left is the plant alone, which is what the game draws on that tile: the package
+  // has nothing to lay out and answers `null`, so the species' own art is drawn instead (`barePlantRecipe`).
+  const recipe =
+    plantPicture(scene, { [item.species]: art }, null) ??
+    (sceneCrops.length === 0 ? barePlantRecipe(item.species, art) : null);
   if (recipe === null) return null;
 
   const { layers, crops: cropBoxes } = cropLayersOf(recipe, origin, cropAt);
@@ -687,6 +1013,14 @@ function assertPatchSpecies(record, item) {
 }
 
 /**
+ * Whether a spec's place **states a point**: the normaliser fills an absent one with three nulls, and
+ * a crop that states no point is exactly the crop the game's scatter — or the pot's middle — is for.
+ */
+function claimsPlace(at) {
+  return at !== null && at !== undefined && typeof at.x === "number" && typeof at.y === "number";
+}
+
+/**
  * The place of every sprig: the one the spec states, or the game's own scatter for the ones that
  * state none.
  *
@@ -695,18 +1029,33 @@ function assertPatchSpecies(record, item) {
  * than a feature.
  */
 function scatterPatch(item) {
-  // A place is *stated* only when it states a point: the normaliser fills an absent one with three
-  // nulls, and a sprig that states no point is exactly the sprig the game's scatter is for.
-  const claims = (at) => at !== null && at !== undefined && typeof at.x === "number" && typeof at.y === "number";
   const generated = scatterPlaces(item.crops.length, {
     seed: item.id,
-    seeded: item.crops.map((crop) => (claims(crop.at) ? { x: crop.at.x, y: crop.at.y } : null)),
+    seeded: item.crops.map((crop) => (claimsPlace(crop.at) ? { x: crop.at.x, y: crop.at.y } : null)),
   });
   return item.crops.map((crop, index) =>
-    claims(crop.at)
+    claimsPlace(crop.at)
       ? { x: crop.at.x, y: crop.at.y, rotation: crop.at.rotation ?? 0 }
       : generated[index],
   );
+}
+
+/**
+ * Where one crop of a **potted** single-harvest plant stands: its **own** place, squeezed towards the
+ * middle of the pot and fanned out by its index.
+ *
+ * This is the game's icon layout and nothing else: `PlantBody.createCrops` takes the `vi` branch for a
+ * single-harvest plant whose save states a place — `vi(e, t, n)` with `e` the crop's own `x`/`y`/
+ * `rotation` — and the branch is the *plant's* (`isolateRendering`, which is the pot), not the crop's.
+ * A crop that states no place is the pot's middle, which is the one reading the game makes of a slot
+ * whose `x` it cannot see (`else e.slots[0] ? r.push({index: 0, offset: {x: 0, y: 0, rotation: 0}})`) —
+ * the scatter a patch falls back to is for a tile, and a pot is not a tile.
+ */
+function pottedIconPlace(crop, index, count) {
+  const place = claimsPlace(crop.at)
+    ? { x: crop.at.x, y: crop.at.y, rotation: crop.at.rotation ?? 0 }
+    : PLANT_MIDDLE;
+  return iconPlace({ place, index, count });
 }
 
 /**
@@ -841,7 +1190,15 @@ export async function layOutScene(rawSpec) {
         ? await layOutPatch(item)
         : item.kind === "plant"
           ? await layOutPlant(item)
-          : await layOutCrop(item);
+          : item.kind === "egg"
+            ? await layOutEgg(item)
+            : item.kind === "crystal"
+              ? await layOutCrystal(item)
+              : item.kind === "decor"
+                ? await layOutDecor(item)
+                : item.kind === "icon"
+                  ? await layOutIcon(item)
+                  : await layOutCrop(item);
     // A path may refuse an item with a reason of its own — a species with no picture, a slot the
     // blueprint does not place — which is a 400 with the reason rather than a picture missing a crop.
     if (laid !== null && laid.error !== undefined) return { error: laid.error };
@@ -851,7 +1208,9 @@ export async function layOutScene(rawSpec) {
     items.push(laid);
   }
 
-  const boxes = items.map((item) => item.box);
+  // An icon's canvas is the game's icon square rather than the art inside it, so the union reads the
+  // square when the item states one; every other item draws into its own tight box.
+  const boxes = items.map((item) => item.icon ?? item.box);
   if (background !== null) boxes.push(...background.tiles.map((tile) => ({ left: tile.left, top: tile.top, width: tile.width, height: tile.height })));
 
   const content = boxOf(boxes);
@@ -929,12 +1288,18 @@ export async function layOutScene(rawSpec) {
       at: stripNullPlace(item.at),
       box: toPicture(item.box),
       scene: toScene(item.box),
+      // An icon's own square: the game's 256-pixel icon frame, which the canvas is measured from and which
+      // is not the tight box of the art inside it (`layOutIcon`).
+      ...(item.icon === undefined ? {} : { icon: toPicture(item.icon) }),
       // The game's own layer for this kind of thing, which is one term of the world depth key the
       // painting order comes from (`cropPlacement.js`): a tile-standing object is an
       // `OccludingObject` (3), a bare crop — a menu picture, a seed packet — the game's `mounted
       // crop` rung (2). It is not the paint order on its own: `layout.layers` is, and `items` stays
       // in the normalised (id) order so a caller has both.
-      z: item.kind === "crop" ? CROP_LAYER : PLANT_LAYER,
+      z: objectLayer(item.kind),
+      // The offset the thing's own depth carries, which is the game's `depthOffsetYPixels`: half a tile
+      // for a hanging decoration, nothing for everything else (`tileObjects.js`).
+      depthOffsetYPixels: item.depthOffsetYPixels ?? 0,
       sprites: item.sprites,
       crops: item.crops.map((crop) => ({
         slot: crop.slot,
@@ -980,6 +1345,13 @@ export async function layOutScene(rawSpec) {
  * is the tile's own row, the layer says what kind of thing it is, and the body's reach below the
  * tile's middle breaks a tie inside one row — so a plant drawn lower on the screen covers one behind
  * it instead of the other way round.
+ *
+ * `depthYPixels` is the tile's middle **moved by the thing's own depth offset**: `tileObjects.js`
+ * quotes the game's `wl`, which adds `depthOffsetYPixels` to the tile's centre before the key is
+ * built, and a hanging decoration is the only tile object that states one. The layer is the rung the
+ * game's `Qa` gives the kind: a decoration whose `depthBehavior` is `Ground` stacks at `Base` and
+ * every other tile object at `OccludingObject` — and since this API does not publish that table, a
+ * decoration is taken as the latter (`tileObjects.js` states the gap).
  */
 function paintedOrder(items) {
   return items
@@ -987,12 +1359,19 @@ function paintedOrder(items) {
       item,
       index,
       key: worldDepthKey({
-        tileCentreY: ((item.at?.row ?? 0) + 0.5) * TILE_STEP_PX,
+        tileCentreY: ((item.at?.row ?? 0) + 0.5) * TILE_STEP_PX + (item.depthOffsetYPixels ?? 0),
         bodyBottomPixels: item.box.top + item.box.height,
-        layer: item.kind === "crop" ? CROP_LAYER : PLANT_LAYER,
+        layer: objectLayer(item.kind),
         columnX: ((item.at?.column ?? 0) + 0.5) * TILE_STEP_PX,
       }),
     }))
     .sort((left, right) => left.key - right.key || left.index - right.index)
     .map((one) => one.item);
+}
+
+/** The rung of the world stack the game draws a kind of tile object at: `Base`, or `OccludingObject`. */
+function objectLayer(kind) {
+  // A bare crop and an inventory icon are menu pictures rather than things standing in the world, so
+  // they stack at the game's `mounted crop` rung; a tile object stacks at `OccludingObject`.
+  return kind === "crop" || kind === "icon" ? CROP_LAYER : PLANT_LAYER;
 }

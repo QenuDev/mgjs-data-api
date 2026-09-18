@@ -84,8 +84,15 @@ test("une spec malformée est refusée par un code nommé", () => {
     [{ spec: 1 }, "items"],
     [{ spec: 1, items: [] }, "at least one item"],
     [{ spec: 1, items: [{ species: "Clover" }] }, "id"],
-    [{ spec: 1, items: [{ id: "a", kind: "decor", species: "Clover" }] }, "kind"],
+    [{ spec: 1, items: [{ id: "a", kind: "pet", species: "Clover" }] }, "kind"],
     [{ spec: 1, items: [{ id: "a" }] }, "species"],
+    // Les trois sortes d'objet de tuile portent un identifiant et pas une espèce : un identifiant absent
+    // est refusé, parce qu'il ne nomme aucune art.
+    [{ spec: 2, items: [{ id: "a", kind: "egg" }] }, "eggId"],
+    [{ spec: 2, items: [{ id: "a", kind: "crystal" }] }, "crystalType"],
+    [{ spec: 2, items: [{ id: "a", kind: "decor" }] }, "decorId"],
+    [{ spec: 2, items: [{ id: "a", kind: "crystal", crystalType: "Hunger", remainingSeconds: -1 }] }, "negative"],
+    [{ spec: 2, items: [{ id: "a", kind: "crystal", crystalType: "Hunger", remainingSeconds: "3600" }] }, "finite number"],
     [{ spec: 1, items: [{ id: "a", species: "Clover", size: 49 }] }, "band"],
     [{ spec: 1, items: [{ id: "a", species: "Clover", size: 101 }] }, "band"],
     [{ spec: 1, items: [{ id: "a", species: "Clover", at: { column: -1, row: 0 } }] }, "must not be negative"],
@@ -93,14 +100,13 @@ test("une spec malformée est refusée par un code nommé", () => {
     [{ spec: 1, canvas: { fit: "tile" }, items: [{ id: "a", species: "Clover" }] }, "fit"],
     [{ spec: 1, canvas: { padding: 999 }, items: [{ id: "a", species: "Clover" }] }, "padding"],
     [{ spec: 1, background: { kind: "solid" }, items: [{ id: "a", species: "Clover" }] }, "kind"],
-    // Spec 2 : une place est un nombre fini, et une patch a besoin de ses brins.
+    // Spec 2 : une place est un nombre fini. Une patch **sans** brins n'est pas refusée : c'est la plante
+    // seule, ce que le jeu dessine sur une tuile dont la grappe a été récoltée (voir `compose-patch`).
     [{ spec: 2, items: [{ id: "a", species: "Clover", at: { column: 0, row: 0, x: "0.5" } }] }, "x must be a finite number"],
     [
       { spec: 2, items: [{ id: "a", species: "Clover", at: { column: 0, row: 0, rotation: false } }] },
       "rotation must be a finite number",
     ],
-    [{ spec: 2, items: [{ id: "a", kind: "patch", species: "Clover" }] }, "at least one crop"],
-    [{ spec: 2, items: [{ id: "a", kind: "patch", species: "Clover", crops: [] }] }, "at least one crop"],
     [
       { spec: 2, items: [{ id: "a", kind: "patch", species: "Clover", crops: [{ size: 50, at: { x: "0.1" } }] }] },
       "x must be a finite number",
